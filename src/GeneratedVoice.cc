@@ -6,8 +6,8 @@ namespace {
 
 // One phrase per language the models say (VoiceOver.cc's kLanguages). The
 // French one is the bench's (tools/voice-over-benchmark/vo_design.py),
-// heard by the author on 7 November 2026; the others say the same thing and were
-// not heard.
+// heard by the author on 7 November 2026; the others say the same thing and
+// were not heard.
 const std::pair<const char*, const char*> kReferenceTexts[] = {
     {"fr",
      "Bonjour. Je vais vous raconter une histoire. Prenez le temps "

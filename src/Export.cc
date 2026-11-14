@@ -2938,8 +2938,8 @@ bool Exporter::BuildPlan(const Document& document,
         // 4:2:0 and placed an edge on an odd row or column one pixel up or
         // left of where the monitor draws it (VISUAL_QA_CHECKLIST.md, box
         // 161). The delivery format is reached once, at the end of the
-        // chain. Decided by the author on 23 October 2026, at the price of bytes
-        // that change for every unmanaged export.
+        // chain. Decided by the author on 23 October 2026, at the price of
+        // bytes that change for every unmanaged export.
         graph << ",setpts=PTS-STARTPTS+" << firstFrame << "[v" << videoOrdinal
               << "];" << "[base" << videoOrdinal << "][v" << videoOrdinal
               << "]overlay=format=yuv444p10:";

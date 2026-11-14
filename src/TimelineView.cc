@@ -1664,8 +1664,8 @@ void TimelineInteraction::UpdatePreview(double x, double y, double width) {
         }
         return pairs;
     };
-    // The author, 31 October 2026: the trim "ne refuse pas proprement d'étirer un
-    // plan au delà de la limite". A trim that leaves the track in place
+    // The author, 31 October 2026: the trim "ne refuse pas proprement d'étirer
+    // un plan au delà de la limite". A trim that leaves the track in place
     // always stopped at the rush, the neighbour and one frame; a ripple and
     // a roll had no bound, so past the end of the rush the operation was
     // refused, the preview went red and the release did nothing. Each now

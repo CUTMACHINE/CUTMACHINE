@@ -294,8 +294,8 @@ NSString* CMFormatGradeValue(const ui::inspector::GradeControlSpec& spec,
     NSSlider* _opacitySlider;
     NSTextField* _opacityValueLabel;
     NSTimer* _opacityDebounceTimer;
-    // The author, 29 October 2026 -- zoom and position (ClipFraming), one slider
-    // per FramingControl in its order, and fit or fill.
+    // The author, 29 October 2026 -- zoom and position (ClipFraming), one
+    // slider per FramingControl in its order, and fit or fill.
     ClipFraming _framing;
     BOOL _framable;
     int32_t _sequenceWidth;

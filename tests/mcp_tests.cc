@@ -3885,10 +3885,10 @@ void CheckProjectMotifs(const std::filesystem::path& directory) {
               "a choice " + label + " is refused and writes nothing: " +
                   refused.error_name + " " + refused.message);
     }
-    const McpToolCallOutcome chosen =
-        call(backend, "choose_timeline_variant",
-             choose + R"(,"activate":true,"motif":{"reason":"selection",)"
-                      R"("author":"person","note":"l'auteur garde la serrée"}})");
+    const McpToolCallOutcome chosen = call(
+        backend, "choose_timeline_variant",
+        choose + R"(,"activate":true,"motif":{"reason":"selection",)"
+                 R"("author":"person","note":"l'auteur garde la serrée"}})");
     log = journal();
     Project after;
     Check(chosen.ok && log.AppliedCount() == 5 &&

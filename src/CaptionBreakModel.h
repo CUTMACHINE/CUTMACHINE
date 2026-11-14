@@ -80,8 +80,8 @@ struct CaptionBreakCorpusStats {
     size_t lines = 0;
     size_t cards = 0;
     size_t words = 0;
-    // REGLES-2026-10, the author's decision of 12 October 2026: "elle plie // la
-    // nappe" (made-up words), the article stays with its noun. A delivered
+    // REGLES-2026-10, the author's decision of 12 October 2026: "elle plie //
+    // la nappe" (made-up words), the article stays with its noun. A delivered
     // card that ends on a determiner gives it to the next card before
     // anything is learned.
     size_t article_breaks_moved = 0;
@@ -157,8 +157,8 @@ struct CaptionBreakScores {
     int64_t reproduced_cues = 0;
 };
 
-// REGLES-2026-10, 12 October 2026: the author chose between two cuts of the same
-// words, one family at a time. `preferred` is the cut he chose; a score
+// REGLES-2026-10, 12 October 2026: the author chose between two cuts of the
+// same words, one family at a time. `preferred` is the cut he chose; a score
 // respects his choice when ending a cue there costs strictly less. Two hold
 // as rules in his own words (`firm`: the article stays with its noun, the
 // conjunction opens the next carton) and a model must respect them to be
@@ -195,8 +195,8 @@ struct CaptionBreakTrainingReport {
     CaptionBreakScores model_held_out;
     std::vector<CaptionBreakDecisionResult> decisions;
     // The evaluation corpus, never trained on: the ticket's own criterion.
-    // On 15 October 2026 a model trained on the author's Resolve corpus beat the
-    // rule on its held-out projects (30.6 % of cartons against 21.8 %) and
+    // On 15 October 2026 a model trained on the author's Resolve corpus beat
+    // the rule on its held-out projects (30.6 % of cartons against 21.8 %) and
     // lost on the PRJA series (199 cartons to redo against 82): the folds
     // shared the corpus's bias, Resolve's automatic segmentation.
     size_t evaluation_tracks = 0;
@@ -205,8 +205,9 @@ struct CaptionBreakTrainingReport {
     CaptionBreakScores model_evaluation;
     // Whether the model reproduces held-out groups better than the rule
     // (more delivered cues, and a better boundary F1), does the same on the
-    // evaluation corpus when there is one, and respects the author's firm choices.
-    // The forge installs only such a model, and only with an evaluation.
+    // evaluation corpus when there is one, and respects the author's firm
+    // choices. The forge installs only such a model, and only with an
+    // evaluation.
     bool beats_rule = false;
 };
 

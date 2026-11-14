@@ -1,8 +1,8 @@
 // BH3 -- docs/roadmap/BLANC-HLG-2026-10.md. The HLG delivery held to what
 // DaVinci Resolve Studio 21.1 rendered of an S-Log3 chart on 20 October 2026
-// (the author's settings: colour management v2, DaVinci WG/Intermediate, Rec.2020
-// HLG, HDR 1000), and the OpenColorIO chain the export and the graphics use
-// held to its CPU reference, HlgDeliverySignalOf.
+// (the author's settings: colour management v2, DaVinci WG/Intermediate,
+// Rec.2020 HLG, HDR 1000), and the OpenColorIO chain the export and the
+// graphics use held to its CPU reference, HlgDeliverySignalOf.
 #include "ColorEffects.h"
 #include "ColorManagement.h"
 #include "Document.h"

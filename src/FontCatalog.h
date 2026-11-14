@@ -73,9 +73,9 @@ std::vector<std::string> CaptionFontFamilies(const Document& document);
 mcp_json::Value CaptionFontsJson(const std::vector<std::string>& families,
                                  const CaptionFontFinder& finder);
 
-// Decided by the author on 8 October 2026 (ROADMAP.md, « À trancher »): a caption
-// whose family is missing is exported all the same, in another family, and
-// the export says so -- in its answer, and in a warning the window shows
+// Decided by the author on 8 October 2026 (ROADMAP.md, « À trancher »): a
+// caption whose family is missing is exported all the same, in another family,
+// and the export says so -- in its answer, and in a warning the window shows
 // before it starts. Since LG3 the other family is always Helvetica Neue
 // (kCaptionFallbackFamily), where fontconfig used to pick one.
 struct CaptionFontSubstitution {

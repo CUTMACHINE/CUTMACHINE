@@ -47,9 +47,9 @@ struct DeltaClip {
     // Likewise: true while the clip follows a speed ramp (its keys are in
     // describe), false once one is removed.
     std::optional<bool> speed_ramp;
-    // Out of lot -- the author, 29 October 2026. False while the clip is disabled
-    // (set_clip_enabled), true once this mutation enabled it again; absent
-    // means enabled and unchanged, as the file spells it.
+    // Out of lot -- the author, 29 October 2026. False while the clip is
+    // disabled (set_clip_enabled), true once this mutation enabled it again;
+    // absent means enabled and unchanged, as the file spells it.
     std::optional<bool> enabled;
     // True when the clip did not exist before. A caller adds it rather than
     // patching, and knows not to look for a previous position.

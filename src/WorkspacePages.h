@@ -3,8 +3,8 @@
 // ON1, ON2 -- docs/roadmap/ONGLETS-2026-10.md. The window's pages, as
 // Resolve's: one mission each, a bar of tabs at the bottom, Shift and a
 // digit to reach one (DaVinci Resolve 21.1 manual, p. 21: "Shift - 2 through
-// 8", Media first, then Cut, Edit, Fusion, Color, Fairlight, Deliver). The author,
-// 31 October 2026: "chaque onglet a une mission ; ici il y a pas mal de
+// 8", Media first, then Cut, Edit, Fusion, Color, Fairlight, Deliver). The
+// author, 31 October 2026: "chaque onglet a une mission ; ici il y a pas mal de
 // trucs dont j'ai pas besoin dans je monte et qui s'affichent quand même",
 // and the Inspector and the media "trop petits pour être utiles quand je
 // veux travailler vraiment dessus".

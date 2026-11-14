@@ -465,8 +465,8 @@ struct SetMediaGenerationOperation {
 // directly (AddProbedMedia, Ingest.h), from the command line, MCP and the
 // window alike: no journal held an import, Cmd+Z did not take one back, and
 // filing a known rush into the bin an import targeted was not journaled
-// where set_media_bin is. Decided by the author on 23 October 2026: ingestion is
-// an operation, its bin included (PHILOSOPHY.md, principle 2).
+// where set_media_bin is. Decided by the author on 23 October 2026: ingestion
+// is an operation, its bin included (PHILOSOPHY.md, principle 2).
 //
 // `added` are new entries, appended to the library in this order, each
 // mounted as a source (its id, path, rate and duration) appended to the

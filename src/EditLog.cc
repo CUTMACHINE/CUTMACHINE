@@ -243,8 +243,8 @@ std::string HistoryAnchor(const std::vector<Entry>& applied, size_t depth) {
 }
 
 // DEC36 -- docs/roadmap/GENERATIF-2026-10.md. A media's provenance is
-// erased by undo only (decided by the author on 23 October 2026). The mark that a
-// picture was generated must not be one edit away from gone: an edit that
+// erased by undo only (decided by the author on 23 October 2026). The mark that
+// a picture was generated must not be one edit away from gone: an edit that
 // would clear it, or replace it with another, is refused. Undo and redo
 // replay entries the journal already holds, and an intervention's fold
 // replays them on a copy, so none of them comes through here -- only a new

@@ -11,8 +11,8 @@
 // (90 % of the frame).
 //
 // PRD38 -- docs/roadmap/PRODUIT-2026-10b.md. A uniform margin does not know
-// a vertical app's interface: on 29 September 2026 the author judged "not in the
-// safe zone" a 9:16 text this check passed, because Reels and TikTok cover
+// a vertical app's interface: on 29 September 2026 the author judged "not in
+// the safe zone" a 9:16 text this check passed, because Reels and TikTok cover
 // the bottom with the caption and the call to action and the right edge with
 // their buttons. So a zone has a margin per side, and the vertical social
 // one is named (SocialVerticalMotionSafeZone) rather than left to every
@@ -32,8 +32,8 @@
 //
 // M5b -- docs/roadmap/MOTION-2026-09.md. A node marked `decor` in its
 // composition is drawn and not judged, nor are its descendants: the echoes
-// of a marquee that the frame cuts on purpose, a wall of words. The author saw a
-// marquee whose readable phrase was wider than the frame (6 November 2026);
+// of a marquee that the frame cuts on purpose, a wall of words. The author saw
+// a marquee whose readable phrase was wider than the frame (6 November 2026);
 // the check could not say so while the echoes failed it on every frame.
 // What was left out is listed in the report (`decor`), never silently.
 // Found on the same marquee: an element wholly off the frame -- the second

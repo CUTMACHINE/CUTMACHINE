@@ -310,10 +310,10 @@ struct TimelineClipRect {
     bool moving = false;
     bool audio = false;
     std::optional<RationalTime> sync_drift;
-    // Out of lot -- the author, 29 October 2026: "when I trim a shot the waveform
-    // is not cut, it is compressed". The source range this rectangle shows,
-    // speed included: what the waveform drawn under it reads. While a trim
-    // is held it follows the trim preview, so the waveform is cut at the
+    // Out of lot -- the author, 29 October 2026: "when I trim a shot the
+    // waveform is not cut, it is compressed". The source range this rectangle
+    // shows, speed included: what the waveform drawn under it reads. While a
+    // trim is held it follows the trim preview, so the waveform is cut at the
     // edge being dragged; timelineRenderData read the committed source_in
     // and duration, and squeezed the whole committed range into the
     // previewed width. A zero span (a ramp whose integral has no
@@ -383,9 +383,9 @@ constexpr double kTimelineMarkerHitSlop = 3.0;
 // own default (#f5c542, a yellow) sits too close to it.
 inline constexpr char kTimelineMarkerEditorColor[] = "#4da3ff";
 
-// DIALOGUE-2026-10 D4 -- decided by the author on 8 October 2026: an agent points
-// at a moment ("look here") with a marker of a category kept for it, drawn
-// in a colour kept for it, and no new field in the document. The editor
+// DIALOGUE-2026-10 D4 -- decided by the author on 8 October 2026: an agent
+// points at a moment ("look here") with a marker of a category kept for it,
+// drawn in a colour kept for it, and no new field in the document. The editor
 // answers in its note (Maj+M) or resolves it by removing it; the agent reads
 // either back. Orange, apart from the editor's blue and the document's
 // yellow. A marker the editor files in this category reads as the agent's,

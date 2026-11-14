@@ -34,18 +34,20 @@ int main() {
 
     // macOS: the paths the archive, the motion library and the log had
     // before this ticket, byte for byte.
-    CheckEqual(user_directories::ApplicationData("/Users/someone", System::kMacOS),
-               "/Users/someone/Library/Application Support/CUTMACHINE",
-               "macOS data stay in Application Support");
+    CheckEqual(
+        user_directories::ApplicationData("/Users/someone", System::kMacOS),
+        "/Users/someone/Library/Application Support/CUTMACHINE",
+        "macOS data stay in Application Support");
     CheckEqual(user_directories::Logs("/Users/someone", System::kMacOS),
                "/Users/someone/Library/Logs/CUTMACHINE",
                "macOS logs stay in ~/Library/Logs");
 
     // Elsewhere: beside the motion inbox, and the log where a Linux user
     // looks for one.
-    CheckEqual(user_directories::ApplicationData("/home/someone", System::kOther),
-               "/home/someone/.local/share/cutmachine",
-               "Linux data go under ~/.local/share");
+    CheckEqual(
+        user_directories::ApplicationData("/home/someone", System::kOther),
+        "/home/someone/.local/share/cutmachine",
+        "Linux data go under ~/.local/share");
     CheckEqual(user_directories::Logs("/home/someone", System::kOther),
                "/home/someone/.local/state/cutmachine",
                "Linux logs go under ~/.local/state");

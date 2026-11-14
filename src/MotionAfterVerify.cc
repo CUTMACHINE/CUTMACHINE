@@ -195,7 +195,8 @@ bool MotionAfterPngLuma(const std::string& png, int32_t& width, int32_t& height,
             }
             // Over black, rounded to a level, then Pillow's "L": the
             // BT.601 weights in 16-bit fixed point, rounded -- the measure
-            // the earlier numbers were taken with by hand (MotionAfterVerify.h).
+            // the earlier numbers were taken with by hand
+            // (MotionAfterVerify.h).
             uint32_t rgb[3];
             for (int channel = 0; channel < 3; ++channel) {
                 rgb[channel] = (sample[channel] * sample[3] + 127) / 255;

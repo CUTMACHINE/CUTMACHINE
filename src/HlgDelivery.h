@@ -8,8 +8,8 @@
 // picture. Through the ACES 1.1 HDR view, 18 % grey left at 30 % of the HLG
 // signal (about 15 nits on a 1000-nit screen); DaVinci Resolve Studio 21.1
 // puts it at 37 %, as BT.2408 does (38 %), so a film delivered from here came
-// out 0.5 to 0.6 stop darker than the same grade from Resolve. The author chose on
-// 20 October 2026 to follow Resolve.
+// out 0.5 to 0.6 stop darker than the same grade from Resolve. The author chose
+// on 20 October 2026 to follow Resolve.
 //
 // The curve is Resolve's own, measured that day on an S-Log3 chart of 30
 // greys (0.25 % to 3200 % reflectance) rendered in the CUTMACHINE copy of an

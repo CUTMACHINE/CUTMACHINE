@@ -137,9 +137,9 @@ struct ResolveXmlClip {
     int64_t media_in = 0;
     int64_t media_out = 0;
     EffectParamValue speed{1, 1};
-    // Out of lot -- the author, 29 October 2026. A disabled clip (ClipEnabled.h)
-    // travels as the xmeml's own <enabled>FALSE</enabled>, in its place,
-    // rather than being left out. Not yet put in front of Resolve.
+    // Out of lot -- the author, 29 October 2026. A disabled clip
+    // (ClipEnabled.h) travels as the xmeml's own <enabled>FALSE</enabled>, in
+    // its place, rather than being left out. Not yet put in front of Resolve.
     bool enabled = true;
     // R9 -- empty for a clip that frames nothing, which then carries no
     // Basic Motion at all; one key for a still framing, written as the

@@ -32,15 +32,15 @@ struct CaptionBreakModel;
 // DEC4 -- docs/roadmap/REGLES-2026-10.md. A burned-in carton aims at one line
 // of about 20 characters, the style the deliveries measure: a median of 13 to
 // 21 characters per carton in the 31 one-line French files of September, 16
-// in the author's own Resolve tracks. The former default, 42 characters on 60 % of
-// the width, gave 35 long cartons where 64 were delivered. A subtitle file
+// in the author's own Resolve tracks. The former default, 42 characters on 60 %
+// of the width, gave 35 long cartons where 64 were delivered. A subtitle file
 // (--export-srt, --export-vtt) keeps SubtitleSegmentationLimits' 42.
 inline constexpr size_t kCaptionCartonMaximumCharacters = 20;
 
 // A landscape frame holds a wider line: films delivered in 16:9 were
 // subtitled at 32 characters, on one line, where vertical ones kept 20 per
-// carton (decided by the author on 4 November 2026). A square or 4:5 frame has no
-// measured delivery yet, and keeps the vertical 20.
+// carton (decided by the author on 4 November 2026). A square or 4:5 frame has
+// no measured delivery yet, and keeps the vertical 20.
 inline constexpr size_t kCaptionCartonMaximumCharactersLandscape = 32;
 
 // The default of generate_captions' max_characters for a timeline of this

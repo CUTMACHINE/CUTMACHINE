@@ -203,8 +203,8 @@ struct MotionKitInfo {
     // M5b -- docs/roadmap/MOTION-2026-09.md. By piece name, the values the
     // charter gives that piece's own props, beyond the shared roles: the
     // second line of `nom` in colour on white, the brand's logo file for
-    // `logo` (the author, 6 November 2026). The shipped piece stays neutral; the
-    // charter says how this brand wears it. Null when the charter names
+    // `logo` (the author, 6 November 2026). The shipped piece stays neutral;
+    // the charter says how this brand wears it. Null when the charter names
     // none. Each value is checked against the prop it names when the piece
     // is added (ApplyMotionKit): only then are its props known.
     mcp_json::Value pieces;

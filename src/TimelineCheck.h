@@ -205,8 +205,8 @@ struct TimelineGeneratedClip {
     MediaGeneration generation;
 };
 
-// Out of lot -- the author, 29 October 2026. A clip of the timeline taken out of
-// the film by set_clip_enabled: on its track, neither seen nor heard
+// Out of lot -- the author, 29 October 2026. A clip of the timeline taken out
+// of the film by set_clip_enabled: on its track, neither seen nor heard
 // (ClipEnabled.h). Listed beside the checks and judged by none of them, so
 // that a delivery says which shots it leaves out rather than the agent
 // remembering.

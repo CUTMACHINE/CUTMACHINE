@@ -233,8 +233,8 @@ std::optional<int64_t> CameraSpeed(const ShotQualityReport& report,
 // the camera there moved at a median 73 px/s. ITW6 first set 60 px/s and
 // 1.6 s, matching the seven windows an agent had found by hand; that left
 // six rushes with a window and rejected ordinary handheld drift. ITW6b --
-// docs/roadmap/ITW-2026-09.md: the cut the author judged best on this bench used
-// 80 px/s and 1.2 s (17 cutaways, none graded unclean); at those values 11
+// docs/roadmap/ITW-2026-09.md: the cut the author judged best on this bench
+// used 80 px/s and 1.2 s (17 cutaways, none graded unclean); at those values 11
 // rushes hold 141 s of windows instead of 6 and 85 s, and a real move
 // (whip, pan, walk) still clears them. Zoom is estimated from the spread of
 // nine block shifts, so parallax and moving subjects read as zoom too: its

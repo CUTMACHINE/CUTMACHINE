@@ -182,8 +182,8 @@ bool ValidateCurves(const ClipEffect& effect, std::string& error) {
 }
 
 // GR16 -- color.resolve_primaries's params and their bounds, which hold
-// every value of the 46 117 grades read from the author's Resolve libraries on 20
-// October 2026 (gamma reached +-3.998, the offset -5.9 and 8).
+// every value of the 46 117 grades read from the author's Resolve libraries on
+// 20 October 2026 (gamma reached +-3.998, the offset -5.9 and 8).
 struct ResolvePrimariesBound {
     const char* wheel;
     bool master;

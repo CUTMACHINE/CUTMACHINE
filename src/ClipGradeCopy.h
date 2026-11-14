@@ -2,8 +2,8 @@
 // GR11, DEC30 -- docs/roadmap/GRADE-RESOLVE-2026-10.md. Copying one clip's
 // grade onto others, as a colourist copies and pastes a grade on Resolve's
 // Color page: the whole stack of the source clip replaces the stack of each
-// clip named, in one undo step. Decided by the author on 23 October 2026, and only
-// that: neither a LUT per clip nor a gallery of stills.
+// clip named, in one undo step. Decided by the author on 23 October 2026, and
+// only that: neither a LUT per clip nor a gallery of stills.
 //
 // No new operation: a SetClipEffectsOperation per clip whose stack changes,
 // the copies' ids left empty so that the apply names them (each clip keeps

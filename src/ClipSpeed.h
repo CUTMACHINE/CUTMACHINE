@@ -116,8 +116,8 @@ inline bool ClipHasSpeed(const DocumentClip& clip) {
     return !IsUnitSpeed(clip.speed) || ClipHasSpeedRamp(clip);
 }
 
-// R4 -- docs/roadmap/REEL-2026-09.md, decided by the author on 8 October 2026. A
-// freeze frame is a picture clip at speed 0/1: THE RULE below names
+// R4 -- docs/roadmap/REEL-2026-09.md, decided by the author on 8 October 2026.
+// A freeze frame is a picture clip at speed 0/1: THE RULE below names
 // floor(source_in * R_src) for every output frame, the one frame held for
 // the clip's whole duration, and the clip reads no span of its source. No
 // new kind of clip: everything that already names a frame through this file

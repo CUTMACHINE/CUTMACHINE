@@ -1217,8 +1217,8 @@ bool SameFraction(const EffectParamValue& left, const EffectParamValue& right) {
 
 // Two clips that frame their picture alike and hold it there. A punch-in,
 // a reframe or a moving framing on either side changes the shot, which is
-// how an editor breaks a jump without a cutaway (the author's Resolve pass of 30
-// October 2026: seven films of eleven).
+// how an editor breaks a jump without a cutaway (the author's Resolve pass of
+// 30 October 2026: seven films of eleven).
 bool SameStillFraming(const DocumentClip& left, const DocumentClip& right) {
     for (const DocumentClip* clip : {&left, &right}) {
         for (const ClipAnimatedParameter parameter :

@@ -10,8 +10,8 @@
 // and its source_in keeps the sample the measure found. Nothing new in the
 // document: a paste that refuses to cover what the track already holds, a
 // link to the picture's group, which records the exact phase, and -- decided
-// by the author on 8 October 2026 -- the camera's own sound kept, linked, on its
-// track turned off rather than removed.
+// by the author on 8 October 2026 -- the camera's own sound kept, linked, on
+// its track turned off rather than removed.
 
 #include "Document.h"
 #include "Operations.h"

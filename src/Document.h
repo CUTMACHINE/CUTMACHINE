@@ -606,12 +606,12 @@ struct DocumentClip {
     // frame shows is ClipAnimation.h's answer, and nothing else computes
     // it.
     std::vector<ClipParameterAnimation> animation;
-    // Out of lot -- the author, 29 October 2026: Resolve's Clip > Enable/Disable
-    // Clip (D). A disabled clip keeps its place, its length, its links and
-    // its grade, and is neither seen nor heard anywhere the timeline plays
-    // or renders; ClipEnabled.h states the rule its consumers ask. Written
-    // only when false, so a project that disables nothing keeps its version
-    // and every byte it had.
+    // Out of lot -- the author, 29 October 2026: Resolve's Clip >
+    // Enable/Disable Clip (D). A disabled clip keeps its place, its length, its
+    // links and its grade, and is neither seen nor heard anywhere the timeline
+    // plays or renders; ClipEnabled.h states the rule its consumers ask.
+    // Written only when false, so a project that disables nothing keeps its
+    // version and every byte it had.
     bool enabled = true;
     // EF3 -- docs/roadmap/EFFETS-2026-10.md. A Gaussian blur of the clip's
     // picture: its standard deviation (sigma) in sequence pixels, as an
@@ -1001,9 +1001,9 @@ inline constexpr int32_t kDocumentVersionWithGraphicsInput = 21;
 // that binary refuse the file instead; a document without the stage keeps
 // the version and the bytes it had.
 inline constexpr int32_t kDocumentVersionWithResolvePrimaries = 22;
-// Out of lot -- the author, 29 October 2026. The version that carries a disabled
-// clip. A binary before it drops the key it does not know and plays the
-// shot the editor took out of the film -- seen and heard again, under no
+// Out of lot -- the author, 29 October 2026. The version that carries a
+// disabled clip. A binary before it drops the key it does not know and plays
+// the shot the editor took out of the film -- seen and heard again, under no
 // error at all. Version 23 has that binary refuse the file instead, and a
 // document where every clip is enabled keeps the version and the bytes it
 // had.
@@ -1328,8 +1328,8 @@ inline bool HoldsResolvePrimaries(const DocumentSequence& sequence) {
     return false;
 }
 
-// Out of lot -- the author, 29 October 2026. A sequence with a disabled clip: what
-// version 23 holds.
+// Out of lot -- the author, 29 October 2026. A sequence with a disabled clip:
+// what version 23 holds.
 inline bool HoldsDisabledClip(const DocumentSequence& sequence) {
     for (const DocumentTrack& track : sequence.tracks) {
         for (const DocumentClip& clip : track.clips) {

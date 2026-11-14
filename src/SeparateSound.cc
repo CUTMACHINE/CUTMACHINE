@@ -27,8 +27,8 @@ RationalTime OnFrame(const RationalTime& time, const MediaRate& rate, bool up) {
     return RationalTime{static_cast<int64_t>(frames) * rate.den, rate.num};
 }
 
-// Decided by the author on 8 October 2026: the camera's own sound, linked to the
-// picture, stays where it is and its track is turned off. Nothing when the
+// Decided by the author on 8 October 2026: the camera's own sound, linked to
+// the picture, stays where it is and its track is turned off. Nothing when the
 // picture has no linked sound of its own source, or its track is off
 // already. `soundTrackId` is the separate sound's: never the one muted.
 void MuteCameraSound(const Document& document, const DocumentClip& picture,

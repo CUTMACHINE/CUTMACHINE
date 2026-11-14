@@ -1277,8 +1277,8 @@ int main() {
               "one undo restores the pre-trim document bytes");
     });
 
-    // Out of lot -- the author, 29 October 2026: while a head trim was held, the
-    // waveform squeezed the whole committed source range into the previewed
+    // Out of lot -- the author, 29 October 2026: while a head trim was held,
+    // the waveform squeezed the whole committed source range into the previewed
     // width instead of losing the part the edge had passed.
     Test("a held trim cuts the drawn source window, it does not squeeze it",
          [] {
@@ -1971,8 +1971,8 @@ int main() {
               "one undo restores the ripple gesture byte-exactly");
     });
 
-    // The author, 31 October 2026: the trim "ne refuse pas proprement d'étirer un
-    // plan au delà de la limite". A ripple and a roll stop at the last frame
+    // The author, 31 October 2026: the trim "ne refuse pas proprement d'étirer
+    // un plan au delà de la limite". A ripple and a roll stop at the last frame
     // the rush has, as a trim that leaves the track in place always did,
     // instead of going red and committing nothing.
     Test("a ripple past the end of the rush stops at its last frame", [] {

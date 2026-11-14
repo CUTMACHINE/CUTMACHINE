@@ -869,8 +869,8 @@ void CheckSocialZone() {
 
     // The nom piece itself, in 9x16 and at rest (frame 80, opaque, its
     // slide long finished). Its shipped 9:16 layout, 36 % from the bottom
-    // (the author, 24 October 2026), passes both zones; at its old height, 22 %,
-    // it passes the default zone and leaves the social one by its bottom --
+    // (the author, 24 October 2026), passes both zones; at its old height, 22
+    // %, it passes the default zone and leaves the social one by its bottom --
     // the case of 29 September 2026.
     std::vector<MotionTemplateInfo> templates;
     std::string error;
@@ -2382,12 +2382,12 @@ void CheckCharterPieces() {
     Check(ParseMotionKit("seul", brand + R"("withdrawn":{"carton":"non"}})",
                          withdrawing, error),
           "a charter that only withdraws sets something: " + error);
-    Check(ParseMotionKit("marque",
-                         brand +
-                             R"("props":{"accent":"#0A7C66"},)"
-                             R"("withdrawn":{"carton":"« pas besoin », l'auteur, )"
-                             R"(6 novembre 2026","maillage":"retiré"}})",
-                         withdrawing, error) &&
+    Check(ParseMotionKit(
+              "marque",
+              brand + R"("props":{"accent":"#0A7C66"},)"
+                      R"("withdrawn":{"carton":"« pas besoin », l'auteur, )"
+                      R"(6 novembre 2026","maillage":"retiré"}})",
+              withdrawing, error) &&
               MotionKitWithdrawal(withdrawing, "carton") ==
                   "« pas besoin », l'auteur, 6 novembre 2026" &&
               MotionKitWithdrawal(withdrawing, "nom").empty(),

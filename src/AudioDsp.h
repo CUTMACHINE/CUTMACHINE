@@ -10,8 +10,8 @@
 // the engine runs itself.
 //
 // Nothing here is wired to the export or to playback: one mixer for both is
-// the author's decision to take (MOTION-MARQUE-2026-10), and this is the library
-// it will be built on.
+// the author's decision to take (MOTION-MARQUE-2026-10), and this is the
+// library it will be built on.
 //
 // The contract every effect keeps, and tests/audio_dsp_tests.cc checks:
 // - built with its sample rate and channel count, which allocates; then

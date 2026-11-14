@@ -7,9 +7,9 @@
 #include <functional>
 #include <vector>
 
-// Out of lot -- the author, 4 November 2026: « J'ai encore le problème des blocs
-// fusionnés que je peux pas bouger ». A link group binds a picture and its
-// sounds where they lie together. Before 2a84c38 (#213, 30 October 2026) a
+// Out of lot -- the author, 4 November 2026: « J'ai encore le problème des
+// blocs fusionnés que je peux pas bouger ». A link group binds a picture and
+// its sounds where they lie together. Before 2a84c38 (#213, 30 October 2026) a
 // cut kept one group for every stretch it left of a block, so one click in
 // the window took the whole block, and a drag or a trim carried every
 // stretch with it. Timelines cut before then still hold those groups; four

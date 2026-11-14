@@ -159,8 +159,8 @@ inline constexpr Color kClipBadgeText = kTextClip;
 // name stays readable (tests/ui_theme_tests.cc holds all three).
 inline constexpr Color kClipHiddenAngleVeil{kSurfaceLane.r, kSurfaceLane.g,
                                             kSurfaceLane.b, 0.500f};
-// Out of lot -- the author, 29 October 2026: a disabled clip (ClipEnabled.h) "is
-// greyed", as Resolve greys it. Its body loses the hue that tells a shot, a
+// Out of lot -- the author, 29 October 2026: a disabled clip (ClipEnabled.h)
+// "is greyed", as Resolve greys it. Its body loses the hue that tells a shot, a
 // sound and a title apart and sinks below every ordinary body, its waveform
 // turns the same grey and its name the secondary text, so that a clip taken
 // out of the film reads as out of it before its name does

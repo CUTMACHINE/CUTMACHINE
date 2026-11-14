@@ -1,9 +1,9 @@
 #pragma once
 
-// ON8 -- docs/roadmap/ONGLETS-2026-10.md. The trim mode, made visible. The author,
-// 31 October 2026, on what FC4 wired: « bcp de trucs invisibles ». Nothing
-// said the window was in trim mode, which side of the cut was taken, nor
-// which keys acted: V, U, comma and period, E and W were known or not at
+// ON8 -- docs/roadmap/ONGLETS-2026-10.md. The trim mode, made visible. The
+// author, 31 October 2026, on what FC4 wired: « bcp de trucs invisibles ».
+// Nothing said the window was in trim mode, which side of the cut was taken,
+// nor which keys acted: V, U, comma and period, E and W were known or not at
 // all. The bar beside the Trim tool says it and offers it: the side (A,
 // Roll, B), one and five frames each way, Extend, the dynamic trim and the
 // way out, each button carrying its key. Every button does what its key or

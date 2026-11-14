@@ -334,9 +334,9 @@ struct TimelineClipboardClip {
     size_t kind_ordinal = 0;
 };
 
-// Out of lot -- the author, 29 October 2026: "there is a delay when moving clips,
-// it needs an optimistic update". A sample of the window showed each drop
-// spend ~240 ms of the main thread saving (autosave ~130 ms, package ~45,
+// Out of lot -- the author, 29 October 2026: "there is a delay when moving
+// clips, it needs an optimistic update". A sample of the window showed each
+// drop spend ~240 ms of the main thread saving (autosave ~130 ms, package ~45,
 // archive ~30, archive status ~20) against 1 ms for the edit itself. A
 // gesture's save is now a job run on the window's commit queue; this is
 // everything it needs, copied, so the window keeps editing while it runs.
@@ -401,10 +401,10 @@ struct AppState {
     std::set<std::string> reportedLookLuts;
     std::unique_ptr<PerformanceMetrics> performanceMetrics;
     std::unique_ptr<AudioPlayback> audioPlayback;
-    // Out of lot -- the author, 29 October 2026: the source monitor plays, picture
-    // and sound. Its direction (J/K/L's -4..4, 0 stopped), where and when it
-    // started (AdvanceSourcePlayback, TransportBar.h), and a player of its
-    // own that holds the shown rush alone, so the timeline's mix is never
+    // Out of lot -- the author, 29 October 2026: the source monitor plays,
+    // picture and sound. Its direction (J/K/L's -4..4, 0 stopped), where and
+    // when it started (AdvanceSourcePlayback, TransportBar.h), and a player of
+    // its own that holds the shown rush alone, so the timeline's mix is never
     // rebuilt for it.
     int sourcePlaybackDirection = 0;
     RationalTime sourcePlaybackAnchor;

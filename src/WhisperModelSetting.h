@@ -8,8 +8,8 @@
 // the agent panel read CUTMACHINE_WHISPER_MODEL (Transcription.h,
 // LocalEnv.h). Two settings for one file: a model chosen in the window was
 // unknown to the agents, the setup report had to say which reader used which
-// (SetupNotice.h), and a new Mac had to be told twice. Decided by the author on 23
-// October 2026: the engine's setting is the only one. The window reads it as
+// (SetupNotice.h), and a new Mac had to be told twice. Decided by the author on
+// 23 October 2026: the engine's setting is the only one. The window reads it as
 // every tool does, « CUTMACHINE ▸ Modèle Whisper… » writes it in the
 // settings file, and the preference serves once more, to migrate.
 //

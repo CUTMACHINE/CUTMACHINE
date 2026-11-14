@@ -169,8 +169,8 @@ bool SegmentSubtitleWords(const std::vector<SubtitleWord>& words,
                           std::string& error);
 
 // RM3 -- docs/roadmap/REGLES-2026-10.md. Cartons whose grouping the caller
-// chose -- an agent reading the words, as the author preferred blind on 29 of 35
-// passages of the PRJA series -- set on the same words with the
+// chose -- an agent reading the words, as the author preferred blind on 29 of
+// 35 passages of the PRJA series -- set on the same words with the
 // segmentation's own times. `cartons` are texts whose words, in order, must
 // be `words` exactly, case and typographic apostrophes aside; a word that
 // differs, is missing or is added is refused by its carton and its index.

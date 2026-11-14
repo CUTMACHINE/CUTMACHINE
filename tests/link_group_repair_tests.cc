@@ -1,6 +1,6 @@
-// Out of lot -- the author, 4 November 2026: « J'ai encore le problème des blocs
-// fusionnés que je peux pas bouger ». The rule of LinkGroupRepair.h: a link
-// group that binds several places of a timeline (the shape a cut left
+// Out of lot -- the author, 4 November 2026: « J'ai encore le problème des
+// blocs fusionnés que je peux pas bouger ». The rule of LinkGroupRepair.h: a
+// link group that binds several places of a timeline (the shape a cut left
 // before #213) is split one group per place, as one undo step, and leaves
 // every other group as it is. Portable: no AppKit, FFmpeg never run.
 

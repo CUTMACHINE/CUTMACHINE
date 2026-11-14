@@ -851,9 +851,9 @@ bool DispatchProposeGrade(McpBackend& backend, const IdResolver& resolver,
         return false;
     }
     // GR15 -- docs/roadmap/GRADE-RESOLVE-2026-10.md. On 6 November 2026,
-    // on an HDR screen, the author chose an interview's face at +1.5 stops (60 %
-    // of the HLG signal, the median of 17 interviews he delivered in HLG
-    // from Resolve) over +0.7 (48 %). In SDR the face stays at +0.7.
+    // on an HDR screen, the author chose an interview's face at +1.5 stops (60
+    // % of the HLG signal, the median of 17 interviews he delivered in HLG from
+    // Resolve) over +0.7 (48 %). In SDR the face stays at +0.7.
     if (document.color_management.output_transfer == "hlg") {
         if (!targetGiven && plan.anchor == "face") plan.target_hundredths = 150;
         if (!ceilingGiven) plan.display_ceiling = true;

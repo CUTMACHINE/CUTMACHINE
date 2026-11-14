@@ -173,8 +173,8 @@ int Run() {
             {"gamma_master", {-1, 5}}, {"gain_r", {-1, 5}},
             {"gain_b", {3, 10}},       {"gain_master", {1, 8}},
         };
-        // GR16 -- a node like the ones the author saves in Resolve: balls and dials
-        // together, an offset, a saturation, Lum Mix at its default.
+        // GR16 -- a node like the ones the author saves in Resolve: balls and
+        // dials together, an offset, a saturation, Lum Mix at its default.
         std::map<std::string, EffectParamValue> resolveNode = {
             {"gain_r", {53, 50}},     {"gain_g", {51, 50}},
             {"gain_b", {97, 100}},    {"gain_master", {51, 50}},

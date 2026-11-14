@@ -1757,7 +1757,8 @@ DeleteGapOperation GapDeleteOperationForSelection(
     [clip addItem:[self menuItem:@"Couper au playhead"
                           action:@selector(menuCutSelectedAtPlayhead:)
                              key:@""]];
-    // Out of lot -- the author, 29 October 2026: Resolve's Clip > Enable Clip (D).
+    // Out of lot -- the author, 29 October 2026: Resolve's Clip > Enable Clip
+    // (D).
     [clip addItem:[self shortcutMenuItem:@"Activer / désactiver le plan"
                                   action:@selector(menuToggleClipsEnabled:)
                                  command:@"clip.enable"]];
@@ -7469,8 +7470,8 @@ static NSString* CMNewProjectName(CMFormPanel* panel) {
     return YES;
 }
 
-// Out of lot -- the author, 4 November 2026: « J'ai encore le problème des blocs
-// fusionnés que je peux pas bouger ». A timeline cut before #213 binds a
+// Out of lot -- the author, 4 November 2026: « J'ai encore le problème des
+// blocs fusionnés que je peux pas bouger ». A timeline cut before #213 binds a
 // block's stretches under one link, so one click took the whole block
 // (LinkGroupRepair.h). Split as the timeline opens, through the journal: one
 // undo step (two past 256 links), said on the status line.
@@ -10686,8 +10687,8 @@ static ui::agent_window::Rect CMAgentRect(NSRect rect) {
     self.state->overlayDirty = true;
 }
 
-// The author, 29 October 2026 -- zoom, position, fit or fill from the Inspector:
-// one SetClipFramingOperation per released drag, the operation
+// The author, 29 October 2026 -- zoom, position, fit or fill from the
+// Inspector: one SetClipFramingOperation per released drag, the operation
 // set_clip_framing applies.
 - (void)inspectorView:(CMInspectorView*)inspectorView
     didCommitClipFraming:(SetClipFramingOperation)operation {
@@ -12305,8 +12306,8 @@ static ui::agent_window::Rect CMAgentRect(NSRect rect) {
                 target.trim_mode == TimelineTrimMode::Slide
                     ? @"SLIDE · glisser le plan entre ses voisins"
                     : @"SLIP · glisser le contenu source";
-        // The author, 31 October 2026: "des fois il est en mode trim normal, des
-        // fois il bouge ce qu'il y a dans le plan". The tool's one cursor,
+        // The author, 31 October 2026: "des fois il est en mode trim normal,
+        // des fois il bouge ce qu'il y a dans le plan". The tool's one cursor,
         // the double arrow, said nothing of which: six points from an edge
         // it ripples, past them it slips. Each gesture now has its own --
         // the double arrow on an edge, an open hand on the body that slips
@@ -12540,8 +12541,8 @@ static bool RunProjectCommit(const ProjectCommitJob& job,
     return YES;
 }
 
-// Out of lot -- the author, 29 October 2026. The window's commits, in order, off
-// the main thread for a gesture's (persistEditsInBackground:).
+// Out of lot -- the author, 29 October 2026. The window's commits, in order,
+// off the main thread for a gesture's (persistEditsInBackground:).
 - (dispatch_queue_t)commitQueue {
     if (!self.projectCommitQueue)
         self.projectCommitQueue = dispatch_queue_create(
@@ -12556,8 +12557,8 @@ static bool RunProjectCommit(const ProjectCommitJob& job,
                       });
 }
 
-// Out of lot -- the author, 29 October 2026: "there is a delay when moving clips,
-// it needs an optimistic update". A gesture's edit is applied, kept and
+// Out of lot -- the author, 29 October 2026: "there is a delay when moving
+// clips, it needs an optimistic update". A gesture's edit is applied, kept and
 // drawn at once; its save (autosave, package, archive: ~240 ms on this
 // window's main thread for a 23-timeline project) runs on the commit queue.
 // Only the candidate's own check, in memory, can still refuse the edit here.
@@ -17704,8 +17705,8 @@ static constexpr CGFloat kTrimMonitorPointsPerFrame = 6.0;
         addColor(0.0, y + self.state->viewport.track_height - 1.0, width, 1.0,
                  ui::theme::kSeparator);
     }
-    // Out of lot -- the author, 29 October 2026. No `+` row under the headers any
-    // more: a drop creates the tracks it needs (TimelineDropTracksAt), and
+    // Out of lot -- the author, 29 October 2026. No `+` row under the headers
+    // any more: a drop creates the tracks it needs (TimelineDropTracksAt), and
     // the Timeline menu, the timeline's own menu and Cmd+Shift+T still add
     // one.
     addColor(self.state->viewport.header_width - 1.0,
@@ -18219,8 +18220,8 @@ static constexpr CGFloat kTrimMonitorPointsPerFrame = 6.0;
                 timelineHeight - kTimelineRulerHeight - kTimelineZoomBarHeight,
                 ui::theme::kAccent);
     }
-    // Out of lot -- the author, 29 October 2026: the trim's frame counter, as in
-    // Resolve, on a plate just above the trimmed clip, beside its moved edge
+    // Out of lot -- the author, 29 October 2026: the trim's frame counter, as
+    // in Resolve, on a plate just above the trimmed clip, beside its moved edge
     // (inside the clip when the clip is on the top track).
     if (const auto readout = TimelineTrimReadoutFor(
             self.state->document, self.state->interaction->TrimPreview(),

@@ -16,8 +16,8 @@
 // x = i / 64. Between them, a cubic through the four nearest contrasts and
 // the four nearest pivots, and Catmull-Rom along x: within 0.12 of a
 // 10-bit code of 16 settings measured off the grid for a pivot from 0.25 to
-// 0.75 (95 % of the contrasts the author set in 14 150 grades), 0.5 to 1.6 at the
-// far pivots, 4.8 at worst (1.5 about 0.06).
+// 0.75 (95 % of the contrasts the author set in 14 150 grades), 0.5 to 1.6 at
+// the far pivots, 4.8 at worst (1.5 about 0.06).
 //
 // With the aware tools, Resolve applies its plain contrast in HLG: the
 // value x to linear light, divided by 12 (HLG's peak at 12 times reference

@@ -140,8 +140,8 @@ int main() {
               SubtitleWordFamilies("caméra") == 0,
           "word families follow the rule's lists, punctuation aside");
 
-    // REGLES-2026-10, 12 October 2026: the rule respects three of the author's six
-    // choices (article, auxiliary, conjunction). The pronoun is a tie.
+    // REGLES-2026-10, 12 October 2026: the rule respects three of the author's
+    // six choices (article, auxiliary, conjunction). The pronoun is a tie.
     {
         const CaptionBreakModel rule;
         std::vector<std::string> respected;

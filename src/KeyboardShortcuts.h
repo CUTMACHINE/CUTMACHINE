@@ -6,10 +6,10 @@
 // turns a chord into NSEventModifierFlags and menu key equivalents
 // (tests/keyboard_shortcuts_tests.cc).
 //
-// The defaults follow DaVinci Resolve. Resolve is where the author's timelines end
-// up and where his hands are trained, and his rule for this window is to take
-// Resolve's convention when there are several. Measured against the default
-// keyboard preset of Resolve 21.1, exported by its scripting API
+// The defaults follow DaVinci Resolve. Resolve is where the author's timelines
+// end up and where his hands are trained, and his rule for this window is to
+// take Resolve's convention when there are several. Measured against the
+// default keyboard preset of Resolve 21.1, exported by its scripting API
 // (ExportKeyboardPreset), eight of thirty defaults differed, six of them on a
 // key that does something else in Resolve: V selects an edit point there, C
 // moves the playhead to the pointer, Y selects the clips after it, F is match
@@ -173,8 +173,8 @@ inline const std::vector<Definition>& Definitions() {
 // changed after keys were stored under the old one. tool.slip became
 // tool.trim on 19 October 2026 (FC4): the Trim tool replaced the Slip tool
 // on its key, and a key the person had given the Slip tool was no longer
-// read, T applying instead. The author decided on 23 October that the identifier
-// stays tool.trim; the key stored under the old name now opens what
+// read, T applying instead. The author decided on 23 October that the
+// identifier stays tool.trim; the key stored under the old name now opens what
 // replaced it.
 struct RenamedCommand {
     const char* id;
