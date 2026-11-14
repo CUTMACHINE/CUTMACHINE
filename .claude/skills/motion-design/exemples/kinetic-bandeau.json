@@ -1,0 +1,198 @@
+{
+ "width": 1080,
+ "height": 1920,
+ "fps": 25,
+ "duration": 60,
+ "root": {
+  "type": "fill",
+  "style": {
+   "backgroundColor": "#0A0A0F"
+  },
+  "children": [
+   {
+    "type": "box",
+    "style": {
+     "position": "absolute",
+     "left": 0,
+     "top": 800
+    },
+    "children": [
+     {
+      "type": "box",
+      "style": {
+       "width": 1080,
+       "height": 168,
+       "backgroundColor": "#FFD23F",
+       "overflow": "hidden",
+       "flexDirection": "row",
+       "justifyContent": "center",
+       "alignItems": "center"
+      },
+      "children": [
+       {
+        "type": "box",
+        "style": {
+         "width": 4200,
+         "flexShrink": 0,
+         "flexDirection": "row",
+         "justifyContent": "center"
+        },
+        "children": [
+         {
+          "type": "text",
+          "content": "LE TEXTE DÉFILE · LE TEXTE DÉFILE · LE TEXTE DÉFILE",
+          "style": {
+           "fontFamily": "Fira Sans Condensed",
+           "fontWeight": 600,
+           "fontSize": 132,
+           "lineHeight": 1.0,
+           "color": "#000000",
+           "flexShrink": 0
+          }
+         }
+        ],
+        "animate": {
+         "translateX": {
+          "interpolate": {
+           "frames": [
+            1,
+            24
+           ],
+           "values": [
+            700,
+            0
+           ],
+           "easing": "cubic-bezier(0.16, 1, 0.3, 1)"
+          }
+         }
+        }
+       }
+      ],
+      "animate": {
+       "translateX": {
+        "interpolate": {
+         "frames": [
+          1,
+          9
+         ],
+         "values": [
+          -1080,
+          0
+         ],
+         "easing": "cubic-bezier(0.16, 1, 0.3, 1)"
+        }
+       }
+      }
+     }
+    ],
+    "animate": {
+     "translateX": {
+      "interpolate": {
+       "frames": [
+        50,
+        59
+       ],
+       "values": [
+        0,
+        1080
+       ],
+       "easing": "cubic-bezier(0.7, 0, 0.84, 0)"
+      }
+     }
+    }
+   },
+   {
+    "type": "box",
+    "style": {
+     "position": "absolute",
+     "left": 0,
+     "top": 988
+    },
+    "children": [
+     {
+      "type": "box",
+      "style": {
+       "width": 1080,
+       "height": 134,
+       "backgroundColor": "#FFD23F",
+       "overflow": "hidden",
+       "flexDirection": "row",
+       "justifyContent": "center",
+       "alignItems": "center"
+      },
+      "children": [
+       {
+        "type": "box",
+        "style": {
+         "width": 4200,
+         "flexShrink": 0,
+         "flexDirection": "row",
+         "justifyContent": "center"
+        },
+        "children": [
+         {
+          "type": "text",
+          "content": "ET SE CALE SUR LE TEMPS · ET SE CALE SUR LE TEMPS · ET SE CALE SUR LE TEMPS",
+          "style": {
+           "fontFamily": "Fira Sans Condensed",
+           "fontWeight": 600,
+           "fontSize": 104,
+           "lineHeight": 1.0,
+           "color": "#000000",
+           "flexShrink": 0
+          }
+         }
+        ],
+        "animate": {
+         "translateX": {
+          "interpolate": {
+           "frames": [
+            8,
+            31
+           ],
+           "values": [
+            -700,
+            0
+           ],
+           "easing": "cubic-bezier(0.16, 1, 0.3, 1)"
+          }
+         }
+        }
+       }
+      ],
+      "animate": {
+       "translateX": {
+        "interpolate": {
+         "frames": [
+          8,
+          16
+         ],
+         "values": [
+          1080,
+          0
+         ],
+         "easing": "cubic-bezier(0.16, 1, 0.3, 1)"
+        }
+       }
+      }
+     }
+    ],
+    "animate": {
+     "translateX": {
+      "interpolate": {
+       "frames": [
+        50,
+        59
+       ],
+       "values": [
+        0,
+        -1080
+       ],
+       "easing": "cubic-bezier(0.7, 0, 0.84, 0)"
+      }
+     }
+    }
+   }
+  ]
+ }
+}

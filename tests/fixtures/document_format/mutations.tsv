@@ -1,0 +1,1110 @@
+document	remove	version	refused	document is missing 'version'
+document	retype	version	refused	document.version has the wrong JSON type
+document	int32+1	version	refused	document.version is outside int32_t range
+document	negative	version	refused	unsupported document version -1
+document	remove	sequence	refused	document is missing 'sequence'
+document	retype	sequence	refused	document.sequence has the wrong JSON type
+document	remove	sequence.id	refused	document.sequence is missing 'id'
+document	retype	sequence.id	refused	document.sequence.id has the wrong JSON type
+document	remove	sequence.name	refused	document.sequence is missing 'name'
+document	retype	sequence.name	refused	document.sequence.name has the wrong JSON type
+document	remove	sequence.width	refused	document.sequence is missing 'width'
+document	retype	sequence.width	refused	document.sequence.width has the wrong JSON type
+document	int32+1	sequence.width	refused	document.sequence.width is outside int32_t range
+document	negative	sequence.width	accepted	sequence.width=-1
+document	remove	sequence.height	refused	document.sequence is missing 'height'
+document	retype	sequence.height	refused	document.sequence.height has the wrong JSON type
+document	int32+1	sequence.height	refused	document.sequence.height is outside int32_t range
+document	negative	sequence.height	accepted	sequence.height=-1
+document	remove	sequence.frame_rate	refused	document.sequence is missing 'frame_rate'
+document	retype	sequence.frame_rate	refused	document.sequence.frame_rate has the wrong JSON type
+document	remove	sequence.frame_rate.num	refused	document.sequence.frame_rate is missing 'num'
+document	retype	sequence.frame_rate.num	refused	document.sequence.frame_rate.num has the wrong JSON type
+document	int32+1	sequence.frame_rate.num	refused	document.sequence.frame_rate.num is outside int32_t range
+document	negative	sequence.frame_rate.num	accepted	sequence.frame_rate.num=-1
+document	remove	sequence.frame_rate.den	refused	document.sequence.frame_rate is missing 'den'
+document	retype	sequence.frame_rate.den	refused	document.sequence.frame_rate.den has the wrong JSON type
+document	int32+1	sequence.frame_rate.den	refused	document.sequence.frame_rate.den is outside int32_t range
+document	negative	sequence.frame_rate.den	accepted	sequence.frame_rate.den=-1
+document	remove	sequence.markers	accepted	sequence.markers=[]
+document	retype	sequence.markers	refused	document.sequence.markers has the wrong JSON type
+document	remove	sequence.markers[0].id	refused	document.sequence.markers[0] is missing 'id'
+document	retype	sequence.markers[0].id	refused	document.sequence.markers[0].id has the wrong JSON type
+document	remove	sequence.markers[0].name	refused	document.sequence.markers[0] is missing 'name'
+document	retype	sequence.markers[0].name	refused	document.sequence.markers[0].name has the wrong JSON type
+document	remove	sequence.markers[0].time	refused	document.sequence.markers[0] is missing 'time'
+document	retype	sequence.markers[0].time	refused	document.sequence.markers[0].time has the wrong JSON type
+document	remove	sequence.markers[0].time.value	refused	document.sequence.markers[0].time is missing 'value'
+document	retype	sequence.markers[0].time.value	refused	document.sequence.markers[0].time.value has the wrong JSON type
+document	int32+1	sequence.markers[0].time.value	accepted	sequence.markers[0].time.value=2147483648
+document	negative	sequence.markers[0].time.value	accepted	sequence.markers[0].time.value=-1
+document	remove	sequence.markers[0].time.rate	refused	document.sequence.markers[0].time is missing 'rate'
+document	retype	sequence.markers[0].time.rate	refused	document.sequence.markers[0].time.rate has the wrong JSON type
+document	int32+1	sequence.markers[0].time.rate	refused	document.sequence.markers[0].time.rate is outside int32_t range
+document	negative	sequence.markers[0].time.rate	accepted	sequence.markers[0].time.rate=-1
+document	remove	sequence.markers[0].color	refused	document.sequence.markers[0] is missing 'color'
+document	retype	sequence.markers[0].color	refused	document.sequence.markers[0].color has the wrong JSON type
+document	remove	sequence.markers[0].category	refused	document.sequence.markers[0] is missing 'category'
+document	retype	sequence.markers[0].category	refused	document.sequence.markers[0].category has the wrong JSON type
+document	remove	sequence.transitions	accepted	sequence.transitions=[]
+document	retype	sequence.transitions	refused	document.sequence.transitions has the wrong JSON type
+document	remove	sequence.transitions[0].id	refused	document.sequence.transitions[0] is missing 'id'
+document	retype	sequence.transitions[0].id	refused	document.sequence.transitions[0].id has the wrong JSON type
+document	remove	sequence.transitions[0].track_id	refused	document.sequence.transitions[0] is missing 'track_id'
+document	retype	sequence.transitions[0].track_id	refused	document.sequence.transitions[0].track_id has the wrong JSON type
+document	remove	sequence.transitions[0].left_clip_id	refused	document.sequence.transitions[0] is missing 'left_clip_id'
+document	retype	sequence.transitions[0].left_clip_id	refused	document.sequence.transitions[0].left_clip_id has the wrong JSON type
+document	remove	sequence.transitions[0].right_clip_id	refused	document.sequence.transitions[0] is missing 'right_clip_id'
+document	retype	sequence.transitions[0].right_clip_id	refused	document.sequence.transitions[0].right_clip_id has the wrong JSON type
+document	remove	sequence.transitions[0].type	refused	document.sequence.transitions[0] is missing 'type'
+document	retype	sequence.transitions[0].type	refused	document.sequence.transitions[0].type has the wrong JSON type
+document	remove	sequence.transitions[0].duration	refused	document.sequence.transitions[0] is missing 'duration'
+document	retype	sequence.transitions[0].duration	refused	document.sequence.transitions[0].duration has the wrong JSON type
+document	remove	sequence.transitions[0].duration.value	refused	document.sequence.transitions[0].duration is missing 'value'
+document	retype	sequence.transitions[0].duration.value	refused	document.sequence.transitions[0].duration.value has the wrong JSON type
+document	int32+1	sequence.transitions[0].duration.value	accepted	sequence.transitions[0].duration.value=2147483648
+document	negative	sequence.transitions[0].duration.value	accepted	sequence.transitions[0].duration.value=-1
+document	remove	sequence.transitions[0].duration.rate	refused	document.sequence.transitions[0].duration is missing 'rate'
+document	retype	sequence.transitions[0].duration.rate	refused	document.sequence.transitions[0].duration.rate has the wrong JSON type
+document	int32+1	sequence.transitions[0].duration.rate	refused	document.sequence.transitions[0].duration.rate is outside int32_t range
+document	negative	sequence.transitions[0].duration.rate	accepted	sequence.transitions[0].duration.rate=-1
+document	remove	sequence.transitions[0].alignment	refused	document.sequence.transitions[0] is missing 'alignment'
+document	retype	sequence.transitions[0].alignment	refused	document.sequence.transitions[0].alignment has the wrong JSON type
+document	remove	sequence.tracks	refused	document.sequence is missing 'tracks'
+document	retype	sequence.tracks	refused	document.sequence.tracks has the wrong JSON type
+document	remove	sequence.tracks[0].id	refused	document.sequence.tracks[0] is missing 'id'
+document	retype	sequence.tracks[0].id	refused	document.sequence.tracks[0].id has the wrong JSON type
+document	remove	sequence.tracks[0].kind	refused	document.sequence.tracks[0] is missing 'kind'
+document	retype	sequence.tracks[0].kind	refused	document.sequence.tracks[0].kind has the wrong JSON type
+document	remove	sequence.tracks[0].index	refused	document.sequence.tracks[0] is missing 'index'
+document	retype	sequence.tracks[0].index	refused	document.sequence.tracks[0].index has the wrong JSON type
+document	int32+1	sequence.tracks[0].index	refused	document.sequence.tracks[0].index is outside int32_t range
+document	negative	sequence.tracks[0].index	accepted	sequence.tracks[0].index=-1
+document	remove	sequence.tracks[0].locked	accepted	sequence.tracks[0].locked=false
+document	retype	sequence.tracks[0].locked	refused	document.sequence.tracks[0].locked has the wrong JSON type
+document	remove	sequence.tracks[0].sync_lock	accepted	
+document	retype	sequence.tracks[0].sync_lock	refused	document.sequence.tracks[0].sync_lock has the wrong JSON type
+document	remove	sequence.tracks[0].visible	accepted	
+document	retype	sequence.tracks[0].visible	refused	document.sequence.tracks[0].visible has the wrong JSON type
+document	remove	sequence.tracks[0].muted	accepted	sequence.tracks[0].muted=false
+document	retype	sequence.tracks[0].muted	refused	document.sequence.tracks[0].muted has the wrong JSON type
+document	remove	sequence.tracks[0].solo	accepted	sequence.tracks[0].solo=false
+document	retype	sequence.tracks[0].solo	refused	document.sequence.tracks[0].solo has the wrong JSON type
+document	remove	sequence.tracks[0].clips	refused	document.sequence.tracks[0] is missing 'clips'
+document	retype	sequence.tracks[0].clips	refused	document.sequence.tracks[0].clips has the wrong JSON type
+document	remove	sequence.tracks[0].clips[0].id	refused	document.sequence.tracks[0].clips[0] is missing 'id'
+document	retype	sequence.tracks[0].clips[0].id	refused	document.sequence.tracks[0].clips[0].id has the wrong JSON type
+document	remove	sequence.tracks[0].clips[0].source_id	refused	document.sequence.tracks[0].clips[0] is missing 'source_id'
+document	retype	sequence.tracks[0].clips[0].source_id	refused	document.sequence.tracks[0].clips[0].source_id has the wrong JSON type
+document	remove	sequence.tracks[0].clips[0].source_in	refused	document.sequence.tracks[0].clips[0] is missing 'source_in'
+document	retype	sequence.tracks[0].clips[0].source_in	refused	document.sequence.tracks[0].clips[0].source_in has the wrong JSON type
+document	remove	sequence.tracks[0].clips[0].source_in.value	refused	document.sequence.tracks[0].clips[0].source_in is missing 'value'
+document	retype	sequence.tracks[0].clips[0].source_in.value	refused	document.sequence.tracks[0].clips[0].source_in.value has the wrong JSON type
+document	int32+1	sequence.tracks[0].clips[0].source_in.value	accepted	sequence.tracks[0].clips[0].source_in.value=2147483648
+document	negative	sequence.tracks[0].clips[0].source_in.value	accepted	sequence.tracks[0].clips[0].source_in.value=-1
+document	remove	sequence.tracks[0].clips[0].source_in.rate	refused	document.sequence.tracks[0].clips[0].source_in is missing 'rate'
+document	retype	sequence.tracks[0].clips[0].source_in.rate	refused	document.sequence.tracks[0].clips[0].source_in.rate has the wrong JSON type
+document	int32+1	sequence.tracks[0].clips[0].source_in.rate	refused	document.sequence.tracks[0].clips[0].source_in.rate is outside int32_t range
+document	negative	sequence.tracks[0].clips[0].source_in.rate	accepted	sequence.tracks[0].clips[0].source_in.rate=-1
+document	remove	sequence.tracks[0].clips[0].duration	refused	document.sequence.tracks[0].clips[0] is missing 'duration'
+document	retype	sequence.tracks[0].clips[0].duration	refused	document.sequence.tracks[0].clips[0].duration has the wrong JSON type
+document	remove	sequence.tracks[0].clips[0].duration.value	refused	document.sequence.tracks[0].clips[0].duration is missing 'value'
+document	retype	sequence.tracks[0].clips[0].duration.value	refused	document.sequence.tracks[0].clips[0].duration.value has the wrong JSON type
+document	int32+1	sequence.tracks[0].clips[0].duration.value	accepted	sequence.tracks[0].clips[0].duration.value=2147483648
+document	negative	sequence.tracks[0].clips[0].duration.value	accepted	sequence.tracks[0].clips[0].duration.value=-1
+document	remove	sequence.tracks[0].clips[0].duration.rate	refused	document.sequence.tracks[0].clips[0].duration is missing 'rate'
+document	retype	sequence.tracks[0].clips[0].duration.rate	refused	document.sequence.tracks[0].clips[0].duration.rate has the wrong JSON type
+document	int32+1	sequence.tracks[0].clips[0].duration.rate	refused	document.sequence.tracks[0].clips[0].duration.rate is outside int32_t range
+document	negative	sequence.tracks[0].clips[0].duration.rate	accepted	sequence.tracks[0].clips[0].duration.rate=-1
+document	remove	sequence.tracks[0].clips[0].timeline_in	refused	document.sequence.tracks[0].clips[0] is missing 'timeline_in'
+document	retype	sequence.tracks[0].clips[0].timeline_in	refused	document.sequence.tracks[0].clips[0].timeline_in has the wrong JSON type
+document	remove	sequence.tracks[0].clips[0].timeline_in.value	refused	document.sequence.tracks[0].clips[0].timeline_in is missing 'value'
+document	retype	sequence.tracks[0].clips[0].timeline_in.value	refused	document.sequence.tracks[0].clips[0].timeline_in.value has the wrong JSON type
+document	int32+1	sequence.tracks[0].clips[0].timeline_in.value	accepted	sequence.tracks[0].clips[0].timeline_in.value=2147483648
+document	negative	sequence.tracks[0].clips[0].timeline_in.value	accepted	sequence.tracks[0].clips[0].timeline_in.value=-1
+document	remove	sequence.tracks[0].clips[0].timeline_in.rate	refused	document.sequence.tracks[0].clips[0].timeline_in is missing 'rate'
+document	retype	sequence.tracks[0].clips[0].timeline_in.rate	refused	document.sequence.tracks[0].clips[0].timeline_in.rate has the wrong JSON type
+document	int32+1	sequence.tracks[0].clips[0].timeline_in.rate	refused	document.sequence.tracks[0].clips[0].timeline_in.rate is outside int32_t range
+document	negative	sequence.tracks[0].clips[0].timeline_in.rate	accepted	sequence.tracks[0].clips[0].timeline_in.rate=-1
+document	remove	sequence.tracks[0].clips[0].include_audio	accepted	
+document	retype	sequence.tracks[0].clips[0].include_audio	refused	document.sequence.tracks[0].clips[0].include_audio has the wrong JSON type
+document	remove	sequence.tracks[0].clips[0].link_group_id	accepted	-sequence.tracks[0].clips[0].link_group_id
+document	retype	sequence.tracks[0].clips[0].link_group_id	refused	document.sequence.tracks[0].clips[0].link_group_id has the wrong JSON type
+document	remove	sequence.tracks[0].clips[0].sync_anchor_clip_id	accepted	-sequence.tracks[0].clips[0].sync_anchor_clip_id -sequence.tracks[0].clips[0].sync_reference_delta
+document	retype	sequence.tracks[0].clips[0].sync_anchor_clip_id	refused	document.sequence.tracks[0].clips[0].sync_anchor_clip_id has the wrong JSON type
+document	remove	sequence.tracks[0].clips[0].sync_reference_delta	refused	document.sequence.tracks[0].clips[0] is missing 'sync_reference_delta'
+document	retype	sequence.tracks[0].clips[0].sync_reference_delta	refused	document.sequence.tracks[0].clips[0].sync_reference_delta has the wrong JSON type
+document	remove	sequence.tracks[0].clips[0].sync_reference_delta.value	refused	document.sequence.tracks[0].clips[0].sync_reference_delta is missing 'value'
+document	retype	sequence.tracks[0].clips[0].sync_reference_delta.value	refused	document.sequence.tracks[0].clips[0].sync_reference_delta.value has the wrong JSON type
+document	int32+1	sequence.tracks[0].clips[0].sync_reference_delta.value	accepted	sequence.tracks[0].clips[0].sync_reference_delta.value=2147483648
+document	negative	sequence.tracks[0].clips[0].sync_reference_delta.value	accepted	sequence.tracks[0].clips[0].sync_reference_delta.value=-1
+document	remove	sequence.tracks[0].clips[0].sync_reference_delta.rate	refused	document.sequence.tracks[0].clips[0].sync_reference_delta is missing 'rate'
+document	retype	sequence.tracks[0].clips[0].sync_reference_delta.rate	refused	document.sequence.tracks[0].clips[0].sync_reference_delta.rate has the wrong JSON type
+document	int32+1	sequence.tracks[0].clips[0].sync_reference_delta.rate	refused	document.sequence.tracks[0].clips[0].sync_reference_delta.rate is outside int32_t range
+document	negative	sequence.tracks[0].clips[0].sync_reference_delta.rate	accepted	sequence.tracks[0].clips[0].sync_reference_delta.rate=-1
+document	remove	sequence.tracks[0].clips[0].effects	accepted	sequence.tracks[0].clips[0].effects=[]
+document	retype	sequence.tracks[0].clips[0].effects	refused	document.sequence.tracks[0].clips[0].effects has the wrong JSON type
+document	remove	sequence.tracks[0].clips[0].effects[0].id	refused	document.sequence.tracks[0].clips[0].effects[0] is missing 'id'
+document	retype	sequence.tracks[0].clips[0].effects[0].id	refused	document.sequence.tracks[0].clips[0].effects[0].id has the wrong JSON type
+document	remove	sequence.tracks[0].clips[0].effects[0].type	refused	document.sequence.tracks[0].clips[0].effects[0] is missing 'type'
+document	retype	sequence.tracks[0].clips[0].effects[0].type	refused	document.sequence.tracks[0].clips[0].effects[0].type has the wrong JSON type
+document	remove	sequence.tracks[0].clips[0].effects[0].params	refused	document.sequence.tracks[0].clips[0].effects[0] is missing 'params'
+document	retype	sequence.tracks[0].clips[0].effects[0].params	refused	document.sequence.tracks[0].clips[0].effects[0].params has the wrong JSON type
+document	remove	sequence.tracks[0].clips[0].effects[0].params.-20#0	accepted	-sequence.tracks[0].clips[0].effects[0].params.-20#0
+document	retype	sequence.tracks[0].clips[0].effects[0].params.-20#0	refused	document.sequence.tracks[0].clips[0].effects[0].params['-20#0'] has the wrong JSON type
+document	remove	sequence.tracks[0].clips[0].effects[0].params.-20#0.num	refused	document.sequence.tracks[0].clips[0].effects[0].params['-20#0'] is missing 'num'
+document	retype	sequence.tracks[0].clips[0].effects[0].params.-20#0.num	refused	document.sequence.tracks[0].clips[0].effects[0].params['-20#0'].num has the wrong JSON type
+document	int32+1	sequence.tracks[0].clips[0].effects[0].params.-20#0.num	refused	document.sequence.tracks[0].clips[0].effects[0].params['-20#0'].num is outside int32_t range
+document	negative	sequence.tracks[0].clips[0].effects[0].params.-20#0.num	accepted	sequence.tracks[0].clips[0].effects[0].params.-20#0.num=-1
+document	remove	sequence.tracks[0].clips[0].effects[0].params.-20#0.den	refused	document.sequence.tracks[0].clips[0].effects[0].params['-20#0'] is missing 'den'
+document	retype	sequence.tracks[0].clips[0].effects[0].params.-20#0.den	refused	document.sequence.tracks[0].clips[0].effects[0].params['-20#0'].den has the wrong JSON type
+document	int32+1	sequence.tracks[0].clips[0].effects[0].params.-20#0.den	refused	document.sequence.tracks[0].clips[0].effects[0].params['-20#0'].den is outside int32_t range
+document	negative	sequence.tracks[0].clips[0].effects[0].params.-20#0.den	accepted	sequence.tracks[0].clips[0].effects[0].params.-20#0.den=-1
+document	remove	sequence.tracks[0].clips[0].caption_group_id	accepted	-sequence.tracks[0].clips[0].caption_group_id
+document	retype	sequence.tracks[0].clips[0].caption_group_id	refused	document.sequence.tracks[0].clips[0].caption_group_id has the wrong JSON type
+document	remove	sequence.tracks[0].clips[0].caption_text	accepted	-sequence.tracks[0].clips[0].caption_text
+document	retype	sequence.tracks[0].clips[0].caption_text	refused	document.sequence.tracks[0].clips[0].caption_text has the wrong JSON type
+document	remove	sequence.tracks[0].clips[0].opacity	refused	document.sequence.tracks[0].clips[0] is missing 'opacity'
+document	retype	sequence.tracks[0].clips[0].opacity	refused	document.sequence.tracks[0].clips[0].opacity has the wrong JSON type
+document	remove	sequence.tracks[0].clips[0].opacity.num	refused	document.sequence.tracks[0].clips[0].opacity is missing 'num'
+document	retype	sequence.tracks[0].clips[0].opacity.num	refused	document.sequence.tracks[0].clips[0].opacity.num has the wrong JSON type
+document	int32+1	sequence.tracks[0].clips[0].opacity.num	refused	document.sequence.tracks[0].clips[0].opacity.num is outside int32_t range
+document	negative	sequence.tracks[0].clips[0].opacity.num	accepted	sequence.tracks[0].clips[0].opacity.num=-1
+document	remove	sequence.tracks[0].clips[0].opacity.den	refused	document.sequence.tracks[0].clips[0].opacity is missing 'den'
+document	retype	sequence.tracks[0].clips[0].opacity.den	refused	document.sequence.tracks[0].clips[0].opacity.den has the wrong JSON type
+document	int32+1	sequence.tracks[0].clips[0].opacity.den	refused	document.sequence.tracks[0].clips[0].opacity.den is outside int32_t range
+document	negative	sequence.tracks[0].clips[0].opacity.den	accepted	sequence.tracks[0].clips[0].opacity.den=-1
+document	remove	sequence.tracks[0].clips[0].audio_gain_db	refused	document.sequence.tracks[0].clips[0] is missing 'audio_gain_db'
+document	retype	sequence.tracks[0].clips[0].audio_gain_db	refused	document.sequence.tracks[0].clips[0].audio_gain_db has the wrong JSON type
+document	remove	sequence.tracks[0].clips[0].audio_gain_db.num	refused	document.sequence.tracks[0].clips[0].audio_gain_db is missing 'num'
+document	retype	sequence.tracks[0].clips[0].audio_gain_db.num	refused	document.sequence.tracks[0].clips[0].audio_gain_db.num has the wrong JSON type
+document	int32+1	sequence.tracks[0].clips[0].audio_gain_db.num	refused	document.sequence.tracks[0].clips[0].audio_gain_db.num is outside int32_t range
+document	negative	sequence.tracks[0].clips[0].audio_gain_db.num	accepted	sequence.tracks[0].clips[0].audio_gain_db.num=-1
+document	remove	sequence.tracks[0].clips[0].audio_gain_db.den	refused	document.sequence.tracks[0].clips[0].audio_gain_db is missing 'den'
+document	retype	sequence.tracks[0].clips[0].audio_gain_db.den	refused	document.sequence.tracks[0].clips[0].audio_gain_db.den has the wrong JSON type
+document	int32+1	sequence.tracks[0].clips[0].audio_gain_db.den	refused	document.sequence.tracks[0].clips[0].audio_gain_db.den is outside int32_t range
+document	negative	sequence.tracks[0].clips[0].audio_gain_db.den	accepted	sequence.tracks[0].clips[0].audio_gain_db.den=-1
+document	remove	sequence.tracks[0].clips[0].audio_fade_in	refused	document.sequence.tracks[0].clips[0] is missing 'audio_fade_in'
+document	retype	sequence.tracks[0].clips[0].audio_fade_in	refused	document.sequence.tracks[0].clips[0].audio_fade_in has the wrong JSON type
+document	remove	sequence.tracks[0].clips[0].audio_fade_in.value	refused	document.sequence.tracks[0].clips[0].audio_fade_in is missing 'value'
+document	retype	sequence.tracks[0].clips[0].audio_fade_in.value	refused	document.sequence.tracks[0].clips[0].audio_fade_in.value has the wrong JSON type
+document	int32+1	sequence.tracks[0].clips[0].audio_fade_in.value	accepted	sequence.tracks[0].clips[0].audio_fade_in.value=2147483648
+document	negative	sequence.tracks[0].clips[0].audio_fade_in.value	accepted	sequence.tracks[0].clips[0].audio_fade_in.value=-1
+document	remove	sequence.tracks[0].clips[0].audio_fade_in.rate	refused	document.sequence.tracks[0].clips[0].audio_fade_in is missing 'rate'
+document	retype	sequence.tracks[0].clips[0].audio_fade_in.rate	refused	document.sequence.tracks[0].clips[0].audio_fade_in.rate has the wrong JSON type
+document	int32+1	sequence.tracks[0].clips[0].audio_fade_in.rate	refused	document.sequence.tracks[0].clips[0].audio_fade_in.rate is outside int32_t range
+document	negative	sequence.tracks[0].clips[0].audio_fade_in.rate	accepted	sequence.tracks[0].clips[0].audio_fade_in.rate=-1
+document	remove	sequence.tracks[0].clips[0].audio_fade_out	refused	document.sequence.tracks[0].clips[0] is missing 'audio_fade_out'
+document	retype	sequence.tracks[0].clips[0].audio_fade_out	refused	document.sequence.tracks[0].clips[0].audio_fade_out has the wrong JSON type
+document	remove	sequence.tracks[0].clips[0].audio_fade_out.value	refused	document.sequence.tracks[0].clips[0].audio_fade_out is missing 'value'
+document	retype	sequence.tracks[0].clips[0].audio_fade_out.value	refused	document.sequence.tracks[0].clips[0].audio_fade_out.value has the wrong JSON type
+document	int32+1	sequence.tracks[0].clips[0].audio_fade_out.value	accepted	sequence.tracks[0].clips[0].audio_fade_out.value=2147483648
+document	negative	sequence.tracks[0].clips[0].audio_fade_out.value	accepted	sequence.tracks[0].clips[0].audio_fade_out.value=-1
+document	remove	sequence.tracks[0].clips[0].audio_fade_out.rate	refused	document.sequence.tracks[0].clips[0].audio_fade_out is missing 'rate'
+document	retype	sequence.tracks[0].clips[0].audio_fade_out.rate	refused	document.sequence.tracks[0].clips[0].audio_fade_out.rate has the wrong JSON type
+document	int32+1	sequence.tracks[0].clips[0].audio_fade_out.rate	refused	document.sequence.tracks[0].clips[0].audio_fade_out.rate is outside int32_t range
+document	negative	sequence.tracks[0].clips[0].audio_fade_out.rate	accepted	sequence.tracks[0].clips[0].audio_fade_out.rate=-1
+document	remove	sequence.caption_styles	accepted	sequence.caption_styles=[]
+document	retype	sequence.caption_styles	refused	document.sequence.caption_styles has the wrong JSON type
+document	remove	sequence.caption_styles[0].id	refused	document.sequence.caption_styles[0] is missing 'id'
+document	retype	sequence.caption_styles[0].id	refused	document.sequence.caption_styles[0].id has the wrong JSON type
+document	remove	sequence.caption_styles[0].font_family	refused	document.sequence.caption_styles[0] is missing 'font_family'
+document	retype	sequence.caption_styles[0].font_family	refused	document.sequence.caption_styles[0].font_family has the wrong JSON type
+document	remove	sequence.caption_styles[0].font_size	refused	document.sequence.caption_styles[0] is missing 'font_size'
+document	retype	sequence.caption_styles[0].font_size	refused	document.sequence.caption_styles[0].font_size has the wrong JSON type
+document	int32+1	sequence.caption_styles[0].font_size	refused	document.sequence.caption_styles[0].font_size is outside int32_t range
+document	negative	sequence.caption_styles[0].font_size	accepted	sequence.caption_styles[0].font_size=-1
+document	remove	sequence.caption_styles[0].color	refused	document.sequence.caption_styles[0] is missing 'color'
+document	retype	sequence.caption_styles[0].color	refused	document.sequence.caption_styles[0].color has the wrong JSON type
+document	remove	sequence.caption_styles[0].position	refused	document.sequence.caption_styles[0] is missing 'position'
+document	retype	sequence.caption_styles[0].position	refused	document.sequence.caption_styles[0].position has the wrong JSON type
+document	remove	sequence.multicam_groups	accepted	sequence.multicam_groups=[]
+document	retype	sequence.multicam_groups	refused	document.sequence.multicam_groups has the wrong JSON type
+document	remove	sequence.multicam_groups[0].id	refused	document.sequence.multicam_groups[0] is missing 'id'
+document	retype	sequence.multicam_groups[0].id	refused	document.sequence.multicam_groups[0].id has the wrong JSON type
+document	remove	sequence.multicam_groups[0].name	refused	document.sequence.multicam_groups[0] is missing 'name'
+document	retype	sequence.multicam_groups[0].name	refused	document.sequence.multicam_groups[0].name has the wrong JSON type
+document	remove	sequence.multicam_groups[0].angles	refused	document.sequence.multicam_groups[0] is missing 'angles'
+document	retype	sequence.multicam_groups[0].angles	refused	document.sequence.multicam_groups[0].angles has the wrong JSON type
+document	remove	sequence.multicam_groups[0].angles[0].id	refused	document.sequence.multicam_groups[0].angles[0] is missing 'id'
+document	retype	sequence.multicam_groups[0].angles[0].id	refused	document.sequence.multicam_groups[0].angles[0].id has the wrong JSON type
+document	remove	sequence.multicam_groups[0].angles[0].name	refused	document.sequence.multicam_groups[0].angles[0] is missing 'name'
+document	retype	sequence.multicam_groups[0].angles[0].name	refused	document.sequence.multicam_groups[0].angles[0].name has the wrong JSON type
+document	remove	sequence.multicam_groups[0].angles[0].clip_id	refused	document.sequence.multicam_groups[0].angles[0] is missing 'clip_id'
+document	retype	sequence.multicam_groups[0].angles[0].clip_id	refused	document.sequence.multicam_groups[0].angles[0].clip_id has the wrong JSON type
+document	remove	sequence.multicam_groups[0].active_angle_id	accepted	-sequence.multicam_groups[0].active_angle_id
+document	retype	sequence.multicam_groups[0].active_angle_id	refused	document.sequence.multicam_groups[0].active_angle_id has the wrong JSON type
+document	remove	color_management	accepted	color_management.enabled=false color_management.input_gamut="rec709" color_management.input_transfer="rec709" color_management.input_ycbcr_matrix="auto" color_management.input_range="auto" color_management.working_gamut="acescct" color_management.output_gamut="rec709" color_management.output_transfer="rec709"
+document	retype	color_management	refused	document.color_management has the wrong JSON type
+document	remove	color_management.enabled	refused	document.color_management is missing 'enabled'
+document	retype	color_management.enabled	refused	document.color_management.enabled has the wrong JSON type
+document	remove	color_management.input_gamut	refused	document.color_management is missing 'input_gamut'
+document	retype	color_management.input_gamut	refused	document.color_management.input_gamut has the wrong JSON type
+document	remove	color_management.input_transfer	refused	document.color_management is missing 'input_transfer'
+document	retype	color_management.input_transfer	refused	document.color_management.input_transfer has the wrong JSON type
+document	remove	color_management.input_ycbcr_matrix	refused	document.color_management is missing 'input_ycbcr_matrix'
+document	retype	color_management.input_ycbcr_matrix	refused	document.color_management.input_ycbcr_matrix has the wrong JSON type
+document	remove	color_management.input_range	accepted	color_management.input_range="auto"
+document	retype	color_management.input_range	refused	document.color_management.input_range has the wrong JSON type
+document	remove	color_management.working_gamut	refused	document.color_management is missing 'working_gamut'
+document	retype	color_management.working_gamut	refused	document.color_management.working_gamut has the wrong JSON type
+document	remove	color_management.output_gamut	refused	document.color_management is missing 'output_gamut'
+document	retype	color_management.output_gamut	refused	document.color_management.output_gamut has the wrong JSON type
+document	remove	color_management.output_transfer	refused	document.color_management is missing 'output_transfer'
+document	retype	color_management.output_transfer	refused	document.color_management.output_transfer has the wrong JSON type
+document	remove	library	refused	document is missing 'library'
+document	retype	library	refused	document.library has the wrong JSON type
+document	remove	library[0].id	refused	library[0] is missing 'id'
+document	retype	library[0].id	refused	library[0].id has the wrong JSON type
+document	remove	library[0].path	refused	library[0] is missing 'path'
+document	retype	library[0].path	refused	library[0].path has the wrong JSON type
+document	remove	library[0].filename	refused	library[0] is missing 'filename'
+document	retype	library[0].filename	refused	library[0].filename has the wrong JSON type
+document	remove	library[0].bin_id	accepted	-library[0].bin_id
+document	retype	library[0].bin_id	refused	library[0].bin_id has the wrong JSON type
+document	remove	library[0].proxy_path	accepted	-library[0].proxy_path
+document	retype	library[0].proxy_path	refused	library[0].proxy_path has the wrong JSON type
+document	remove	library[0].codec	accepted	-library[0].codec -library[0].has_video -library[0].width -library[0].height -library[0].rotation_degrees -library[0].pixel_format -library[0].color_range -library[0].color_space -library[0].color_transfer -library[0].color_primaries -library[0].orientation -library[0].has_audio -library[0].audio_rate -library[0].audio_channels -library[0].audio_level
+document	retype	library[0].codec	refused	library[0].codec has the wrong JSON type
+document	remove	library[0].has_video	accepted	
+document	retype	library[0].has_video	refused	library[0].has_video has the wrong JSON type
+document	remove	library[0].width	refused	library[0] is missing 'width'
+document	retype	library[0].width	refused	library[0].width has the wrong JSON type
+document	int32+1	library[0].width	refused	library[0].width is outside int32_t range
+document	negative	library[0].width	accepted	library[0].width=-1
+document	remove	library[0].height	refused	library[0] is missing 'height'
+document	retype	library[0].height	refused	library[0].height has the wrong JSON type
+document	int32+1	library[0].height	refused	library[0].height is outside int32_t range
+document	negative	library[0].height	accepted	library[0].height=-1
+document	remove	library[0].rotation_degrees	accepted	library[0].rotation_degrees=0
+document	retype	library[0].rotation_degrees	refused	library[0].rotation_degrees has the wrong JSON type
+document	int32+1	library[0].rotation_degrees	refused	library[0].rotation_degrees is outside int32_t range
+document	negative	library[0].rotation_degrees	accepted	library[0].rotation_degrees=-1
+document	remove	library[0].pixel_format	accepted	library[0].pixel_format=""
+document	retype	library[0].pixel_format	refused	library[0].pixel_format has the wrong JSON type
+document	remove	library[0].color_range	accepted	library[0].color_range=""
+document	retype	library[0].color_range	refused	library[0].color_range has the wrong JSON type
+document	remove	library[0].color_space	accepted	library[0].color_space=""
+document	retype	library[0].color_space	refused	library[0].color_space has the wrong JSON type
+document	remove	library[0].color_transfer	accepted	library[0].color_transfer=""
+document	retype	library[0].color_transfer	refused	library[0].color_transfer has the wrong JSON type
+document	remove	library[0].color_primaries	accepted	library[0].color_primaries=""
+document	retype	library[0].color_primaries	refused	library[0].color_primaries has the wrong JSON type
+document	remove	library[0].rate	refused	library[0] is missing 'rate'
+document	retype	library[0].rate	refused	library[0].rate has the wrong JSON type
+document	remove	library[0].rate.num	refused	library[0].rate is missing 'num'
+document	retype	library[0].rate.num	refused	library[0].rate.num has the wrong JSON type
+document	int32+1	library[0].rate.num	refused	library[0].rate.num is outside int32_t range
+document	negative	library[0].rate.num	accepted	library[0].rate.num=-1
+document	remove	library[0].rate.den	refused	library[0].rate is missing 'den'
+document	retype	library[0].rate.den	refused	library[0].rate.den has the wrong JSON type
+document	int32+1	library[0].rate.den	refused	library[0].rate.den is outside int32_t range
+document	negative	library[0].rate.den	accepted	library[0].rate.den=-1
+document	remove	library[0].duration	refused	library[0] is missing 'duration'
+document	retype	library[0].duration	refused	library[0].duration has the wrong JSON type
+document	remove	library[0].duration.value	refused	library[0].duration is missing 'value'
+document	retype	library[0].duration.value	refused	library[0].duration.value has the wrong JSON type
+document	int32+1	library[0].duration.value	accepted	library[0].duration.value=2147483648
+document	negative	library[0].duration.value	accepted	library[0].duration.value=-1
+document	remove	library[0].duration.rate	refused	library[0].duration is missing 'rate'
+document	retype	library[0].duration.rate	refused	library[0].duration.rate has the wrong JSON type
+document	int32+1	library[0].duration.rate	refused	library[0].duration.rate is outside int32_t range
+document	negative	library[0].duration.rate	accepted	library[0].duration.rate=-1
+document	remove	library[0].orientation	refused	library[0] is missing 'orientation'
+document	retype	library[0].orientation	refused	library[0].orientation has the wrong JSON type
+document	remove	library[0].has_audio	refused	library[0] is missing 'has_audio'
+document	retype	library[0].has_audio	refused	library[0].has_audio has the wrong JSON type
+document	remove	library[0].audio_rate	refused	library[0] is missing 'audio_rate'
+document	retype	library[0].audio_rate	refused	library[0].audio_rate has the wrong JSON type
+document	int32+1	library[0].audio_rate	refused	library[0].audio_rate is outside int32_t range
+document	negative	library[0].audio_rate	accepted	library[0].audio_rate=-1
+document	remove	library[0].audio_channels	refused	library[0] is missing 'audio_channels'
+document	retype	library[0].audio_channels	refused	library[0].audio_channels has the wrong JSON type
+document	int32+1	library[0].audio_channels	refused	library[0].audio_channels is outside int32_t range
+document	negative	library[0].audio_channels	accepted	library[0].audio_channels=-1
+document	remove	library[0].audio_level	accepted	-library[0].audio_level
+document	retype	library[0].audio_level	refused	library[0].audio_level has the wrong JSON type
+document	int32+1	library[0].audio_level	accepted	library[0].audio_level=2147483648
+document	negative	library[0].audio_level	accepted	library[0].audio_level=-1
+document	remove	bins	accepted	bins=[]
+document	retype	bins	refused	document.bins has the wrong JSON type
+document	remove	bins[0].id	refused	bins[0] is missing 'id'
+document	retype	bins[0].id	refused	bins[0].id has the wrong JSON type
+document	remove	bins[0].name	refused	bins[0] is missing 'name'
+document	retype	bins[0].name	refused	bins[0].name has the wrong JSON type
+document	remove	bins[0].parent_id	accepted	-bins[0].parent_id
+document	retype	bins[0].parent_id	refused	bins[0].parent_id has the wrong JSON type
+document	remove	sources	refused	document is missing 'sources'
+document	retype	sources	refused	document.sources has the wrong JSON type
+document	remove	sources[0].id	refused	sources[0] is missing 'id'
+document	retype	sources[0].id	refused	sources[0].id has the wrong JSON type
+document	remove	sources[0].path	refused	sources[0] is missing 'path'
+document	retype	sources[0].path	refused	sources[0].path has the wrong JSON type
+document	remove	sources[0].rate	refused	sources[0] is missing 'rate'
+document	retype	sources[0].rate	refused	sources[0].rate has the wrong JSON type
+document	remove	sources[0].rate.num	refused	sources[0].rate is missing 'num'
+document	retype	sources[0].rate.num	refused	sources[0].rate.num has the wrong JSON type
+document	int32+1	sources[0].rate.num	refused	sources[0].rate.num is outside int32_t range
+document	negative	sources[0].rate.num	accepted	sources[0].rate.num=-1
+document	remove	sources[0].rate.den	refused	sources[0].rate is missing 'den'
+document	retype	sources[0].rate.den	refused	sources[0].rate.den has the wrong JSON type
+document	int32+1	sources[0].rate.den	refused	sources[0].rate.den is outside int32_t range
+document	negative	sources[0].rate.den	accepted	sources[0].rate.den=-1
+document	remove	sources[0].duration	refused	sources[0] is missing 'duration'
+document	retype	sources[0].duration	refused	sources[0].duration has the wrong JSON type
+document	remove	sources[0].duration.value	refused	sources[0].duration is missing 'value'
+document	retype	sources[0].duration.value	refused	sources[0].duration.value has the wrong JSON type
+document	int32+1	sources[0].duration.value	accepted	sources[0].duration.value=2147483648
+document	negative	sources[0].duration.value	accepted	sources[0].duration.value=-1
+document	remove	sources[0].duration.rate	refused	sources[0].duration is missing 'rate'
+document	retype	sources[0].duration.rate	refused	sources[0].duration.rate has the wrong JSON type
+document	int32+1	sources[0].duration.rate	refused	sources[0].duration.rate is outside int32_t range
+document	negative	sources[0].duration.rate	accepted	sources[0].duration.rate=-1
+project	remove	project_format	refused	missing project format
+project	retype	project_format	refused	project.project_format has the wrong JSON type
+project	remove	project_version	refused	project is missing 'project_version'
+project	retype	project_version	refused	project.project_version has the wrong JSON type
+project	int32+1	project_version	refused	project.project_version is outside int32_t range
+project	negative	project_version	refused	unsupported project version
+project	remove	document_version	refused	project is missing 'document_version'
+project	retype	document_version	refused	project.document_version has the wrong JSON type
+project	int32+1	document_version	refused	project.document_version is outside int32_t range
+project	negative	document_version	refused	invalid shared project data: unsupported document version -1
+project	remove	id	refused	project is missing 'id'
+project	retype	id	refused	project.id has the wrong JSON type
+project	remove	name	refused	project is missing 'name'
+project	retype	name	refused	project.name has the wrong JSON type
+project	remove	active_timeline_id	refused	project is missing 'active_timeline_id'
+project	retype	active_timeline_id	refused	project.active_timeline_id has the wrong JSON type
+project	remove	color_management	refused	project is missing 'color_management'
+project	retype	color_management	refused	project.color_management has the wrong JSON type
+project	remove	color_management.enabled	refused	invalid shared project data: document.color_management is missing 'enabled'
+project	retype	color_management.enabled	refused	invalid shared project data: document.color_management.enabled has the wrong JSON type
+project	remove	color_management.input_gamut	refused	invalid shared project data: document.color_management is missing 'input_gamut'
+project	retype	color_management.input_gamut	refused	invalid shared project data: document.color_management.input_gamut has the wrong JSON type
+project	remove	color_management.input_transfer	refused	invalid shared project data: document.color_management is missing 'input_transfer'
+project	retype	color_management.input_transfer	refused	invalid shared project data: document.color_management.input_transfer has the wrong JSON type
+project	remove	color_management.input_ycbcr_matrix	refused	invalid shared project data: document.color_management is missing 'input_ycbcr_matrix'
+project	retype	color_management.input_ycbcr_matrix	refused	invalid shared project data: document.color_management.input_ycbcr_matrix has the wrong JSON type
+project	remove	color_management.input_range	accepted	color_management.input_range="auto"
+project	retype	color_management.input_range	refused	invalid shared project data: document.color_management.input_range has the wrong JSON type
+project	remove	color_management.working_gamut	refused	invalid shared project data: document.color_management is missing 'working_gamut'
+project	retype	color_management.working_gamut	refused	invalid shared project data: document.color_management.working_gamut has the wrong JSON type
+project	remove	color_management.output_gamut	refused	invalid shared project data: document.color_management is missing 'output_gamut'
+project	retype	color_management.output_gamut	refused	invalid shared project data: document.color_management.output_gamut has the wrong JSON type
+project	remove	color_management.output_transfer	refused	invalid shared project data: document.color_management is missing 'output_transfer'
+project	retype	color_management.output_transfer	refused	invalid shared project data: document.color_management.output_transfer has the wrong JSON type
+project	remove	library	refused	project is missing 'library'
+project	retype	library	refused	project.library has the wrong JSON type
+project	remove	library[0].id	refused	invalid shared project data: library[0] is missing 'id'
+project	retype	library[0].id	refused	invalid shared project data: library[0].id has the wrong JSON type
+project	remove	library[0].path	refused	invalid shared project data: library[0] is missing 'path'
+project	retype	library[0].path	refused	invalid shared project data: library[0].path has the wrong JSON type
+project	remove	library[0].filename	refused	invalid shared project data: library[0] is missing 'filename'
+project	retype	library[0].filename	refused	invalid shared project data: library[0].filename has the wrong JSON type
+project	remove	library[0].bin_id	accepted	-library[0].bin_id
+project	retype	library[0].bin_id	refused	invalid shared project data: library[0].bin_id has the wrong JSON type
+project	remove	library[0].proxy_path	accepted	-library[0].proxy_path
+project	retype	library[0].proxy_path	refused	invalid shared project data: library[0].proxy_path has the wrong JSON type
+project	remove	library[0].codec	accepted	-library[0].codec -library[0].has_video -library[0].width -library[0].height -library[0].rotation_degrees -library[0].pixel_format -library[0].color_range -library[0].color_space -library[0].color_transfer -library[0].color_primaries -library[0].orientation -library[0].has_audio -library[0].audio_rate -library[0].audio_channels -library[0].audio_level
+project	retype	library[0].codec	refused	invalid shared project data: library[0].codec has the wrong JSON type
+project	remove	library[0].has_video	accepted	
+project	retype	library[0].has_video	refused	invalid shared project data: library[0].has_video has the wrong JSON type
+project	remove	library[0].width	refused	invalid shared project data: library[0] is missing 'width'
+project	retype	library[0].width	refused	invalid shared project data: library[0].width has the wrong JSON type
+project	int32+1	library[0].width	refused	invalid shared project data: library[0].width is outside int32_t range
+project	negative	library[0].width	refused	timeline 'Portrait « atelier » v2': library media 0 has invalid video metadata
+project	remove	library[0].height	refused	invalid shared project data: library[0] is missing 'height'
+project	retype	library[0].height	refused	invalid shared project data: library[0].height has the wrong JSON type
+project	int32+1	library[0].height	refused	invalid shared project data: library[0].height is outside int32_t range
+project	negative	library[0].height	refused	timeline 'Portrait « atelier » v2': library media 0 has invalid video metadata
+project	remove	library[0].rotation_degrees	accepted	
+project	retype	library[0].rotation_degrees	refused	invalid shared project data: library[0].rotation_degrees has the wrong JSON type
+project	int32+1	library[0].rotation_degrees	refused	invalid shared project data: library[0].rotation_degrees is outside int32_t range
+project	negative	library[0].rotation_degrees	accepted	library[0].rotation_degrees=-1
+project	remove	library[0].pixel_format	accepted	library[0].pixel_format=""
+project	retype	library[0].pixel_format	refused	invalid shared project data: library[0].pixel_format has the wrong JSON type
+project	remove	library[0].color_range	accepted	library[0].color_range=""
+project	retype	library[0].color_range	refused	invalid shared project data: library[0].color_range has the wrong JSON type
+project	remove	library[0].color_space	accepted	library[0].color_space=""
+project	retype	library[0].color_space	refused	invalid shared project data: library[0].color_space has the wrong JSON type
+project	remove	library[0].color_transfer	accepted	library[0].color_transfer=""
+project	retype	library[0].color_transfer	refused	invalid shared project data: library[0].color_transfer has the wrong JSON type
+project	remove	library[0].color_primaries	accepted	library[0].color_primaries=""
+project	retype	library[0].color_primaries	refused	invalid shared project data: library[0].color_primaries has the wrong JSON type
+project	remove	library[0].rate	refused	invalid shared project data: library[0] is missing 'rate'
+project	retype	library[0].rate	refused	invalid shared project data: library[0].rate has the wrong JSON type
+project	remove	library[0].duration	refused	invalid shared project data: library[0] is missing 'duration'
+project	retype	library[0].duration	refused	invalid shared project data: library[0].duration has the wrong JSON type
+project	remove	library[0].orientation	refused	invalid shared project data: library[0] is missing 'orientation'
+project	retype	library[0].orientation	refused	invalid shared project data: library[0].orientation has the wrong JSON type
+project	remove	library[0].has_audio	refused	invalid shared project data: library[0] is missing 'has_audio'
+project	retype	library[0].has_audio	refused	invalid shared project data: library[0].has_audio has the wrong JSON type
+project	remove	library[0].audio_rate	refused	invalid shared project data: library[0] is missing 'audio_rate'
+project	retype	library[0].audio_rate	refused	invalid shared project data: library[0].audio_rate has the wrong JSON type
+project	int32+1	library[0].audio_rate	refused	invalid shared project data: library[0].audio_rate is outside int32_t range
+project	negative	library[0].audio_rate	refused	timeline 'Portrait « atelier » v2': library media 0 has invalid audio metadata
+project	remove	library[0].audio_channels	refused	invalid shared project data: library[0] is missing 'audio_channels'
+project	retype	library[0].audio_channels	refused	invalid shared project data: library[0].audio_channels has the wrong JSON type
+project	int32+1	library[0].audio_channels	refused	invalid shared project data: library[0].audio_channels is outside int32_t range
+project	negative	library[0].audio_channels	refused	timeline 'Portrait « atelier » v2': library media 0 has invalid audio metadata
+project	remove	library[0].audio_level	accepted	-library[0].audio_level
+project	retype	library[0].audio_level	refused	invalid shared project data: library[0].audio_level has the wrong JSON type
+project	int32+1	library[0].audio_level	refused	timeline 'Portrait « atelier » v2': library media 0 has an out-of-range audio level
+project	negative	library[0].audio_level	refused	timeline 'Portrait « atelier » v2': library media 0 has an out-of-range audio level
+project	remove	bins	refused	project is missing 'bins'
+project	retype	bins	refused	project.bins has the wrong JSON type
+project	remove	bins[0].id	refused	invalid shared project data: bins[0] is missing 'id'
+project	retype	bins[0].id	refused	invalid shared project data: bins[0].id has the wrong JSON type
+project	remove	bins[0].name	refused	invalid shared project data: bins[0] is missing 'name'
+project	retype	bins[0].name	refused	invalid shared project data: bins[0].name has the wrong JSON type
+project	remove	sources	refused	project is missing 'sources'
+project	retype	sources	refused	project.sources has the wrong JSON type
+project	remove	sources[0].id	refused	invalid shared project data: sources[0] is missing 'id'
+project	retype	sources[0].id	refused	invalid shared project data: sources[0].id has the wrong JSON type
+project	remove	sources[0].path	refused	invalid shared project data: sources[0] is missing 'path'
+project	retype	sources[0].path	refused	invalid shared project data: sources[0].path has the wrong JSON type
+project	remove	sources[0].rate	refused	invalid shared project data: sources[0] is missing 'rate'
+project	retype	sources[0].rate	refused	invalid shared project data: sources[0].rate has the wrong JSON type
+project	remove	sources[0].duration	refused	invalid shared project data: sources[0] is missing 'duration'
+project	retype	sources[0].duration	refused	invalid shared project data: sources[0].duration has the wrong JSON type
+project	remove	timelines	refused	project is missing 'timelines'
+project	retype	timelines	refused	project.timelines has the wrong JSON type
+project	remove	timelines[0].id	refused	invalid timeline 0: document.sequence is missing 'id'
+project	retype	timelines[0].id	refused	invalid timeline 0: document.sequence.id has the wrong JSON type
+project	remove	timelines[0].name	refused	invalid timeline 0: document.sequence is missing 'name'
+project	retype	timelines[0].name	refused	invalid timeline 0: document.sequence.name has the wrong JSON type
+project	remove	timelines[0].width	refused	invalid timeline 0: document.sequence is missing 'width'
+project	retype	timelines[0].width	refused	invalid timeline 0: document.sequence.width has the wrong JSON type
+project	int32+1	timelines[0].width	refused	invalid timeline 0: document.sequence.width is outside int32_t range
+project	negative	timelines[0].width	refused	timeline 'Portrait « atelier » v2': sequence has an invalid ID, name, dimensions or frame rate
+project	remove	timelines[0].height	refused	invalid timeline 0: document.sequence is missing 'height'
+project	retype	timelines[0].height	refused	invalid timeline 0: document.sequence.height has the wrong JSON type
+project	int32+1	timelines[0].height	refused	invalid timeline 0: document.sequence.height is outside int32_t range
+project	negative	timelines[0].height	refused	timeline 'Portrait « atelier » v2': sequence has an invalid ID, name, dimensions or frame rate
+project	remove	timelines[0].frame_rate	refused	invalid timeline 0: document.sequence is missing 'frame_rate'
+project	retype	timelines[0].frame_rate	refused	invalid timeline 0: document.sequence.frame_rate has the wrong JSON type
+project	remove	timelines[0].markers	accepted	timelines[0].markers=[]
+project	retype	timelines[0].markers	refused	invalid timeline 0: document.sequence.markers has the wrong JSON type
+project	remove	timelines[0].transitions	accepted	timelines[0].transitions=[]
+project	retype	timelines[0].transitions	refused	invalid timeline 0: document.sequence.transitions has the wrong JSON type
+project	remove	timelines[0].tracks	refused	invalid timeline 0: document.sequence is missing 'tracks'
+project	retype	timelines[0].tracks	refused	invalid timeline 0: document.sequence.tracks has the wrong JSON type
+project	remove	timelines[0].caption_styles	accepted	
+project	retype	timelines[0].caption_styles	refused	invalid timeline 0: document.sequence.caption_styles has the wrong JSON type
+project	remove	timelines[0].multicam_groups	accepted	
+project	retype	timelines[0].multicam_groups	refused	invalid timeline 0: document.sequence.multicam_groups has the wrong JSON type
+project	remove	bin_metadata	accepted	bin_metadata=[]
+project	retype	bin_metadata	refused	project.bin_metadata has the wrong JSON type
+project	remove	bin_metadata[0].item_id	refused	project.bin_metadata[0] is missing 'item_id'
+project	retype	bin_metadata[0].item_id	refused	project.bin_metadata[0].item_id has the wrong JSON type
+project	remove	bin_metadata[0].description	refused	project.bin_metadata[0] is missing 'description'
+project	retype	bin_metadata[0].description	refused	project.bin_metadata[0].description has the wrong JSON type
+project	remove	bin_metadata[0].rating	refused	project.bin_metadata[0] is missing 'rating'
+project	retype	bin_metadata[0].rating	refused	project.bin_metadata[0].rating has the wrong JSON type
+project	int32+1	bin_metadata[0].rating	refused	project bin rating must be between 0 and 5
+project	negative	bin_metadata[0].rating	refused	project.bin_metadata[0].rating cannot be negative
+project	remove	bin_metadata[0].tags	refused	project.bin_metadata[0] is missing 'tags'
+project	retype	bin_metadata[0].tags	refused	project.bin_metadata[0].tags has the wrong JSON type
+project	remove	bin_metadata[0].insert_order	refused	project.bin_metadata[0] is missing 'insert_order'
+project	retype	bin_metadata[0].insert_order	refused	project.bin_metadata[0].insert_order has the wrong JSON type
+project	int32+1	bin_metadata[0].insert_order	accepted	bin_metadata[0].insert_order=2147483648
+project	negative	bin_metadata[0].insert_order	refused	project.bin_metadata[0].insert_order cannot be negative
+project	remove	bin_metadata[0].display_name	accepted	bin_metadata[0].display_name=""
+project	retype	bin_metadata[0].display_name	refused	project.bin_metadata[0].display_name has the wrong JSON type
+project	remove	timeline_bin_ids	accepted	timeline_bin_ids=[]
+project	retype	timeline_bin_ids	refused	project.timeline_bin_ids has the wrong JSON type
+project	remove	timeline_bin_ids[0].timeline_id	refused	project.timeline_bin_ids[0] is missing 'timeline_id'
+project	retype	timeline_bin_ids[0].timeline_id	refused	project.timeline_bin_ids[0].timeline_id has the wrong JSON type
+project	remove	timeline_bin_ids[0].bin_id	refused	project.timeline_bin_ids[0] is missing 'bin_id'
+project	retype	timeline_bin_ids[0].bin_id	refused	project.timeline_bin_ids[0].bin_id has the wrong JSON type
+delta	remove	name	refused	project delta has unexpected or missing fields
+delta	retype	name	refused	project delta.name has unexpected or missing fields
+delta	remove	name.from	refused	project delta.name has unexpected or missing fields
+delta	retype	name.from	refused	project delta.name.from must be a string
+delta	remove	name.to	refused	project delta.name has unexpected or missing fields
+delta	retype	name.to	refused	project delta.name.to must be a string
+delta	remove	active_timeline_id	refused	project delta has unexpected or missing fields
+delta	retype	active_timeline_id	refused	project delta.active_timeline_id has unexpected or missing fields
+delta	remove	active_timeline_id.from	refused	project delta.active_timeline_id has unexpected or missing fields
+delta	retype	active_timeline_id.from	refused	project delta.active_timeline_id.from must be a string
+delta	remove	active_timeline_id.to	refused	project delta.active_timeline_id has unexpected or missing fields
+delta	retype	active_timeline_id.to	refused	project delta.active_timeline_id.to must be a string
+delta	remove	color_management	refused	project delta has unexpected or missing fields
+delta	retype	color_management	refused	project delta.color_management has unexpected or missing fields
+delta	remove	color_management.from	refused	project delta.color_management has unexpected or missing fields
+delta	retype	color_management.from	refused	project delta.color_management.from is invalid: document.color_management has the wrong JSON type
+delta	remove	color_management.from.enabled	refused	project delta.color_management.from is invalid: document.color_management is missing 'enabled'
+delta	retype	color_management.from.enabled	refused	project delta.color_management.from is invalid: document.color_management.enabled has the wrong JSON type
+delta	remove	color_management.from.input_gamut	refused	project delta.color_management.from is invalid: document.color_management is missing 'input_gamut'
+delta	retype	color_management.from.input_gamut	refused	project delta.color_management.from is invalid: document.color_management.input_gamut has the wrong JSON type
+delta	remove	color_management.from.input_transfer	refused	project delta.color_management.from is invalid: document.color_management is missing 'input_transfer'
+delta	retype	color_management.from.input_transfer	refused	project delta.color_management.from is invalid: document.color_management.input_transfer has the wrong JSON type
+delta	remove	color_management.from.input_ycbcr_matrix	refused	project delta.color_management.from is invalid: document.color_management is missing 'input_ycbcr_matrix'
+delta	retype	color_management.from.input_ycbcr_matrix	refused	project delta.color_management.from is invalid: document.color_management.input_ycbcr_matrix has the wrong JSON type
+delta	remove	color_management.from.input_range	accepted	color_management.from.input_range="auto"
+delta	retype	color_management.from.input_range	refused	project delta.color_management.from is invalid: document.color_management.input_range has the wrong JSON type
+delta	remove	color_management.from.working_gamut	refused	project delta.color_management.from is invalid: document.color_management is missing 'working_gamut'
+delta	retype	color_management.from.working_gamut	refused	project delta.color_management.from is invalid: document.color_management.working_gamut has the wrong JSON type
+delta	remove	color_management.from.output_gamut	refused	project delta.color_management.from is invalid: document.color_management is missing 'output_gamut'
+delta	retype	color_management.from.output_gamut	refused	project delta.color_management.from is invalid: document.color_management.output_gamut has the wrong JSON type
+delta	remove	color_management.from.output_transfer	refused	project delta.color_management.from is invalid: document.color_management is missing 'output_transfer'
+delta	retype	color_management.from.output_transfer	refused	project delta.color_management.from is invalid: document.color_management.output_transfer has the wrong JSON type
+delta	remove	color_management.to	refused	project delta.color_management has unexpected or missing fields
+delta	retype	color_management.to	refused	project delta.color_management.to is invalid: document.color_management has the wrong JSON type
+delta	remove	color_management.to.enabled	refused	project delta.color_management.to is invalid: document.color_management is missing 'enabled'
+delta	retype	color_management.to.enabled	refused	project delta.color_management.to is invalid: document.color_management.enabled has the wrong JSON type
+delta	remove	color_management.to.input_gamut	refused	project delta.color_management.to is invalid: document.color_management is missing 'input_gamut'
+delta	retype	color_management.to.input_gamut	refused	project delta.color_management.to is invalid: document.color_management.input_gamut has the wrong JSON type
+delta	remove	color_management.to.input_transfer	refused	project delta.color_management.to is invalid: document.color_management is missing 'input_transfer'
+delta	retype	color_management.to.input_transfer	refused	project delta.color_management.to is invalid: document.color_management.input_transfer has the wrong JSON type
+delta	remove	color_management.to.input_ycbcr_matrix	refused	project delta.color_management.to is invalid: document.color_management is missing 'input_ycbcr_matrix'
+delta	retype	color_management.to.input_ycbcr_matrix	refused	project delta.color_management.to is invalid: document.color_management.input_ycbcr_matrix has the wrong JSON type
+delta	remove	color_management.to.input_range	accepted	color_management.to.input_range="auto"
+delta	retype	color_management.to.input_range	refused	project delta.color_management.to is invalid: document.color_management.input_range has the wrong JSON type
+delta	remove	color_management.to.working_gamut	refused	project delta.color_management.to is invalid: document.color_management is missing 'working_gamut'
+delta	retype	color_management.to.working_gamut	refused	project delta.color_management.to is invalid: document.color_management.working_gamut has the wrong JSON type
+delta	remove	color_management.to.output_gamut	refused	project delta.color_management.to is invalid: document.color_management is missing 'output_gamut'
+delta	retype	color_management.to.output_gamut	refused	project delta.color_management.to is invalid: document.color_management.output_gamut has the wrong JSON type
+delta	remove	color_management.to.output_transfer	refused	project delta.color_management.to is invalid: document.color_management is missing 'output_transfer'
+delta	retype	color_management.to.output_transfer	refused	project delta.color_management.to is invalid: document.color_management.output_transfer has the wrong JSON type
+delta	remove	timelines	refused	project delta has unexpected or missing fields
+delta	retype	timelines	refused	project delta.timelines has unexpected or missing fields
+delta	remove	timelines.removed	refused	project delta.timelines has unexpected or missing fields
+delta	retype	timelines.removed	refused	project delta.timelines.removed must be an array
+delta	remove	timelines.removed[0].index	refused	project delta.timelines.removed[0] has unexpected or missing fields
+delta	retype	timelines.removed[0].index	refused	project delta.timelines.removed[0] must be an integer
+delta	int32+1	timelines.removed[0].index	accepted	timelines.removed[0].index=2147483648
+delta	negative	timelines.removed[0].index	refused	project delta.timelines.removed[0].index must be ascending and positive
+delta	remove	timelines.removed[0].item	refused	project delta.timelines.removed[0] has unexpected or missing fields
+delta	retype	timelines.removed[0].item	refused	project delta.timelines.removed[0].item is invalid: document.sequence has the wrong JSON type
+delta	remove	timelines.removed[0].item.id	refused	project delta.timelines.removed[0].item is invalid: document.sequence is missing 'id'
+delta	retype	timelines.removed[0].item.id	refused	project delta.timelines.removed[0].item is invalid: document.sequence.id has the wrong JSON type
+delta	remove	timelines.removed[0].item.name	refused	project delta.timelines.removed[0].item is invalid: document.sequence is missing 'name'
+delta	retype	timelines.removed[0].item.name	refused	project delta.timelines.removed[0].item is invalid: document.sequence.name has the wrong JSON type
+delta	remove	timelines.removed[0].item.width	refused	project delta.timelines.removed[0].item is invalid: document.sequence is missing 'width'
+delta	retype	timelines.removed[0].item.width	refused	project delta.timelines.removed[0].item is invalid: document.sequence.width has the wrong JSON type
+delta	int32+1	timelines.removed[0].item.width	refused	project delta.timelines.removed[0].item is invalid: document.sequence.width is outside int32_t range
+delta	negative	timelines.removed[0].item.width	accepted	timelines.removed[0].item.width=-1
+delta	remove	timelines.removed[0].item.height	refused	project delta.timelines.removed[0].item is invalid: document.sequence is missing 'height'
+delta	retype	timelines.removed[0].item.height	refused	project delta.timelines.removed[0].item is invalid: document.sequence.height has the wrong JSON type
+delta	int32+1	timelines.removed[0].item.height	refused	project delta.timelines.removed[0].item is invalid: document.sequence.height is outside int32_t range
+delta	negative	timelines.removed[0].item.height	accepted	timelines.removed[0].item.height=-1
+delta	remove	timelines.removed[0].item.frame_rate	refused	project delta.timelines.removed[0].item is invalid: document.sequence is missing 'frame_rate'
+delta	retype	timelines.removed[0].item.frame_rate	refused	project delta.timelines.removed[0].item is invalid: document.sequence.frame_rate has the wrong JSON type
+delta	remove	timelines.removed[0].item.markers	accepted	timelines.removed[0].item.markers=[]
+delta	retype	timelines.removed[0].item.markers	refused	project delta.timelines.removed[0].item is invalid: document.sequence.markers has the wrong JSON type
+delta	remove	timelines.removed[0].item.transitions	accepted	timelines.removed[0].item.transitions=[]
+delta	retype	timelines.removed[0].item.transitions	refused	project delta.timelines.removed[0].item is invalid: document.sequence.transitions has the wrong JSON type
+delta	remove	timelines.removed[0].item.tracks	refused	project delta.timelines.removed[0].item is invalid: document.sequence is missing 'tracks'
+delta	retype	timelines.removed[0].item.tracks	refused	project delta.timelines.removed[0].item is invalid: document.sequence.tracks has the wrong JSON type
+delta	remove	timelines.removed[0].item.caption_styles	accepted	timelines.removed[0].item.caption_styles=[]
+delta	retype	timelines.removed[0].item.caption_styles	refused	project delta.timelines.removed[0].item is invalid: document.sequence.caption_styles has the wrong JSON type
+delta	remove	timelines.removed[0].item.multicam_groups	accepted	timelines.removed[0].item.multicam_groups=[]
+delta	retype	timelines.removed[0].item.multicam_groups	refused	project delta.timelines.removed[0].item is invalid: document.sequence.multicam_groups has the wrong JSON type
+delta	remove	timelines.added	refused	project delta.timelines has unexpected or missing fields
+delta	retype	timelines.added	refused	project delta.timelines.added must be an array
+delta	remove	timelines.added[0].index	refused	project delta.timelines.added[0] has unexpected or missing fields
+delta	retype	timelines.added[0].index	refused	project delta.timelines.added[0] must be an integer
+delta	int32+1	timelines.added[0].index	accepted	timelines.added[0].index=2147483648
+delta	negative	timelines.added[0].index	refused	project delta.timelines.added[0].index must be ascending and positive
+delta	remove	timelines.added[0].item	refused	project delta.timelines.added[0] has unexpected or missing fields
+delta	retype	timelines.added[0].item	refused	project delta.timelines.added[0].item is invalid: document.sequence has the wrong JSON type
+delta	remove	timelines.added[0].item.id	refused	project delta.timelines.added[0].item is invalid: document.sequence is missing 'id'
+delta	retype	timelines.added[0].item.id	refused	project delta.timelines.added[0].item is invalid: document.sequence.id has the wrong JSON type
+delta	remove	timelines.added[0].item.name	refused	project delta.timelines.added[0].item is invalid: document.sequence is missing 'name'
+delta	retype	timelines.added[0].item.name	refused	project delta.timelines.added[0].item is invalid: document.sequence.name has the wrong JSON type
+delta	remove	timelines.added[0].item.width	refused	project delta.timelines.added[0].item is invalid: document.sequence is missing 'width'
+delta	retype	timelines.added[0].item.width	refused	project delta.timelines.added[0].item is invalid: document.sequence.width has the wrong JSON type
+delta	int32+1	timelines.added[0].item.width	refused	project delta.timelines.added[0].item is invalid: document.sequence.width is outside int32_t range
+delta	negative	timelines.added[0].item.width	accepted	timelines.added[0].item.width=-1
+delta	remove	timelines.added[0].item.height	refused	project delta.timelines.added[0].item is invalid: document.sequence is missing 'height'
+delta	retype	timelines.added[0].item.height	refused	project delta.timelines.added[0].item is invalid: document.sequence.height has the wrong JSON type
+delta	int32+1	timelines.added[0].item.height	refused	project delta.timelines.added[0].item is invalid: document.sequence.height is outside int32_t range
+delta	negative	timelines.added[0].item.height	accepted	timelines.added[0].item.height=-1
+delta	remove	timelines.added[0].item.frame_rate	refused	project delta.timelines.added[0].item is invalid: document.sequence is missing 'frame_rate'
+delta	retype	timelines.added[0].item.frame_rate	refused	project delta.timelines.added[0].item is invalid: document.sequence.frame_rate has the wrong JSON type
+delta	remove	timelines.added[0].item.markers	accepted	timelines.added[0].item.markers=[]
+delta	retype	timelines.added[0].item.markers	refused	project delta.timelines.added[0].item is invalid: document.sequence.markers has the wrong JSON type
+delta	remove	timelines.added[0].item.transitions	accepted	timelines.added[0].item.transitions=[]
+delta	retype	timelines.added[0].item.transitions	refused	project delta.timelines.added[0].item is invalid: document.sequence.transitions has the wrong JSON type
+delta	remove	timelines.added[0].item.tracks	refused	project delta.timelines.added[0].item is invalid: document.sequence is missing 'tracks'
+delta	retype	timelines.added[0].item.tracks	refused	project delta.timelines.added[0].item is invalid: document.sequence.tracks has the wrong JSON type
+delta	remove	timelines.added[0].item.caption_styles	accepted	timelines.added[0].item.caption_styles=[]
+delta	retype	timelines.added[0].item.caption_styles	refused	project delta.timelines.added[0].item is invalid: document.sequence.caption_styles has the wrong JSON type
+delta	remove	timelines.added[0].item.multicam_groups	accepted	timelines.added[0].item.multicam_groups=[]
+delta	retype	timelines.added[0].item.multicam_groups	refused	project delta.timelines.added[0].item is invalid: document.sequence.multicam_groups has the wrong JSON type
+delta	remove	timelines.changed	refused	project delta.timelines has unexpected or missing fields
+delta	retype	timelines.changed	refused	project delta.timelines.changed must be an array
+delta	remove	timelines.changed[0].id	refused	project delta.timelines.changed[0] has unexpected or missing fields
+delta	retype	timelines.changed[0].id	refused	project delta.timelines.changed[0] must be a string
+delta	remove	timelines.changed[0].name	refused	project delta.timelines.changed[0] has unexpected or missing fields
+delta	retype	timelines.changed[0].name	refused	project delta.timelines.changed[0].name has unexpected or missing fields
+delta	remove	timelines.changed[0].name.from	refused	project delta.timelines.changed[0].name has unexpected or missing fields
+delta	retype	timelines.changed[0].name.from	refused	project delta.timelines.changed[0].name.from must be a string
+delta	remove	timelines.changed[0].name.to	refused	project delta.timelines.changed[0].name has unexpected or missing fields
+delta	retype	timelines.changed[0].name.to	refused	project delta.timelines.changed[0].name.to must be a string
+delta	remove	timelines.changed[0].width	refused	project delta.timelines.changed[0] has unexpected or missing fields
+delta	retype	timelines.changed[0].width	refused	project delta.timelines.changed[0].width has unexpected or missing fields
+delta	remove	timelines.changed[0].width.from	refused	project delta.timelines.changed[0].width has unexpected or missing fields
+delta	retype	timelines.changed[0].width.from	refused	project delta.timelines.changed[0].width.from must be an integer
+delta	int32+1	timelines.changed[0].width.from	refused	project delta.timelines.changed[0].width.from is outside int32_t range
+delta	negative	timelines.changed[0].width.from	accepted	timelines.changed[0].width.from=-1
+delta	remove	timelines.changed[0].width.to	refused	project delta.timelines.changed[0].width has unexpected or missing fields
+delta	retype	timelines.changed[0].width.to	refused	project delta.timelines.changed[0].width.to must be an integer
+delta	int32+1	timelines.changed[0].width.to	refused	project delta.timelines.changed[0].width.to is outside int32_t range
+delta	negative	timelines.changed[0].width.to	accepted	timelines.changed[0].width.to=-1
+delta	remove	timelines.changed[0].height	refused	project delta.timelines.changed[0] has unexpected or missing fields
+delta	retype	timelines.changed[0].height	refused	project delta.timelines.changed[0].height has unexpected or missing fields
+delta	remove	timelines.changed[0].height.from	refused	project delta.timelines.changed[0].height has unexpected or missing fields
+delta	retype	timelines.changed[0].height.from	refused	project delta.timelines.changed[0].height.from must be an integer
+delta	int32+1	timelines.changed[0].height.from	refused	project delta.timelines.changed[0].height.from is outside int32_t range
+delta	negative	timelines.changed[0].height.from	accepted	timelines.changed[0].height.from=-1
+delta	remove	timelines.changed[0].height.to	refused	project delta.timelines.changed[0].height has unexpected or missing fields
+delta	retype	timelines.changed[0].height.to	refused	project delta.timelines.changed[0].height.to must be an integer
+delta	int32+1	timelines.changed[0].height.to	refused	project delta.timelines.changed[0].height.to is outside int32_t range
+delta	negative	timelines.changed[0].height.to	accepted	timelines.changed[0].height.to=-1
+delta	remove	timelines.changed[0].frame_rate	refused	project delta.timelines.changed[0] has unexpected or missing fields
+delta	retype	timelines.changed[0].frame_rate	refused	project delta.timelines.changed[0].frame_rate has unexpected or missing fields
+delta	remove	timelines.changed[0].frame_rate.from	refused	project delta.timelines.changed[0].frame_rate has unexpected or missing fields
+delta	retype	timelines.changed[0].frame_rate.from	refused	project delta.timelines.changed[0].frame_rate.from must be an object
+delta	remove	timelines.changed[0].frame_rate.from.num	refused	project delta.timelines.changed[0].frame_rate.from has unexpected or missing fields
+delta	retype	timelines.changed[0].frame_rate.from.num	refused	project delta.timelines.changed[0].frame_rate.from.num has the wrong JSON type
+delta	int32+1	timelines.changed[0].frame_rate.from.num	refused	project delta.timelines.changed[0].frame_rate.from.num is outside int32_t range
+delta	negative	timelines.changed[0].frame_rate.from.num	accepted	timelines.changed[0].frame_rate.from.num=-1
+delta	remove	timelines.changed[0].frame_rate.from.den	refused	project delta.timelines.changed[0].frame_rate.from has unexpected or missing fields
+delta	retype	timelines.changed[0].frame_rate.from.den	refused	project delta.timelines.changed[0].frame_rate.from.den has the wrong JSON type
+delta	int32+1	timelines.changed[0].frame_rate.from.den	refused	project delta.timelines.changed[0].frame_rate.from.den is outside int32_t range
+delta	negative	timelines.changed[0].frame_rate.from.den	accepted	timelines.changed[0].frame_rate.from.den=-1
+delta	remove	timelines.changed[0].frame_rate.to	refused	project delta.timelines.changed[0].frame_rate has unexpected or missing fields
+delta	retype	timelines.changed[0].frame_rate.to	refused	project delta.timelines.changed[0].frame_rate.to must be an object
+delta	remove	timelines.changed[0].frame_rate.to.num	refused	project delta.timelines.changed[0].frame_rate.to has unexpected or missing fields
+delta	retype	timelines.changed[0].frame_rate.to.num	refused	project delta.timelines.changed[0].frame_rate.to.num has the wrong JSON type
+delta	int32+1	timelines.changed[0].frame_rate.to.num	refused	project delta.timelines.changed[0].frame_rate.to.num is outside int32_t range
+delta	negative	timelines.changed[0].frame_rate.to.num	accepted	timelines.changed[0].frame_rate.to.num=-1
+delta	remove	timelines.changed[0].frame_rate.to.den	refused	project delta.timelines.changed[0].frame_rate.to has unexpected or missing fields
+delta	retype	timelines.changed[0].frame_rate.to.den	refused	project delta.timelines.changed[0].frame_rate.to.den has the wrong JSON type
+delta	int32+1	timelines.changed[0].frame_rate.to.den	refused	project delta.timelines.changed[0].frame_rate.to.den is outside int32_t range
+delta	negative	timelines.changed[0].frame_rate.to.den	accepted	timelines.changed[0].frame_rate.to.den=-1
+delta	remove	timelines.changed[0].content	refused	project delta.timelines.changed[0] has unexpected or missing fields
+delta	retype	timelines.changed[0].content	refused	project delta.timelines.changed[0].content has unexpected or missing fields
+delta	remove	timelines.changed[0].content.from	refused	project delta.timelines.changed[0].content has unexpected or missing fields
+delta	retype	timelines.changed[0].content.from	refused	project delta.timelines.changed[0].content.from is invalid: document.sequence has the wrong JSON type
+delta	remove	timelines.changed[0].content.to	refused	project delta.timelines.changed[0].content has unexpected or missing fields
+delta	retype	timelines.changed[0].content.to	refused	project delta.timelines.changed[0].content.to is invalid: document.sequence has the wrong JSON type
+delta	remove	rushes	refused	project delta has unexpected or missing fields
+delta	retype	rushes	refused	project delta.rushes has unexpected or missing fields
+delta	remove	rushes.removed	refused	project delta.rushes has unexpected or missing fields
+delta	retype	rushes.removed	refused	project delta.rushes.removed must be an array
+delta	remove	rushes.removed[0].index	refused	project delta.rushes.removed[0] has unexpected or missing fields
+delta	retype	rushes.removed[0].index	refused	project delta.rushes.removed[0] must be an integer
+delta	int32+1	rushes.removed[0].index	accepted	rushes.removed[0].index=2147483648
+delta	negative	rushes.removed[0].index	refused	project delta.rushes.removed[0].index must be ascending and positive
+delta	remove	rushes.removed[0].item	refused	project delta.rushes.removed[0] has unexpected or missing fields
+delta	retype	rushes.removed[0].item	refused	project delta.rushes.removed[0].item is invalid: library[0] must be an object
+delta	remove	rushes.removed[0].item.id	refused	project delta.rushes.removed[0].item is invalid: library[0] is missing 'id'
+delta	retype	rushes.removed[0].item.id	refused	project delta.rushes.removed[0].item is invalid: library[0].id has the wrong JSON type
+delta	remove	rushes.removed[0].item.path	refused	project delta.rushes.removed[0].item is invalid: library[0] is missing 'path'
+delta	retype	rushes.removed[0].item.path	refused	project delta.rushes.removed[0].item is invalid: library[0].path has the wrong JSON type
+delta	remove	rushes.removed[0].item.filename	refused	project delta.rushes.removed[0].item is invalid: library[0] is missing 'filename'
+delta	retype	rushes.removed[0].item.filename	refused	project delta.rushes.removed[0].item is invalid: library[0].filename has the wrong JSON type
+delta	remove	rushes.removed[0].item.bin_id	accepted	-rushes.removed[0].item.bin_id
+delta	retype	rushes.removed[0].item.bin_id	refused	project delta.rushes.removed[0].item is invalid: library[0].bin_id has the wrong JSON type
+delta	remove	rushes.removed[0].item.proxy_path	accepted	-rushes.removed[0].item.proxy_path
+delta	retype	rushes.removed[0].item.proxy_path	refused	project delta.rushes.removed[0].item is invalid: library[0].proxy_path has the wrong JSON type
+delta	remove	rushes.removed[0].item.codec	accepted	-rushes.removed[0].item.codec -rushes.removed[0].item.has_video -rushes.removed[0].item.width -rushes.removed[0].item.height -rushes.removed[0].item.rotation_degrees -rushes.removed[0].item.pixel_format -rushes.removed[0].item.color_range -rushes.removed[0].item.color_space -rushes.removed[0].item.color_transfer -rushes.removed[0].item.color_primaries -rushes.removed[0].item.orientation -rushes.removed[0].item.has_audio -rushes.removed[0].item.audio_rate -rushes.removed[0].item.audio_channels -rushes.removed[0].item.audio_level
+delta	retype	rushes.removed[0].item.codec	refused	project delta.rushes.removed[0].item is invalid: library[0].codec has the wrong JSON type
+delta	remove	rushes.removed[0].item.has_video	accepted	
+delta	retype	rushes.removed[0].item.has_video	refused	project delta.rushes.removed[0].item is invalid: library[0].has_video has the wrong JSON type
+delta	remove	rushes.removed[0].item.width	refused	project delta.rushes.removed[0].item is invalid: library[0] is missing 'width'
+delta	retype	rushes.removed[0].item.width	refused	project delta.rushes.removed[0].item is invalid: library[0].width has the wrong JSON type
+delta	int32+1	rushes.removed[0].item.width	refused	project delta.rushes.removed[0].item is invalid: library[0].width is outside int32_t range
+delta	negative	rushes.removed[0].item.width	accepted	rushes.removed[0].item.width=-1
+delta	remove	rushes.removed[0].item.height	refused	project delta.rushes.removed[0].item is invalid: library[0] is missing 'height'
+delta	retype	rushes.removed[0].item.height	refused	project delta.rushes.removed[0].item is invalid: library[0].height has the wrong JSON type
+delta	int32+1	rushes.removed[0].item.height	refused	project delta.rushes.removed[0].item is invalid: library[0].height is outside int32_t range
+delta	negative	rushes.removed[0].item.height	accepted	rushes.removed[0].item.height=-1
+delta	remove	rushes.removed[0].item.rotation_degrees	accepted	rushes.removed[0].item.rotation_degrees=0
+delta	retype	rushes.removed[0].item.rotation_degrees	refused	project delta.rushes.removed[0].item is invalid: library[0].rotation_degrees has the wrong JSON type
+delta	int32+1	rushes.removed[0].item.rotation_degrees	refused	project delta.rushes.removed[0].item is invalid: library[0].rotation_degrees is outside int32_t range
+delta	negative	rushes.removed[0].item.rotation_degrees	accepted	rushes.removed[0].item.rotation_degrees=-1
+delta	remove	rushes.removed[0].item.pixel_format	accepted	rushes.removed[0].item.pixel_format=""
+delta	retype	rushes.removed[0].item.pixel_format	refused	project delta.rushes.removed[0].item is invalid: library[0].pixel_format has the wrong JSON type
+delta	remove	rushes.removed[0].item.color_range	accepted	rushes.removed[0].item.color_range=""
+delta	retype	rushes.removed[0].item.color_range	refused	project delta.rushes.removed[0].item is invalid: library[0].color_range has the wrong JSON type
+delta	remove	rushes.removed[0].item.color_space	accepted	rushes.removed[0].item.color_space=""
+delta	retype	rushes.removed[0].item.color_space	refused	project delta.rushes.removed[0].item is invalid: library[0].color_space has the wrong JSON type
+delta	remove	rushes.removed[0].item.color_transfer	accepted	rushes.removed[0].item.color_transfer=""
+delta	retype	rushes.removed[0].item.color_transfer	refused	project delta.rushes.removed[0].item is invalid: library[0].color_transfer has the wrong JSON type
+delta	remove	rushes.removed[0].item.color_primaries	accepted	rushes.removed[0].item.color_primaries=""
+delta	retype	rushes.removed[0].item.color_primaries	refused	project delta.rushes.removed[0].item is invalid: library[0].color_primaries has the wrong JSON type
+delta	remove	rushes.removed[0].item.rate	refused	project delta.rushes.removed[0].item is invalid: library[0] is missing 'rate'
+delta	retype	rushes.removed[0].item.rate	refused	project delta.rushes.removed[0].item is invalid: library[0].rate has the wrong JSON type
+delta	remove	rushes.removed[0].item.duration	refused	project delta.rushes.removed[0].item is invalid: library[0] is missing 'duration'
+delta	retype	rushes.removed[0].item.duration	refused	project delta.rushes.removed[0].item is invalid: library[0].duration has the wrong JSON type
+delta	remove	rushes.removed[0].item.orientation	refused	project delta.rushes.removed[0].item is invalid: library[0] is missing 'orientation'
+delta	retype	rushes.removed[0].item.orientation	refused	project delta.rushes.removed[0].item is invalid: library[0].orientation has the wrong JSON type
+delta	remove	rushes.removed[0].item.has_audio	refused	project delta.rushes.removed[0].item is invalid: library[0] is missing 'has_audio'
+delta	retype	rushes.removed[0].item.has_audio	refused	project delta.rushes.removed[0].item is invalid: library[0].has_audio has the wrong JSON type
+delta	remove	rushes.removed[0].item.audio_rate	refused	project delta.rushes.removed[0].item is invalid: library[0] is missing 'audio_rate'
+delta	retype	rushes.removed[0].item.audio_rate	refused	project delta.rushes.removed[0].item is invalid: library[0].audio_rate has the wrong JSON type
+delta	int32+1	rushes.removed[0].item.audio_rate	refused	project delta.rushes.removed[0].item is invalid: library[0].audio_rate is outside int32_t range
+delta	negative	rushes.removed[0].item.audio_rate	accepted	rushes.removed[0].item.audio_rate=-1
+delta	remove	rushes.removed[0].item.audio_channels	refused	project delta.rushes.removed[0].item is invalid: library[0] is missing 'audio_channels'
+delta	retype	rushes.removed[0].item.audio_channels	refused	project delta.rushes.removed[0].item is invalid: library[0].audio_channels has the wrong JSON type
+delta	int32+1	rushes.removed[0].item.audio_channels	refused	project delta.rushes.removed[0].item is invalid: library[0].audio_channels is outside int32_t range
+delta	negative	rushes.removed[0].item.audio_channels	accepted	rushes.removed[0].item.audio_channels=-1
+delta	remove	rushes.removed[0].item.audio_level	accepted	-rushes.removed[0].item.audio_level
+delta	retype	rushes.removed[0].item.audio_level	refused	project delta.rushes.removed[0].item is invalid: library[0].audio_level has the wrong JSON type
+delta	int32+1	rushes.removed[0].item.audio_level	accepted	rushes.removed[0].item.audio_level=2147483648
+delta	negative	rushes.removed[0].item.audio_level	accepted	rushes.removed[0].item.audio_level=-1
+delta	remove	rushes.added	refused	project delta.rushes has unexpected or missing fields
+delta	retype	rushes.added	refused	project delta.rushes.added must be an array
+delta	remove	rushes.added[0].index	refused	project delta.rushes.added[0] has unexpected or missing fields
+delta	retype	rushes.added[0].index	refused	project delta.rushes.added[0] must be an integer
+delta	int32+1	rushes.added[0].index	accepted	rushes.added[0].index=2147483648
+delta	negative	rushes.added[0].index	refused	project delta.rushes.added[0].index must be ascending and positive
+delta	remove	rushes.added[0].item	refused	project delta.rushes.added[0] has unexpected or missing fields
+delta	retype	rushes.added[0].item	refused	project delta.rushes.added[0].item is invalid: library[0] must be an object
+delta	remove	rushes.added[0].item.id	refused	project delta.rushes.added[0].item is invalid: library[0] is missing 'id'
+delta	retype	rushes.added[0].item.id	refused	project delta.rushes.added[0].item is invalid: library[0].id has the wrong JSON type
+delta	remove	rushes.added[0].item.path	refused	project delta.rushes.added[0].item is invalid: library[0] is missing 'path'
+delta	retype	rushes.added[0].item.path	refused	project delta.rushes.added[0].item is invalid: library[0].path has the wrong JSON type
+delta	remove	rushes.added[0].item.filename	refused	project delta.rushes.added[0].item is invalid: library[0] is missing 'filename'
+delta	retype	rushes.added[0].item.filename	refused	project delta.rushes.added[0].item is invalid: library[0].filename has the wrong JSON type
+delta	remove	rushes.added[0].item.bin_id	accepted	-rushes.added[0].item.bin_id
+delta	retype	rushes.added[0].item.bin_id	refused	project delta.rushes.added[0].item is invalid: library[0].bin_id has the wrong JSON type
+delta	remove	rushes.added[0].item.proxy_path	accepted	-rushes.added[0].item.proxy_path
+delta	retype	rushes.added[0].item.proxy_path	refused	project delta.rushes.added[0].item is invalid: library[0].proxy_path has the wrong JSON type
+delta	remove	rushes.added[0].item.codec	accepted	-rushes.added[0].item.codec -rushes.added[0].item.has_video -rushes.added[0].item.width -rushes.added[0].item.height -rushes.added[0].item.rotation_degrees -rushes.added[0].item.pixel_format -rushes.added[0].item.color_range -rushes.added[0].item.color_space -rushes.added[0].item.color_transfer -rushes.added[0].item.color_primaries -rushes.added[0].item.orientation -rushes.added[0].item.has_audio -rushes.added[0].item.audio_rate -rushes.added[0].item.audio_channels -rushes.added[0].item.audio_level
+delta	retype	rushes.added[0].item.codec	refused	project delta.rushes.added[0].item is invalid: library[0].codec has the wrong JSON type
+delta	remove	rushes.added[0].item.has_video	accepted	
+delta	retype	rushes.added[0].item.has_video	refused	project delta.rushes.added[0].item is invalid: library[0].has_video has the wrong JSON type
+delta	remove	rushes.added[0].item.width	refused	project delta.rushes.added[0].item is invalid: library[0] is missing 'width'
+delta	retype	rushes.added[0].item.width	refused	project delta.rushes.added[0].item is invalid: library[0].width has the wrong JSON type
+delta	int32+1	rushes.added[0].item.width	refused	project delta.rushes.added[0].item is invalid: library[0].width is outside int32_t range
+delta	negative	rushes.added[0].item.width	accepted	rushes.added[0].item.width=-1
+delta	remove	rushes.added[0].item.height	refused	project delta.rushes.added[0].item is invalid: library[0] is missing 'height'
+delta	retype	rushes.added[0].item.height	refused	project delta.rushes.added[0].item is invalid: library[0].height has the wrong JSON type
+delta	int32+1	rushes.added[0].item.height	refused	project delta.rushes.added[0].item is invalid: library[0].height is outside int32_t range
+delta	negative	rushes.added[0].item.height	accepted	rushes.added[0].item.height=-1
+delta	remove	rushes.added[0].item.rotation_degrees	accepted	rushes.added[0].item.rotation_degrees=0
+delta	retype	rushes.added[0].item.rotation_degrees	refused	project delta.rushes.added[0].item is invalid: library[0].rotation_degrees has the wrong JSON type
+delta	int32+1	rushes.added[0].item.rotation_degrees	refused	project delta.rushes.added[0].item is invalid: library[0].rotation_degrees is outside int32_t range
+delta	negative	rushes.added[0].item.rotation_degrees	accepted	rushes.added[0].item.rotation_degrees=-1
+delta	remove	rushes.added[0].item.pixel_format	accepted	rushes.added[0].item.pixel_format=""
+delta	retype	rushes.added[0].item.pixel_format	refused	project delta.rushes.added[0].item is invalid: library[0].pixel_format has the wrong JSON type
+delta	remove	rushes.added[0].item.color_range	accepted	rushes.added[0].item.color_range=""
+delta	retype	rushes.added[0].item.color_range	refused	project delta.rushes.added[0].item is invalid: library[0].color_range has the wrong JSON type
+delta	remove	rushes.added[0].item.color_space	accepted	rushes.added[0].item.color_space=""
+delta	retype	rushes.added[0].item.color_space	refused	project delta.rushes.added[0].item is invalid: library[0].color_space has the wrong JSON type
+delta	remove	rushes.added[0].item.color_transfer	accepted	rushes.added[0].item.color_transfer=""
+delta	retype	rushes.added[0].item.color_transfer	refused	project delta.rushes.added[0].item is invalid: library[0].color_transfer has the wrong JSON type
+delta	remove	rushes.added[0].item.color_primaries	accepted	rushes.added[0].item.color_primaries=""
+delta	retype	rushes.added[0].item.color_primaries	refused	project delta.rushes.added[0].item is invalid: library[0].color_primaries has the wrong JSON type
+delta	remove	rushes.added[0].item.rate	refused	project delta.rushes.added[0].item is invalid: library[0] is missing 'rate'
+delta	retype	rushes.added[0].item.rate	refused	project delta.rushes.added[0].item is invalid: library[0].rate has the wrong JSON type
+delta	remove	rushes.added[0].item.duration	refused	project delta.rushes.added[0].item is invalid: library[0] is missing 'duration'
+delta	retype	rushes.added[0].item.duration	refused	project delta.rushes.added[0].item is invalid: library[0].duration has the wrong JSON type
+delta	remove	rushes.added[0].item.orientation	refused	project delta.rushes.added[0].item is invalid: library[0] is missing 'orientation'
+delta	retype	rushes.added[0].item.orientation	refused	project delta.rushes.added[0].item is invalid: library[0].orientation has the wrong JSON type
+delta	remove	rushes.added[0].item.has_audio	refused	project delta.rushes.added[0].item is invalid: library[0] is missing 'has_audio'
+delta	retype	rushes.added[0].item.has_audio	refused	project delta.rushes.added[0].item is invalid: library[0].has_audio has the wrong JSON type
+delta	remove	rushes.added[0].item.audio_rate	refused	project delta.rushes.added[0].item is invalid: library[0] is missing 'audio_rate'
+delta	retype	rushes.added[0].item.audio_rate	refused	project delta.rushes.added[0].item is invalid: library[0].audio_rate has the wrong JSON type
+delta	int32+1	rushes.added[0].item.audio_rate	refused	project delta.rushes.added[0].item is invalid: library[0].audio_rate is outside int32_t range
+delta	negative	rushes.added[0].item.audio_rate	accepted	rushes.added[0].item.audio_rate=-1
+delta	remove	rushes.added[0].item.audio_channels	refused	project delta.rushes.added[0].item is invalid: library[0] is missing 'audio_channels'
+delta	retype	rushes.added[0].item.audio_channels	refused	project delta.rushes.added[0].item is invalid: library[0].audio_channels has the wrong JSON type
+delta	int32+1	rushes.added[0].item.audio_channels	refused	project delta.rushes.added[0].item is invalid: library[0].audio_channels is outside int32_t range
+delta	negative	rushes.added[0].item.audio_channels	accepted	rushes.added[0].item.audio_channels=-1
+delta	remove	rushes.added[0].item.audio_level	accepted	-rushes.added[0].item.audio_level
+delta	retype	rushes.added[0].item.audio_level	refused	project delta.rushes.added[0].item is invalid: library[0].audio_level has the wrong JSON type
+delta	int32+1	rushes.added[0].item.audio_level	accepted	rushes.added[0].item.audio_level=2147483648
+delta	negative	rushes.added[0].item.audio_level	accepted	rushes.added[0].item.audio_level=-1
+delta	remove	rushes.changed	refused	project delta.rushes has unexpected or missing fields
+delta	retype	rushes.changed	refused	project delta.rushes.changed must be an array
+delta	remove	rushes.changed[0].from	refused	project delta.rushes.changed[0] has unexpected or missing fields
+delta	retype	rushes.changed[0].from	refused	project delta.rushes.changed[0].from is invalid: library[0] must be an object
+delta	remove	rushes.changed[0].from.id	refused	project delta.rushes.changed[0].from is invalid: library[0] is missing 'id'
+delta	retype	rushes.changed[0].from.id	refused	project delta.rushes.changed[0].from is invalid: library[0].id has the wrong JSON type
+delta	remove	rushes.changed[0].from.path	refused	project delta.rushes.changed[0].from is invalid: library[0] is missing 'path'
+delta	retype	rushes.changed[0].from.path	refused	project delta.rushes.changed[0].from is invalid: library[0].path has the wrong JSON type
+delta	remove	rushes.changed[0].from.filename	refused	project delta.rushes.changed[0].from is invalid: library[0] is missing 'filename'
+delta	retype	rushes.changed[0].from.filename	refused	project delta.rushes.changed[0].from is invalid: library[0].filename has the wrong JSON type
+delta	remove	rushes.changed[0].from.bin_id	accepted	-rushes.changed[0].from.bin_id
+delta	retype	rushes.changed[0].from.bin_id	refused	project delta.rushes.changed[0].from is invalid: library[0].bin_id has the wrong JSON type
+delta	remove	rushes.changed[0].from.proxy_path	accepted	-rushes.changed[0].from.proxy_path
+delta	retype	rushes.changed[0].from.proxy_path	refused	project delta.rushes.changed[0].from is invalid: library[0].proxy_path has the wrong JSON type
+delta	remove	rushes.changed[0].from.codec	accepted	-rushes.changed[0].from.codec -rushes.changed[0].from.has_video -rushes.changed[0].from.width -rushes.changed[0].from.height -rushes.changed[0].from.rotation_degrees -rushes.changed[0].from.pixel_format -rushes.changed[0].from.color_range -rushes.changed[0].from.color_space -rushes.changed[0].from.color_transfer -rushes.changed[0].from.color_primaries -rushes.changed[0].from.orientation -rushes.changed[0].from.has_audio -rushes.changed[0].from.audio_rate -rushes.changed[0].from.audio_channels -rushes.changed[0].from.audio_level
+delta	retype	rushes.changed[0].from.codec	refused	project delta.rushes.changed[0].from is invalid: library[0].codec has the wrong JSON type
+delta	remove	rushes.changed[0].from.has_video	accepted	
+delta	retype	rushes.changed[0].from.has_video	refused	project delta.rushes.changed[0].from is invalid: library[0].has_video has the wrong JSON type
+delta	remove	rushes.changed[0].from.width	refused	project delta.rushes.changed[0].from is invalid: library[0] is missing 'width'
+delta	retype	rushes.changed[0].from.width	refused	project delta.rushes.changed[0].from is invalid: library[0].width has the wrong JSON type
+delta	int32+1	rushes.changed[0].from.width	refused	project delta.rushes.changed[0].from is invalid: library[0].width is outside int32_t range
+delta	negative	rushes.changed[0].from.width	accepted	rushes.changed[0].from.width=-1
+delta	remove	rushes.changed[0].from.height	refused	project delta.rushes.changed[0].from is invalid: library[0] is missing 'height'
+delta	retype	rushes.changed[0].from.height	refused	project delta.rushes.changed[0].from is invalid: library[0].height has the wrong JSON type
+delta	int32+1	rushes.changed[0].from.height	refused	project delta.rushes.changed[0].from is invalid: library[0].height is outside int32_t range
+delta	negative	rushes.changed[0].from.height	accepted	rushes.changed[0].from.height=-1
+delta	remove	rushes.changed[0].from.rotation_degrees	accepted	rushes.changed[0].from.rotation_degrees=0
+delta	retype	rushes.changed[0].from.rotation_degrees	refused	project delta.rushes.changed[0].from is invalid: library[0].rotation_degrees has the wrong JSON type
+delta	int32+1	rushes.changed[0].from.rotation_degrees	refused	project delta.rushes.changed[0].from is invalid: library[0].rotation_degrees is outside int32_t range
+delta	negative	rushes.changed[0].from.rotation_degrees	accepted	rushes.changed[0].from.rotation_degrees=-1
+delta	remove	rushes.changed[0].from.pixel_format	accepted	rushes.changed[0].from.pixel_format=""
+delta	retype	rushes.changed[0].from.pixel_format	refused	project delta.rushes.changed[0].from is invalid: library[0].pixel_format has the wrong JSON type
+delta	remove	rushes.changed[0].from.color_range	accepted	rushes.changed[0].from.color_range=""
+delta	retype	rushes.changed[0].from.color_range	refused	project delta.rushes.changed[0].from is invalid: library[0].color_range has the wrong JSON type
+delta	remove	rushes.changed[0].from.color_space	accepted	rushes.changed[0].from.color_space=""
+delta	retype	rushes.changed[0].from.color_space	refused	project delta.rushes.changed[0].from is invalid: library[0].color_space has the wrong JSON type
+delta	remove	rushes.changed[0].from.color_transfer	accepted	rushes.changed[0].from.color_transfer=""
+delta	retype	rushes.changed[0].from.color_transfer	refused	project delta.rushes.changed[0].from is invalid: library[0].color_transfer has the wrong JSON type
+delta	remove	rushes.changed[0].from.color_primaries	accepted	rushes.changed[0].from.color_primaries=""
+delta	retype	rushes.changed[0].from.color_primaries	refused	project delta.rushes.changed[0].from is invalid: library[0].color_primaries has the wrong JSON type
+delta	remove	rushes.changed[0].from.rate	refused	project delta.rushes.changed[0].from is invalid: library[0] is missing 'rate'
+delta	retype	rushes.changed[0].from.rate	refused	project delta.rushes.changed[0].from is invalid: library[0].rate has the wrong JSON type
+delta	remove	rushes.changed[0].from.duration	refused	project delta.rushes.changed[0].from is invalid: library[0] is missing 'duration'
+delta	retype	rushes.changed[0].from.duration	refused	project delta.rushes.changed[0].from is invalid: library[0].duration has the wrong JSON type
+delta	remove	rushes.changed[0].from.orientation	refused	project delta.rushes.changed[0].from is invalid: library[0] is missing 'orientation'
+delta	retype	rushes.changed[0].from.orientation	refused	project delta.rushes.changed[0].from is invalid: library[0].orientation has the wrong JSON type
+delta	remove	rushes.changed[0].from.has_audio	refused	project delta.rushes.changed[0].from is invalid: library[0] is missing 'has_audio'
+delta	retype	rushes.changed[0].from.has_audio	refused	project delta.rushes.changed[0].from is invalid: library[0].has_audio has the wrong JSON type
+delta	remove	rushes.changed[0].from.audio_rate	refused	project delta.rushes.changed[0].from is invalid: library[0] is missing 'audio_rate'
+delta	retype	rushes.changed[0].from.audio_rate	refused	project delta.rushes.changed[0].from is invalid: library[0].audio_rate has the wrong JSON type
+delta	int32+1	rushes.changed[0].from.audio_rate	refused	project delta.rushes.changed[0].from is invalid: library[0].audio_rate is outside int32_t range
+delta	negative	rushes.changed[0].from.audio_rate	accepted	rushes.changed[0].from.audio_rate=-1
+delta	remove	rushes.changed[0].from.audio_channels	refused	project delta.rushes.changed[0].from is invalid: library[0] is missing 'audio_channels'
+delta	retype	rushes.changed[0].from.audio_channels	refused	project delta.rushes.changed[0].from is invalid: library[0].audio_channels has the wrong JSON type
+delta	int32+1	rushes.changed[0].from.audio_channels	refused	project delta.rushes.changed[0].from is invalid: library[0].audio_channels is outside int32_t range
+delta	negative	rushes.changed[0].from.audio_channels	accepted	rushes.changed[0].from.audio_channels=-1
+delta	remove	rushes.changed[0].from.audio_level	accepted	-rushes.changed[0].from.audio_level
+delta	retype	rushes.changed[0].from.audio_level	refused	project delta.rushes.changed[0].from is invalid: library[0].audio_level has the wrong JSON type
+delta	int32+1	rushes.changed[0].from.audio_level	accepted	rushes.changed[0].from.audio_level=2147483648
+delta	negative	rushes.changed[0].from.audio_level	accepted	rushes.changed[0].from.audio_level=-1
+delta	remove	rushes.changed[0].to	refused	project delta.rushes.changed[0] has unexpected or missing fields
+delta	retype	rushes.changed[0].to	refused	project delta.rushes.changed[0].to is invalid: library[0] must be an object
+delta	remove	rushes.changed[0].to.id	refused	project delta.rushes.changed[0].to is invalid: library[0] is missing 'id'
+delta	retype	rushes.changed[0].to.id	refused	project delta.rushes.changed[0].to is invalid: library[0].id has the wrong JSON type
+delta	remove	rushes.changed[0].to.path	refused	project delta.rushes.changed[0].to is invalid: library[0] is missing 'path'
+delta	retype	rushes.changed[0].to.path	refused	project delta.rushes.changed[0].to is invalid: library[0].path has the wrong JSON type
+delta	remove	rushes.changed[0].to.filename	refused	project delta.rushes.changed[0].to is invalid: library[0] is missing 'filename'
+delta	retype	rushes.changed[0].to.filename	refused	project delta.rushes.changed[0].to is invalid: library[0].filename has the wrong JSON type
+delta	remove	rushes.changed[0].to.bin_id	accepted	-rushes.changed[0].to.bin_id
+delta	retype	rushes.changed[0].to.bin_id	refused	project delta.rushes.changed[0].to is invalid: library[0].bin_id has the wrong JSON type
+delta	remove	rushes.changed[0].to.proxy_path	accepted	-rushes.changed[0].to.proxy_path
+delta	retype	rushes.changed[0].to.proxy_path	refused	project delta.rushes.changed[0].to is invalid: library[0].proxy_path has the wrong JSON type
+delta	remove	rushes.changed[0].to.codec	accepted	-rushes.changed[0].to.codec -rushes.changed[0].to.has_video -rushes.changed[0].to.width -rushes.changed[0].to.height -rushes.changed[0].to.rotation_degrees -rushes.changed[0].to.pixel_format -rushes.changed[0].to.color_range -rushes.changed[0].to.color_space -rushes.changed[0].to.color_transfer -rushes.changed[0].to.color_primaries -rushes.changed[0].to.orientation -rushes.changed[0].to.has_audio -rushes.changed[0].to.audio_rate -rushes.changed[0].to.audio_channels -rushes.changed[0].to.audio_level
+delta	retype	rushes.changed[0].to.codec	refused	project delta.rushes.changed[0].to is invalid: library[0].codec has the wrong JSON type
+delta	remove	rushes.changed[0].to.has_video	accepted	
+delta	retype	rushes.changed[0].to.has_video	refused	project delta.rushes.changed[0].to is invalid: library[0].has_video has the wrong JSON type
+delta	remove	rushes.changed[0].to.width	refused	project delta.rushes.changed[0].to is invalid: library[0] is missing 'width'
+delta	retype	rushes.changed[0].to.width	refused	project delta.rushes.changed[0].to is invalid: library[0].width has the wrong JSON type
+delta	int32+1	rushes.changed[0].to.width	refused	project delta.rushes.changed[0].to is invalid: library[0].width is outside int32_t range
+delta	negative	rushes.changed[0].to.width	accepted	rushes.changed[0].to.width=-1
+delta	remove	rushes.changed[0].to.height	refused	project delta.rushes.changed[0].to is invalid: library[0] is missing 'height'
+delta	retype	rushes.changed[0].to.height	refused	project delta.rushes.changed[0].to is invalid: library[0].height has the wrong JSON type
+delta	int32+1	rushes.changed[0].to.height	refused	project delta.rushes.changed[0].to is invalid: library[0].height is outside int32_t range
+delta	negative	rushes.changed[0].to.height	accepted	rushes.changed[0].to.height=-1
+delta	remove	rushes.changed[0].to.rotation_degrees	accepted	rushes.changed[0].to.rotation_degrees=0
+delta	retype	rushes.changed[0].to.rotation_degrees	refused	project delta.rushes.changed[0].to is invalid: library[0].rotation_degrees has the wrong JSON type
+delta	int32+1	rushes.changed[0].to.rotation_degrees	refused	project delta.rushes.changed[0].to is invalid: library[0].rotation_degrees is outside int32_t range
+delta	negative	rushes.changed[0].to.rotation_degrees	accepted	rushes.changed[0].to.rotation_degrees=-1
+delta	remove	rushes.changed[0].to.pixel_format	accepted	rushes.changed[0].to.pixel_format=""
+delta	retype	rushes.changed[0].to.pixel_format	refused	project delta.rushes.changed[0].to is invalid: library[0].pixel_format has the wrong JSON type
+delta	remove	rushes.changed[0].to.color_range	accepted	rushes.changed[0].to.color_range=""
+delta	retype	rushes.changed[0].to.color_range	refused	project delta.rushes.changed[0].to is invalid: library[0].color_range has the wrong JSON type
+delta	remove	rushes.changed[0].to.color_space	accepted	rushes.changed[0].to.color_space=""
+delta	retype	rushes.changed[0].to.color_space	refused	project delta.rushes.changed[0].to is invalid: library[0].color_space has the wrong JSON type
+delta	remove	rushes.changed[0].to.color_transfer	accepted	rushes.changed[0].to.color_transfer=""
+delta	retype	rushes.changed[0].to.color_transfer	refused	project delta.rushes.changed[0].to is invalid: library[0].color_transfer has the wrong JSON type
+delta	remove	rushes.changed[0].to.color_primaries	accepted	rushes.changed[0].to.color_primaries=""
+delta	retype	rushes.changed[0].to.color_primaries	refused	project delta.rushes.changed[0].to is invalid: library[0].color_primaries has the wrong JSON type
+delta	remove	rushes.changed[0].to.rate	refused	project delta.rushes.changed[0].to is invalid: library[0] is missing 'rate'
+delta	retype	rushes.changed[0].to.rate	refused	project delta.rushes.changed[0].to is invalid: library[0].rate has the wrong JSON type
+delta	remove	rushes.changed[0].to.duration	refused	project delta.rushes.changed[0].to is invalid: library[0] is missing 'duration'
+delta	retype	rushes.changed[0].to.duration	refused	project delta.rushes.changed[0].to is invalid: library[0].duration has the wrong JSON type
+delta	remove	rushes.changed[0].to.orientation	refused	project delta.rushes.changed[0].to is invalid: library[0] is missing 'orientation'
+delta	retype	rushes.changed[0].to.orientation	refused	project delta.rushes.changed[0].to is invalid: library[0].orientation has the wrong JSON type
+delta	remove	rushes.changed[0].to.has_audio	refused	project delta.rushes.changed[0].to is invalid: library[0] is missing 'has_audio'
+delta	retype	rushes.changed[0].to.has_audio	refused	project delta.rushes.changed[0].to is invalid: library[0].has_audio has the wrong JSON type
+delta	remove	rushes.changed[0].to.audio_rate	refused	project delta.rushes.changed[0].to is invalid: library[0] is missing 'audio_rate'
+delta	retype	rushes.changed[0].to.audio_rate	refused	project delta.rushes.changed[0].to is invalid: library[0].audio_rate has the wrong JSON type
+delta	int32+1	rushes.changed[0].to.audio_rate	refused	project delta.rushes.changed[0].to is invalid: library[0].audio_rate is outside int32_t range
+delta	negative	rushes.changed[0].to.audio_rate	accepted	rushes.changed[0].to.audio_rate=-1
+delta	remove	rushes.changed[0].to.audio_channels	refused	project delta.rushes.changed[0].to is invalid: library[0] is missing 'audio_channels'
+delta	retype	rushes.changed[0].to.audio_channels	refused	project delta.rushes.changed[0].to is invalid: library[0].audio_channels has the wrong JSON type
+delta	int32+1	rushes.changed[0].to.audio_channels	refused	project delta.rushes.changed[0].to is invalid: library[0].audio_channels is outside int32_t range
+delta	negative	rushes.changed[0].to.audio_channels	accepted	rushes.changed[0].to.audio_channels=-1
+delta	remove	rushes.changed[0].to.audio_level	accepted	-rushes.changed[0].to.audio_level
+delta	retype	rushes.changed[0].to.audio_level	refused	project delta.rushes.changed[0].to is invalid: library[0].audio_level has the wrong JSON type
+delta	int32+1	rushes.changed[0].to.audio_level	accepted	rushes.changed[0].to.audio_level=2147483648
+delta	negative	rushes.changed[0].to.audio_level	accepted	rushes.changed[0].to.audio_level=-1
+delta	remove	bins	refused	project delta has unexpected or missing fields
+delta	retype	bins	refused	project delta.bins has unexpected or missing fields
+delta	remove	bins.removed	refused	project delta.bins has unexpected or missing fields
+delta	retype	bins.removed	refused	project delta.bins.removed must be an array
+delta	remove	bins.removed[0].index	refused	project delta.bins.removed[0] has unexpected or missing fields
+delta	retype	bins.removed[0].index	refused	project delta.bins.removed[0] must be an integer
+delta	int32+1	bins.removed[0].index	accepted	bins.removed[0].index=2147483648
+delta	negative	bins.removed[0].index	refused	project delta.bins.removed[0].index must be ascending and positive
+delta	remove	bins.removed[0].item	refused	project delta.bins.removed[0] has unexpected or missing fields
+delta	retype	bins.removed[0].item	refused	project delta.bins.removed[0].item is invalid: bins[0] must be an object
+delta	remove	bins.removed[0].item.id	refused	project delta.bins.removed[0].item is invalid: bins[0] is missing 'id'
+delta	retype	bins.removed[0].item.id	refused	project delta.bins.removed[0].item is invalid: bins[0].id has the wrong JSON type
+delta	remove	bins.removed[0].item.name	refused	project delta.bins.removed[0].item is invalid: bins[0] is missing 'name'
+delta	retype	bins.removed[0].item.name	refused	project delta.bins.removed[0].item is invalid: bins[0].name has the wrong JSON type
+delta	remove	bins.removed[0].item.parent_id	accepted	-bins.removed[0].item.parent_id
+delta	retype	bins.removed[0].item.parent_id	refused	project delta.bins.removed[0].item is invalid: bins[0].parent_id has the wrong JSON type
+delta	remove	bins.added	refused	project delta.bins has unexpected or missing fields
+delta	retype	bins.added	refused	project delta.bins.added must be an array
+delta	remove	bins.added[0].index	refused	project delta.bins.added[0] has unexpected or missing fields
+delta	retype	bins.added[0].index	refused	project delta.bins.added[0] must be an integer
+delta	int32+1	bins.added[0].index	accepted	bins.added[0].index=2147483648
+delta	negative	bins.added[0].index	refused	project delta.bins.added[0].index must be ascending and positive
+delta	remove	bins.added[0].item	refused	project delta.bins.added[0] has unexpected or missing fields
+delta	retype	bins.added[0].item	refused	project delta.bins.added[0].item is invalid: bins[0] must be an object
+delta	remove	bins.added[0].item.id	refused	project delta.bins.added[0].item is invalid: bins[0] is missing 'id'
+delta	retype	bins.added[0].item.id	refused	project delta.bins.added[0].item is invalid: bins[0].id has the wrong JSON type
+delta	remove	bins.added[0].item.name	refused	project delta.bins.added[0].item is invalid: bins[0] is missing 'name'
+delta	retype	bins.added[0].item.name	refused	project delta.bins.added[0].item is invalid: bins[0].name has the wrong JSON type
+delta	remove	bins.added[0].item.parent_id	accepted	-bins.added[0].item.parent_id
+delta	retype	bins.added[0].item.parent_id	refused	project delta.bins.added[0].item is invalid: bins[0].parent_id has the wrong JSON type
+delta	remove	bins.changed	refused	project delta.bins has unexpected or missing fields
+delta	retype	bins.changed	refused	project delta.bins.changed must be an array
+delta	remove	bins.changed[0].from	refused	project delta.bins.changed[0] has unexpected or missing fields
+delta	retype	bins.changed[0].from	refused	project delta.bins.changed[0].from is invalid: bins[0] must be an object
+delta	remove	bins.changed[0].from.id	refused	project delta.bins.changed[0].from is invalid: bins[0] is missing 'id'
+delta	retype	bins.changed[0].from.id	refused	project delta.bins.changed[0].from is invalid: bins[0].id has the wrong JSON type
+delta	remove	bins.changed[0].from.name	refused	project delta.bins.changed[0].from is invalid: bins[0] is missing 'name'
+delta	retype	bins.changed[0].from.name	refused	project delta.bins.changed[0].from is invalid: bins[0].name has the wrong JSON type
+delta	remove	bins.changed[0].from.parent_id	accepted	-bins.changed[0].from.parent_id
+delta	retype	bins.changed[0].from.parent_id	refused	project delta.bins.changed[0].from is invalid: bins[0].parent_id has the wrong JSON type
+delta	remove	bins.changed[0].to	refused	project delta.bins.changed[0] has unexpected or missing fields
+delta	retype	bins.changed[0].to	refused	project delta.bins.changed[0].to is invalid: bins[0] must be an object
+delta	remove	bins.changed[0].to.id	refused	project delta.bins.changed[0].to is invalid: bins[0] is missing 'id'
+delta	retype	bins.changed[0].to.id	refused	project delta.bins.changed[0].to is invalid: bins[0].id has the wrong JSON type
+delta	remove	bins.changed[0].to.name	refused	project delta.bins.changed[0].to is invalid: bins[0] is missing 'name'
+delta	retype	bins.changed[0].to.name	refused	project delta.bins.changed[0].to is invalid: bins[0].name has the wrong JSON type
+delta	remove	bins.changed[0].to.parent_id	accepted	-bins.changed[0].to.parent_id
+delta	retype	bins.changed[0].to.parent_id	refused	project delta.bins.changed[0].to is invalid: bins[0].parent_id has the wrong JSON type
+delta	remove	sources	refused	project delta has unexpected or missing fields
+delta	retype	sources	refused	project delta.sources has unexpected or missing fields
+delta	remove	sources.removed	refused	project delta.sources has unexpected or missing fields
+delta	retype	sources.removed	refused	project delta.sources.removed must be an array
+delta	remove	sources.removed[0].index	refused	project delta.sources.removed[0] has unexpected or missing fields
+delta	retype	sources.removed[0].index	refused	project delta.sources.removed[0] must be an integer
+delta	int32+1	sources.removed[0].index	accepted	sources.removed[0].index=2147483648
+delta	negative	sources.removed[0].index	refused	project delta.sources.removed[0].index must be ascending and positive
+delta	remove	sources.removed[0].item	refused	project delta.sources.removed[0] has unexpected or missing fields
+delta	retype	sources.removed[0].item	refused	project delta.sources.removed[0].item is invalid: sources[0] must be an object
+delta	remove	sources.removed[0].item.id	refused	project delta.sources.removed[0].item is invalid: sources[0] is missing 'id'
+delta	retype	sources.removed[0].item.id	refused	project delta.sources.removed[0].item is invalid: sources[0].id has the wrong JSON type
+delta	remove	sources.removed[0].item.path	refused	project delta.sources.removed[0].item is invalid: sources[0] is missing 'path'
+delta	retype	sources.removed[0].item.path	refused	project delta.sources.removed[0].item is invalid: sources[0].path has the wrong JSON type
+delta	remove	sources.removed[0].item.rate	refused	project delta.sources.removed[0].item is invalid: sources[0] is missing 'rate'
+delta	retype	sources.removed[0].item.rate	refused	project delta.sources.removed[0].item is invalid: sources[0].rate has the wrong JSON type
+delta	remove	sources.removed[0].item.duration	refused	project delta.sources.removed[0].item is invalid: sources[0] is missing 'duration'
+delta	retype	sources.removed[0].item.duration	refused	project delta.sources.removed[0].item is invalid: sources[0].duration has the wrong JSON type
+delta	remove	sources.added	refused	project delta.sources has unexpected or missing fields
+delta	retype	sources.added	refused	project delta.sources.added must be an array
+delta	remove	sources.added[0].index	refused	project delta.sources.added[0] has unexpected or missing fields
+delta	retype	sources.added[0].index	refused	project delta.sources.added[0] must be an integer
+delta	int32+1	sources.added[0].index	accepted	sources.added[0].index=2147483648
+delta	negative	sources.added[0].index	refused	project delta.sources.added[0].index must be ascending and positive
+delta	remove	sources.added[0].item	refused	project delta.sources.added[0] has unexpected or missing fields
+delta	retype	sources.added[0].item	refused	project delta.sources.added[0].item is invalid: sources[0] must be an object
+delta	remove	sources.added[0].item.id	refused	project delta.sources.added[0].item is invalid: sources[0] is missing 'id'
+delta	retype	sources.added[0].item.id	refused	project delta.sources.added[0].item is invalid: sources[0].id has the wrong JSON type
+delta	remove	sources.added[0].item.path	refused	project delta.sources.added[0].item is invalid: sources[0] is missing 'path'
+delta	retype	sources.added[0].item.path	refused	project delta.sources.added[0].item is invalid: sources[0].path has the wrong JSON type
+delta	remove	sources.added[0].item.rate	refused	project delta.sources.added[0].item is invalid: sources[0] is missing 'rate'
+delta	retype	sources.added[0].item.rate	refused	project delta.sources.added[0].item is invalid: sources[0].rate has the wrong JSON type
+delta	remove	sources.added[0].item.duration	refused	project delta.sources.added[0].item is invalid: sources[0] is missing 'duration'
+delta	retype	sources.added[0].item.duration	refused	project delta.sources.added[0].item is invalid: sources[0].duration has the wrong JSON type
+delta	remove	sources.changed	refused	project delta.sources has unexpected or missing fields
+delta	retype	sources.changed	refused	project delta.sources.changed must be an array
+delta	remove	sources.changed[0].from	refused	project delta.sources.changed[0] has unexpected or missing fields
+delta	retype	sources.changed[0].from	refused	project delta.sources.changed[0].from is invalid: sources[0] must be an object
+delta	remove	sources.changed[0].from.id	refused	project delta.sources.changed[0].from is invalid: sources[0] is missing 'id'
+delta	retype	sources.changed[0].from.id	refused	project delta.sources.changed[0].from is invalid: sources[0].id has the wrong JSON type
+delta	remove	sources.changed[0].from.path	refused	project delta.sources.changed[0].from is invalid: sources[0] is missing 'path'
+delta	retype	sources.changed[0].from.path	refused	project delta.sources.changed[0].from is invalid: sources[0].path has the wrong JSON type
+delta	remove	sources.changed[0].from.rate	refused	project delta.sources.changed[0].from is invalid: sources[0] is missing 'rate'
+delta	retype	sources.changed[0].from.rate	refused	project delta.sources.changed[0].from is invalid: sources[0].rate has the wrong JSON type
+delta	remove	sources.changed[0].from.duration	refused	project delta.sources.changed[0].from is invalid: sources[0] is missing 'duration'
+delta	retype	sources.changed[0].from.duration	refused	project delta.sources.changed[0].from is invalid: sources[0].duration has the wrong JSON type
+delta	remove	sources.changed[0].to	refused	project delta.sources.changed[0] has unexpected or missing fields
+delta	retype	sources.changed[0].to	refused	project delta.sources.changed[0].to is invalid: sources[0] must be an object
+delta	remove	sources.changed[0].to.id	refused	project delta.sources.changed[0].to is invalid: sources[0] is missing 'id'
+delta	retype	sources.changed[0].to.id	refused	project delta.sources.changed[0].to is invalid: sources[0].id has the wrong JSON type
+delta	remove	sources.changed[0].to.path	refused	project delta.sources.changed[0].to is invalid: sources[0] is missing 'path'
+delta	retype	sources.changed[0].to.path	refused	project delta.sources.changed[0].to is invalid: sources[0].path has the wrong JSON type
+delta	remove	sources.changed[0].to.rate	refused	project delta.sources.changed[0].to is invalid: sources[0] is missing 'rate'
+delta	retype	sources.changed[0].to.rate	refused	project delta.sources.changed[0].to is invalid: sources[0].rate has the wrong JSON type
+delta	remove	sources.changed[0].to.duration	refused	project delta.sources.changed[0].to is invalid: sources[0] is missing 'duration'
+delta	retype	sources.changed[0].to.duration	refused	project delta.sources.changed[0].to is invalid: sources[0].duration has the wrong JSON type
+delta	remove	bin_metadata	refused	project delta has unexpected or missing fields
+delta	retype	bin_metadata	refused	project delta.bin_metadata must be an array
+delta	remove	bin_metadata[0].key	refused	project delta.bin_metadata[0] has unexpected or missing fields
+delta	retype	bin_metadata[0].key	refused	project delta.bin_metadata[0].key must be a string
+delta	remove	bin_metadata[0].from	refused	project delta.bin_metadata[0] has unexpected or missing fields
+delta	retype	bin_metadata[0].from	refused	project delta.bin_metadata[0].from must be an object
+delta	remove	bin_metadata[0].from.description	refused	project delta.bin_metadata[0].from has unexpected or missing fields
+delta	retype	bin_metadata[0].from.description	refused	project delta.bin_metadata[0].from.description has the wrong JSON type
+delta	remove	bin_metadata[0].from.rating	refused	project delta.bin_metadata[0].from has unexpected or missing fields
+delta	retype	bin_metadata[0].from.rating	refused	project delta.bin_metadata[0].from.rating has the wrong JSON type
+delta	int32+1	bin_metadata[0].from.rating	accepted	bin_metadata[0].from.rating=2147483648
+delta	negative	bin_metadata[0].from.rating	refused	project delta.bin_metadata[0].from.rating cannot be negative
+delta	remove	bin_metadata[0].from.tags	refused	project delta.bin_metadata[0].from has unexpected or missing fields
+delta	retype	bin_metadata[0].from.tags	refused	project delta.bin_metadata[0].from.tags has the wrong JSON type
+delta	remove	bin_metadata[0].from.insert_order	refused	project delta.bin_metadata[0].from has unexpected or missing fields
+delta	retype	bin_metadata[0].from.insert_order	refused	project delta.bin_metadata[0].from.insert_order has the wrong JSON type
+delta	int32+1	bin_metadata[0].from.insert_order	accepted	bin_metadata[0].from.insert_order=2147483648
+delta	negative	bin_metadata[0].from.insert_order	refused	project delta.bin_metadata[0].from.insert_order cannot be negative
+delta	remove	bin_metadata[0].from.display_name	refused	project delta.bin_metadata[0].from has unexpected or missing fields
+delta	retype	bin_metadata[0].from.display_name	refused	project delta.bin_metadata[0].from.display_name has the wrong JSON type
+delta	remove	bin_metadata[0].to	refused	project delta.bin_metadata[0] has unexpected or missing fields
+delta	retype	bin_metadata[0].to	refused	project delta.bin_metadata[0].to must be an object
+delta	remove	bin_metadata[0].to.description	refused	project delta.bin_metadata[0].to has unexpected or missing fields
+delta	retype	bin_metadata[0].to.description	refused	project delta.bin_metadata[0].to.description has the wrong JSON type
+delta	remove	bin_metadata[0].to.rating	refused	project delta.bin_metadata[0].to has unexpected or missing fields
+delta	retype	bin_metadata[0].to.rating	refused	project delta.bin_metadata[0].to.rating has the wrong JSON type
+delta	int32+1	bin_metadata[0].to.rating	accepted	bin_metadata[0].to.rating=2147483648
+delta	negative	bin_metadata[0].to.rating	refused	project delta.bin_metadata[0].to.rating cannot be negative
+delta	remove	bin_metadata[0].to.tags	refused	project delta.bin_metadata[0].to has unexpected or missing fields
+delta	retype	bin_metadata[0].to.tags	refused	project delta.bin_metadata[0].to.tags has the wrong JSON type
+delta	remove	bin_metadata[0].to.insert_order	refused	project delta.bin_metadata[0].to has unexpected or missing fields
+delta	retype	bin_metadata[0].to.insert_order	refused	project delta.bin_metadata[0].to.insert_order has the wrong JSON type
+delta	int32+1	bin_metadata[0].to.insert_order	accepted	bin_metadata[0].to.insert_order=2147483648
+delta	negative	bin_metadata[0].to.insert_order	refused	project delta.bin_metadata[0].to.insert_order cannot be negative
+delta	remove	bin_metadata[0].to.display_name	refused	project delta.bin_metadata[0].to has unexpected or missing fields
+delta	retype	bin_metadata[0].to.display_name	refused	project delta.bin_metadata[0].to.display_name has the wrong JSON type
+delta	remove	timeline_bin_ids	refused	project delta has unexpected or missing fields
+delta	retype	timeline_bin_ids	refused	project delta.timeline_bin_ids must be an array
+delta	remove	timeline_bin_ids[0].key	refused	project delta.timeline_bin_ids[0] has unexpected or missing fields
+delta	retype	timeline_bin_ids[0].key	refused	project delta.timeline_bin_ids[0].key must be a string
+delta	remove	timeline_bin_ids[0].from	refused	project delta.timeline_bin_ids[0] has unexpected or missing fields
+delta	retype	timeline_bin_ids[0].from	refused	project delta.timeline_bin_ids[0].from must be a string
+delta	remove	timeline_bin_ids[0].to	refused	project delta.timeline_bin_ids[0] has unexpected or missing fields
+delta	retype	timeline_bin_ids[0].to	refused	project delta.timeline_bin_ids[0].to must be a string
+archive_manifest	remove	format	refused	archive manifest has unexpected or missing fields
+archive_manifest	retype	format	refused	archive manifest.format has the wrong JSON type
+archive_manifest	remove	bytes	refused	archive manifest has unexpected or missing fields
+archive_manifest	retype	bytes	refused	archive manifest.bytes has the wrong JSON type
+archive_manifest	int32+1	bytes	accepted	bytes=2147483648
+archive_manifest	negative	bytes	refused	archive manifest needs a size and the digest of its rest
+archive_manifest	remove	rest	refused	archive manifest has unexpected or missing fields
+archive_manifest	retype	rest	refused	archive manifest.rest has the wrong JSON type
+archive_manifest	remove	parts	refused	archive manifest has unexpected or missing fields
+archive_manifest	retype	parts	refused	archive manifest.parts has the wrong JSON type
+archive_manifest	remove	parts[0].kind	refused	archive manifest.parts[0] has unexpected or missing fields
+archive_manifest	retype	parts[0].kind	refused	archive manifest.parts[0].kind has the wrong JSON type
+archive_manifest	remove	parts[0].id	refused	archive manifest.parts[0] has unexpected or missing fields
+archive_manifest	retype	parts[0].id	refused	archive manifest.parts[0].id has the wrong JSON type
+archive_manifest	remove	parts[0].at	refused	archive manifest.parts[0] has unexpected or missing fields
+archive_manifest	retype	parts[0].at	refused	archive manifest.parts[0].at has the wrong JSON type
+archive_manifest	int32+1	parts[0].at	refused	archive manifest.parts[0] is out of document order
+archive_manifest	negative	parts[0].at	refused	archive manifest.parts[0] is out of document order
+archive_manifest	remove	parts[0].digest	refused	archive manifest.parts[0] has unexpected or missing fields
+archive_manifest	retype	parts[0].digest	refused	archive manifest.parts[0].digest has the wrong JSON type

@@ -1,0 +1,90 @@
+{
+  "width": 800,
+  "height": 450,
+  "fps": 25,
+  "duration": 50,
+  "root": {
+    "type": "series",
+    "uid": "01K7C000000000000000001801",
+    "children": [
+      {
+        "type": "sequence",
+        "uid": "01K7C000000000000000001802",
+        "duration": 25,
+        "style": {
+          "justifyContent": "center",
+          "alignItems": "center"
+        },
+        "children": [
+          {
+            "type": "image",
+            "uid": "01K7C000000000000000001803",
+            "id": "iris",
+            "src": "logo.png",
+            "style": {
+              "width": 400,
+              "height": 200
+            },
+            "animate": {
+              "clipPath": {
+                "interpolate": {
+                  "frames": [
+                    0,
+                    20
+                  ],
+                  "values": [
+                    "circle(0% at 50% 50%)",
+                    "circle(75% at 50% 50%)"
+                  ],
+                  "easing": "ease-out",
+                  "uids": [
+                    "01K7C000000000000000001804",
+                    "01K7C000000000000000001805"
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "type": "sequence",
+        "uid": "01K7C000000000000000001806",
+        "style": {
+          "justifyContent": "center",
+          "alignItems": "center"
+        },
+        "children": [
+          {
+            "type": "image",
+            "uid": "01K7C000000000000000001807",
+            "id": "wedge",
+            "src": "logo.png",
+            "style": {
+              "width": 400,
+              "height": 200
+            },
+            "animate": {
+              "clipPath": {
+                "interpolate": {
+                  "frames": [
+                    0,
+                    20
+                  ],
+                  "values": [
+                    "polygon(0 0, 0 0, 0 100%, 0 100%)",
+                    "polygon(0 0, 100% 0, 100% 100%, 0 100%)"
+                  ],
+                  "uids": [
+                    "01K7C000000000000000001808",
+                    "01K7C000000000000000001809"
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

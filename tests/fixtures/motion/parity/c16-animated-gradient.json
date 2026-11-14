@@ -1,0 +1,61 @@
+{
+  "width": 320,
+  "height": 180,
+  "fps": 25,
+  "duration": 30,
+  "root": {
+    "type": "fill",
+    "uid": "01K7C000000000000000001601",
+    "id": "page",
+    "style": {
+      "justifyContent": "center",
+      "alignItems": "center",
+      "backgroundImage": "linear-gradient(90deg, #E4572E 0%, #3D5AFE 100%)"
+    },
+    "animate": {
+      "backgroundImage": {
+        "interpolate": {
+          "frames": [
+            0,
+            20
+          ],
+          "values": [
+            "linear-gradient(90deg, #E4572E 0%, #3D5AFE 100%)",
+            "linear-gradient(180deg, #4DABA1 0%, #FFD23F 100%)"
+          ],
+          "uids": [
+            "01K7C000000000000000001602",
+            "01K7C000000000000000001603"
+          ]
+        }
+      }
+    },
+    "children": [
+      {
+        "type": "text",
+        "uid": "01K7C000000000000000001604",
+        "id": "title",
+        "content": "Dégradé",
+        "style": {
+          "fontFamily": "Fira Sans Condensed",
+          "fontWeight": 600,
+          "fontSize": 48,
+          "color": "#ffffff"
+        }
+      },
+      {
+        "type": "box",
+        "uid": "01K7C000000000000000001605",
+        "id": "spot",
+        "style": {
+          "position": "absolute",
+          "left": 10,
+          "top": 10,
+          "width": 80,
+          "height": 40,
+          "backgroundImage": "radial-gradient(circle closest-side at 50% 50%, #ffffff 0%, transparent 100%)"
+        }
+      }
+    ]
+  }
+}

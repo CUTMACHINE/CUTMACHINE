@@ -1,0 +1,40 @@
+{
+  "format": "motion-piece.v1",
+  "description": "Name on screen: a person's name over their function, bottom left, sliding in and fading out (100 frames at 25 fps). Props nom, fonction, accent (colour of the name's band), texte, fond_fonction and texte_fonction (the function's band and text colours), police (font family), corps and corps_fonction (sizes in px), marge and hauteur (% of the frame from the left and from the bottom).",
+  "composition": {
+    "width": 1080, "height": 1920, "fps": 25, "duration": 100,
+    "props": {
+      "nom": { "type": "text", "default": "Prénom Nom" },
+      "fonction": { "type": "text", "default": "Fonction" },
+      "accent": { "type": "color", "default": "#E6007E" },
+      "texte": { "type": "color", "default": "#FFFFFF" },
+      "fond_fonction": { "type": "color", "default": "#000000" },
+      "texte_fonction": { "type": "color", "default": "#FFFFFF" },
+      "police": { "type": "text", "default": "Helvetica Neue" },
+      "corps": { "type": "number", "min": 16, "max": 200, "default": 64 },
+      "corps_fonction": { "type": "number", "min": 12, "max": 160, "default": 44 },
+      "marge": { "type": "number", "unit": "%", "min": 0, "max": 40, "default": 8 },
+      "hauteur": { "type": "number", "unit": "%", "min": 0, "max": 80, "default": 22 },
+      "texte_group": { "type": "group", "props": ["nom", "fonction"] }
+    },
+    "formats": {
+      "9x16": { "width": 1080, "height": 1920, "props": { "hauteur": 36, "marge": 9 } },
+      "16x9": { "width": 1920, "height": 1080, "props": { "corps": 56, "corps_fonction": 38, "hauteur": 12, "marge": 7 } },
+      "1x1": { "width": 1080, "height": 1080, "props": { "corps": 52, "corps_fonction": 36, "hauteur": 12 } }
+    },
+    "root": { "type": "fill", "children": [
+      { "type": "box", "id": "bloc",
+        "style": { "position": "absolute", "left": { "prop": "marge" }, "right": { "prop": "marge" }, "bottom": { "prop": "hauteur" },
+                   "flexDirection": "column", "alignItems": "flex-start", "gap": 8 },
+        "animate": {
+          "opacity": { "interpolate": { "frames": [0, 6, 88, 100], "values": [0, 1, 1, 0] } },
+          "translateX": { "spring": { "from": -40, "to": 0, "damping": 14 } } },
+        "children": [
+          { "type": "box", "style": { "backgroundColor": { "prop": "accent" }, "padding": "6px 16px" }, "children": [
+            { "type": "text", "id": "nom", "content": { "prop": "nom" },
+              "style": { "fontFamily": { "prop": "police" }, "fontWeight": 700, "fontSize": { "prop": "corps" }, "color": { "prop": "texte" } } } ] },
+          { "type": "box", "style": { "backgroundColor": { "prop": "fond_fonction" }, "padding": "4px 16px" }, "children": [
+            { "type": "text", "id": "fonction", "content": { "prop": "fonction" },
+              "style": { "fontFamily": { "prop": "police" }, "fontSize": { "prop": "corps_fonction" }, "color": { "prop": "texte_fonction" } } } ] } ] } ] }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "schema": "after-response.v2",
+  "ok": false,
+  "error": "ProjectAlreadyOpen",
+  "detail": "Un autre projet After Effects est déjà ouvert."
+}

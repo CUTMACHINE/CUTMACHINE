@@ -1,0 +1,9 @@
+{
+  "schema": "after-request.v2",
+  "method": "import_footage",
+  "arguments": {
+    "media_path": "/tmp/cutmachine-after/monstre.png",
+    "folder_name": "Elements",
+    "save": false
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "width": 1080,
+  "height": 1920,
+  "fps": 25,
+  "duration": 50,
+  "props": {
+    "title": { "type": "text", "default": "Version A" },
+    "size": { "type": "number", "default": 60, "min": 20, "max": 120 }
+  },
+  "formats": {
+    "9x16": { "width": 1080, "height": 1920 },
+    "16x9": { "width": 1920, "height": 1080, "props": { "size": 80 } },
+    "1x1": { "width": 1080, "height": 1080, "props": { "size": 70 } }
+  },
+  "variants": {
+    "alpha": { "props": { "title": "Version A" } },
+    "beta": { "props": { "title": "Version B" } },
+    "gamma": { "props": { "title": "Version C" } }
+  },
+  "root": {
+    "type": "fill",
+    "uid": "01K7A000000000000000000001",
+    "style": { "justifyContent": "center", "alignItems": "center" },
+    "children": [
+      {
+        "type": "text",
+        "id": "title",
+        "uid": "01K7A000000000000000000002",
+        "content": { "prop": "title" },
+        "style": {
+          "fontFamily": "Fira Sans Condensed",
+          "fontSize": { "prop": "size" },
+          "color": "#ffffff"
+        }
+      }
+    ]
+  }
+}

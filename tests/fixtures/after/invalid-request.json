@@ -1,0 +1,7 @@
+{
+  "schema": "after-request.v99",
+  "method": "create_project",
+  "arguments": {
+    "project_path": "/tmp/test.aep"
+  }
+}

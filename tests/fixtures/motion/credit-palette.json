@@ -1,0 +1,22 @@
+{ "width": 1080, "height": 1920, "fps": 25, "duration": 100,
+  "props": { "nom": { "type": "text", "default": "Prénom Nom" },
+             "fonction": { "type": "text", "default": "Fonction occupée" },
+             "palette": { "type": "enum", "values": ["sarcelle", "orange", "bleu"] } },
+  "tokens": { "palette": { "sarcelle": "#4DABA1", "orange": "#E4572E", "bleu": "#3D5AFE" } },
+  "root": { "type": "fill", "style": { "justifyContent": "center", "paddingLeft": "9%", "paddingTop": "4%",
+                                       "fontFamily": "Fira Sans Condensed", "fontWeight": 500 },
+    "children": [
+      { "type": "box", "id": "credit", "style": { "flexDirection": "column", "alignItems": "flex-start", "gap": 8 },
+        "animate": { "opacity": { "interpolate": { "frames": [88, 96], "values": [1, 0] } } },
+        "children": [
+        { "type": "box", "id": "nom",
+          "style": { "backgroundColor": { "prop": "palette", "map": "palette" }, "padding": "4px 14px" },
+          "children": [ { "type": "text", "content": { "prop": "nom" }, "style": { "fontSize": 58, "color": "#fff" } } ],
+          "animate": { "translateX": { "spring": { "from": -40, "to": 0, "damping": 14 } },
+                       "opacity": { "interpolate": { "frames": [0, 6], "values": [0, 1] } } } },
+        { "type": "box", "id": "fonction",
+          "style": { "backgroundColor": "#fff", "padding": "4px 14px", "marginLeft": 28 },
+          "children": [ { "type": "text", "content": { "prop": "fonction" },
+                          "style": { "fontSize": 34, "color": { "prop": "palette", "map": "palette" } } } ],
+          "animate": { "translateX": { "spring": { "from": -40, "to": 0, "delay": 4, "damping": 14 } },
+                       "opacity": { "interpolate": { "frames": [4, 10], "values": [0, 1] } } } } ] } ] } }

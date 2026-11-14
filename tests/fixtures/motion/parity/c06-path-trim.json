@@ -1,0 +1,38 @@
+{
+  "width": 300,
+  "height": 200,
+  "fps": 25,
+  "duration": 25,
+  "root": {
+    "type": "fill",
+    "uid": "01K76000000000000000000001",
+    "children": [
+      {
+        "type": "path",
+        "id": "mark",
+        "uid": "01K76000000000000000000002",
+        "d": "M0 0 L100 0 L100 100",
+        "style": {
+          "position": "absolute",
+          "left": 20,
+          "top": 30,
+          "fill": "none",
+          "stroke": "#ffffff",
+          "strokeWidth": 4
+        },
+        "animate": {
+          "trimEnd": {
+            "interpolate": {
+              "frames": [0, 20],
+              "values": [0, 1],
+              "uids": [
+                "01K76000000000000000000003",
+                "01K76000000000000000000004"
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

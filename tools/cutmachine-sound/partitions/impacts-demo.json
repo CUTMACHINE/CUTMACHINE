@@ -1,0 +1,35 @@
+{
+  "format": "cutmachine-partition",
+  "version": 1,
+  "title": "Impacts — DEMO TEASER ATELIER",
+  "comment": "impacts.js's choices, seed 1, élan 0.4",
+  "tracks": [
+    {
+      "name": "impacts",
+      "instrument": "impact",
+      "events": [
+        {"at":{"cut":"shot-1>shot-2"},"params":{"poids":1}},
+        {"at":{"cut":"shot-2>shot-3"},"params":{"poids":0.726}},
+        {"at":{"cut":"shot-3>shot-4"},"params":{"poids":0.338}},
+        {"at":{"cut":"shot-4>shot-5"},"params":{"poids":0.33599999999999997}},
+        {"at":{"cut":"shot-5>shot-6"},"params":{"poids":0.544}},
+        {"at":{"cut":"shot-7>shot-8"},"params":{"poids":0.825}},
+        {"at":{"cut":"shot-8>shot-9"},"params":{"poids":0.52}}
+      ]
+    },
+    {
+      "name": "elans",
+      "instrument": "elan",
+      "events": [
+        {"at":{"cut":"shot-1>shot-2"},"lead":0.8,"params":{"poids":1}}
+      ]
+    },
+    {
+      "name": "fondus",
+      "instrument": "fondu",
+      "events": [
+        {"at":{"cut":"shot-6>shot-7"},"length":"transition"}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "width": 640,
+  "height": 360,
+  "fps": 25,
+  "duration": 30,
+  "root": {
+    "type": "fill",
+    "uid": "01K7C000000000000000001901",
+    "id": "stage",
+    "style": {
+      "justifyContent": "center",
+      "alignItems": "center",
+      "perspective": 800
+    },
+    "children": [
+      {
+        "type": "box",
+        "uid": "01K7C000000000000000001902",
+        "id": "card",
+        "style": {
+          "width": 320,
+          "height": 180,
+          "backgroundColor": "#4DABA1",
+          "borderRadius": 16,
+          "justifyContent": "center",
+          "alignItems": "center",
+          "rotateX": 10,
+          "filter": "drop-shadow(0px 12px 8px rgba(0,0,0,0.5))"
+        },
+        "animate": {
+          "rotateY": {
+            "interpolate": {
+              "frames": [
+                0,
+                20
+              ],
+              "values": [
+                0,
+                35
+              ],
+              "easing": "ease-in-out",
+              "uids": [
+                "01K7C000000000000000001903",
+                "01K7C000000000000000001904"
+              ]
+            }
+          }
+        },
+        "children": [
+          {
+            "type": "text",
+            "uid": "01K7C000000000000000001905",
+            "id": "label",
+            "content": "Carte",
+            "style": {
+              "fontFamily": "Fira Sans Condensed",
+              "fontWeight": 600,
+              "fontSize": 56,
+              "color": "#ffffff"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

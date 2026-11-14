@@ -1,0 +1,31 @@
+{
+  "format": "motion-piece.v1",
+  "description": "Card: a full-frame colour with a centred title and an optional subtitle, fading in and out (75 frames). Props titre, sous_titre, fond, texte, police (font family), corps, corps_sous_titre, largeur (% of the frame the text may use).",
+  "composition": {
+    "width": 1080, "height": 1920, "fps": 25, "duration": 75,
+    "props": {
+      "titre": { "type": "text", "default": "Titre" },
+      "sous_titre": { "type": "text", "default": "" },
+      "fond": { "type": "color", "default": "#000000" },
+      "texte": { "type": "color", "default": "#FFFFFF" },
+      "police": { "type": "text", "default": "Helvetica Neue" },
+      "corps": { "type": "number", "min": 16, "max": 240, "default": 96 },
+      "corps_sous_titre": { "type": "number", "min": 12, "max": 200, "default": 52 },
+      "largeur": { "type": "number", "unit": "%", "min": 20, "max": 100, "default": 80 }
+    },
+    "formats": {
+      "9x16": { "width": 1080, "height": 1920 },
+      "16x9": { "width": 1920, "height": 1080, "props": { "corps": 110, "corps_sous_titre": 56, "largeur": 70 } },
+      "1x1": { "width": 1080, "height": 1080, "props": { "corps": 88, "corps_sous_titre": 46 } }
+    },
+    "root": { "type": "fill", "style": { "backgroundColor": { "prop": "fond" }, "justifyContent": "center", "alignItems": "center" },
+      "animate": { "opacity": { "interpolate": { "frames": [0, 8, 67, 75], "values": [0, 1, 1, 0] } } },
+      "children": [
+        { "type": "box", "id": "bloc", "style": { "flexDirection": "column", "alignItems": "center", "gap": 24, "width": { "prop": "largeur" } },
+          "children": [
+            { "type": "text", "id": "titre", "content": { "prop": "titre" },
+              "style": { "fontFamily": { "prop": "police" }, "fontWeight": 700, "fontSize": { "prop": "corps" }, "color": { "prop": "texte" }, "textAlign": "center" } },
+            { "type": "text", "id": "sous_titre", "content": { "prop": "sous_titre" },
+              "style": { "fontFamily": { "prop": "police" }, "fontSize": { "prop": "corps_sous_titre" }, "color": { "prop": "texte" }, "textAlign": "center" } } ] } ] }
+  }
+}

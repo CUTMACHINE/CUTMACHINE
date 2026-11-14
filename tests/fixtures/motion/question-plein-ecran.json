@@ -1,0 +1,30 @@
+{ "width": 1920, "height": 1080, "fps": 25, "duration": 61,
+  "props": { "question": { "type": "text", "default": "Quelle a été la plus belle surprise\nde cette année ?" },
+             "couleur": { "type": "enum", "values": ["rouge", "sarcelle", "orange"] },
+             "contour": { "type": "bool", "default": false } },
+  "tokens": { "couleurs": { "rouge": "#E53935", "sarcelle": "#26A69A", "orange": "#FB8C00" } },
+  "root": { "type": "fill", "style": { "backgroundColor": "#000" }, "children": [
+    { "type": "fill", "id": "bord", "style": { "backgroundColor": "#fff" },
+      "animate": { "clipPath": { "interpolate": { "frames": [0, 12, 40, 55], "easing": "ease-in-out", "values": [
+        "polygon(2314px 0, 2334px 0, 1950px 1080px, 1930px 1080px)",
+        "polygon(-10px 0, 2334px 0, 1950px 1080px, -394px 1080px)",
+        "polygon(-10px 0, 2334px 0, 1950px 1080px, -394px 1080px)",
+        "polygon(-30px 0, -10px 0, -394px 1080px, -414px 1080px)" ] } } } },
+    { "type": "fill", "id": "volet", "style": { "backgroundColor": { "prop": "couleur", "map": "couleurs" } },
+      "animate": { "clipPath": { "interpolate": { "frames": [0, 12, 40, 55], "easing": "ease-in-out", "values": [
+        "polygon(2324px 0, 2324px 0, 1940px 1080px, 1940px 1080px)",
+        "polygon(0 0, 2324px 0, 1940px 1080px, -384px 1080px)",
+        "polygon(0 0, 2324px 0, 1940px 1080px, -384px 1080px)",
+        "polygon(-20px 0, -20px 0, -404px 1080px, -404px 1080px)" ] } } },
+      "children": [
+        { "type": "sequence", "from": 4, "children": [
+          { "type": "box", "id": "bloc",
+            "style": { "position": "absolute", "left": 18, "top": "30%",
+                       "fontFamily": "Fira Sans Condensed", "fontWeight": 500, "fontSize": 92, "lineHeight": 1.4,
+                       "color": { "prop": "contour", "map": { "true": "transparent", "false": "#fff" } },
+                       "textStroke": { "prop": "contour", "map": { "true": "3px #fff", "false": "none" } } },
+            "animate": { "wordSpacing": { "interpolate": { "frames": [0, 20], "values": [60, 0], "easing": "ease-out" } } },
+            "children": [
+              { "type": "text", "id": "question", "content": { "prop": "question" }, "units": "word",
+                "animate": { "opacity": { "interpolate": { "frames": [0, 3], "values": [0, 1] } } },
+                "stagger": { "each": 1 } } ] } ] } ] } ] } }

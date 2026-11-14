@@ -1,0 +1,11 @@
+TITLE: FILM markers
+FCM: NON-DROP FRAME
+
+001  001      V     C        01:00:05:00 01:00:05:01 01:00:05:00 01:00:05:01
+ |C:ResolveColorYellow |M:Début |D:1
+
+002  001      V     C        01:00:10:00 01:00:12:00 01:00:10:00 01:00:12:00
+ |C:ResolveColorBlue |M:Passage |D:50
+
+003  001      V     C        01:00:12:00 01:00:12:01 01:00:12:00 01:00:12:01
+ |C:ResolveColorYellow |M:Question ? |D:1

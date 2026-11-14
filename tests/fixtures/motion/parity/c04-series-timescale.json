@@ -1,0 +1,51 @@
+{
+  "width": 400,
+  "height": 300,
+  "fps": 25,
+  "duration": 30,
+  "root": {
+    "type": "series",
+    "uid": "01K74000000000000000000001",
+    "children": [
+      {
+        "type": "sequence",
+        "uid": "01K74000000000000000000002",
+        "duration": 10,
+        "children": [
+          {
+            "type": "box",
+            "id": "first",
+            "uid": "01K74000000000000000000003",
+            "style": { "width": 100, "height": 100, "backgroundColor": "#e4572e" }
+          }
+        ]
+      },
+      {
+        "type": "sequence",
+        "uid": "01K74000000000000000000004",
+        "offset": -2,
+        "timeScale": "50%",
+        "children": [
+          {
+            "type": "box",
+            "id": "second",
+            "uid": "01K74000000000000000000005",
+            "style": { "width": 100, "height": 100, "backgroundColor": "#4daba1" },
+            "animate": {
+              "opacity": {
+                "interpolate": {
+                  "frames": [0, 5],
+                  "values": [0, 1],
+                  "uids": [
+                    "01K74000000000000000000006",
+                    "01K74000000000000000000007"
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

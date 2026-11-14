@@ -1,0 +1,32 @@
+{
+  "width": 640,
+  "height": 360,
+  "fps": 25,
+  "duration": 25,
+  "props": {
+    "font": {
+      "type": "enum",
+      "values": ["Fira Sans Condensed", "Missing Sans"],
+      "default": "Fira Sans Condensed"
+    },
+    "size": { "type": "number", "default": 40, "min": 20, "max": 80 }
+  },
+  "root": {
+    "type": "fill",
+    "uid": "01K79000000000000000000001",
+    "style": { "justifyContent": "center", "alignItems": "center" },
+    "children": [
+      {
+        "type": "text",
+        "id": "sample",
+        "uid": "01K79000000000000000000002",
+        "content": "Typographie",
+        "style": {
+          "fontFamily": { "prop": "font" },
+          "fontSize": { "prop": "size" },
+          "color": "#ffffff"
+        }
+      }
+    ]
+  }
+}

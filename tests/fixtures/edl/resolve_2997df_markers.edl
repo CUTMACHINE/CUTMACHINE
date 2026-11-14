@@ -1,0 +1,10 @@
+TITLE: Timeline 1
+FCM: DROP FRAME
+
+001  001      V     C        01:00:00;00 01:00:00;01 01:00:00;00 01:00:00;01  
+ |C:ResolveColorRed |M:Raccord |D:1
+
+002  001      V     C        01:01:00;02 01:01:00;17 01:01:00;02 01:01:00;17  
+ |C:ResolveColorMint |M:Respiration |D:15
+
+* LOC: 01:10:00;00 GREEN   Dix minutes

@@ -1,0 +1,232 @@
+{
+ "width": 1080,
+ "height": 1920,
+ "fps": 25,
+ "duration": 75,
+ "grain": {
+  "amount": 0.05,
+  "size": 2,
+  "seed": 3
+ },
+ "motionBlur": {
+  "samples": 6,
+  "shutterAngle": 180
+ },
+ "root": {
+  "type": "fill",
+  "children": [
+   {
+    "type": "fill",
+    "style": {
+     "backgroundColor": "#0A0A0F"
+    },
+    "children": [
+     {
+      "type": "box",
+      "style": {
+       "position": "absolute",
+       "top": -550,
+       "left": -350,
+       "width": 1400,
+       "height": 1400,
+       "borderRadius": 1400,
+       "backgroundImage": "radial-gradient(circle, #7C3AED33 0%, transparent 62%)",
+       "filter": "blur(60px)"
+      },
+      "animate": {
+       "translateX": {
+        "interpolate": {
+         "frames": [
+          0,
+          75
+         ],
+         "values": [
+          0,
+          50
+         ],
+         "easing": "cubic-bezier(0.65, 0, 0.35, 1)"
+        }
+       }
+      }
+     },
+     {
+      "type": "box",
+      "style": {
+       "position": "absolute",
+       "top": 1300,
+       "left": 300,
+       "width": 1100,
+       "height": 1100,
+       "borderRadius": 1100,
+       "backgroundImage": "radial-gradient(circle, #22D3EE22 0%, transparent 62%)",
+       "filter": "blur(80px)"
+      },
+      "animate": {
+       "translateX": {
+        "interpolate": {
+         "frames": [
+          0,
+          75
+         ],
+         "values": [
+          0,
+          -40
+         ],
+         "easing": "cubic-bezier(0.65, 0, 0.35, 1)"
+        }
+       }
+      }
+     }
+    ]
+   },
+   {
+    "type": "fill",
+    "style": {
+     "justifyContent": "center",
+     "alignItems": "center",
+     "gap": 70,
+     "flexDirection": "column"
+    },
+    "children": [
+     {
+      "type": "box",
+      "style": {
+       "width": 860,
+       "height": 860,
+       "borderRadius": 32,
+       "overflow": "hidden"
+      },
+      "animate": {
+       "opacity": {
+        "interpolate": {
+         "frames": [
+          0,
+          10
+         ],
+         "values": [
+          0,
+          1
+         ],
+         "easing": "cubic-bezier(0.16, 1, 0.3, 1)"
+        }
+       },
+       "translateY": {
+        "spring": {
+         "from": 40,
+         "to": 0,
+         "delay": 0,
+         "damping": 20,
+         "stiffness": 90,
+         "mass": 1
+        }
+       },
+       "scale": {
+        "spring": {
+         "from": 0.94,
+         "to": 1,
+         "delay": 0,
+         "damping": 20,
+         "stiffness": 90,
+         "mass": 1
+        }
+       }
+      },
+      "children": [
+       {
+        "type": "fill",
+        "style": {
+         "backgroundImage": "linear-gradient(135deg, #E4572E 0%, #3D5AFE 100%)"
+        },
+        "animate": {
+         "scale": {
+          "interpolate": {
+           "frames": [
+            0,
+            75
+           ],
+           "values": [
+            1,
+            1.08
+           ],
+           "easing": "cubic-bezier(0.65, 0, 0.35, 1)"
+          }
+         },
+         "translateX": {
+          "interpolate": {
+           "frames": [
+            0,
+            75
+           ],
+           "values": [
+            0,
+            -25
+           ],
+           "easing": "cubic-bezier(0.65, 0, 0.35, 1)"
+          }
+         }
+        }
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "content": "Cinq couches",
+      "style": {
+       "fontFamily": "Fira Sans Condensed",
+       "fontWeight": 600,
+       "fontSize": 130,
+       "lineHeight": 1.0,
+       "color": "#F4F4F5",
+       "flexShrink": 0,
+       "textAlign": "center",
+       "letterSpacing": -4
+      },
+      "units": "word",
+      "stagger": {
+       "each": 4
+      },
+      "animate": {
+       "opacity": {
+        "interpolate": {
+         "frames": [
+          12,
+          18
+         ],
+         "values": [
+          0,
+          1
+         ],
+         "easing": "cubic-bezier(0.16, 1, 0.3, 1)"
+        }
+       },
+       "translateY": {
+        "spring": {
+         "from": 30,
+         "to": 0,
+         "delay": 12,
+         "damping": 14,
+         "stiffness": 160,
+         "mass": 0.6
+        }
+       }
+      }
+     }
+    ]
+   },
+   {
+    "type": "fill",
+    "style": {
+     "backgroundColor": "#7C3AED",
+     "mixBlendMode": "soft-light",
+     "opacity": 0.18
+    }
+   },
+   {
+    "type": "fill",
+    "style": {
+     "backgroundImage": "radial-gradient(ellipse at 50% 50%, transparent 56%, rgba(0, 0, 0, 0.22) 100%)"
+    }
+   }
+  ]
+ }
+}

@@ -1,0 +1,9 @@
+{
+  "schema": "after-request.v2",
+  "method": "duplicate_layer",
+  "arguments": {
+    "comp_id": "413",
+    "layer_id": "421",
+    "save": false
+  }
+}

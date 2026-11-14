@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "cutmachine": {
+      "type": "stdio",
+      "command": "${CLAUDE_PROJECT_DIR:-.}/build/cutmachine",
+      "args": ["--mcp-serve", "--stdio"]
+    }
+  }
+}

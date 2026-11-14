@@ -1,0 +1,340 @@
+{
+  "format": "motion-piece.v1",
+  "description": "Marquee: two full-width bands enter from opposite sides, their text running, slowing and locking; they cross on the way out (60 frames at 25 fps). Each band repeats its text along its length; the middle occurrence is the one read (nodes haut-centre and bas-centre), the others are decor that the frame cuts. Props haut and bas (the two texts), accent (band colour), texte (text colour), police (font family), corps_haut and corps_bas (type sizes in px), mesure (the widest a line may be, in px). Each format's sizes fit a phrase of about 24 characters on one line in its safe area, and its measure is the width of that area for a centred text (in 9:16, the social apps' zone, whose right rail leaves 800 px of 1080): a longer phrase wraps onto a second line instead of leaving the frame.",
+  "use": "A short phrase and its answer, or a title and a date, when the frame can take a strong horizontal: an opening, a chapter change.",
+  "avoid": "Over a face in the middle of the frame, which the bands cross. Long sentences: the text repeats, it is not read once, and past the measure it wraps; a band of three lines is no longer a band.",
+  "invariants": [
+    "The bands span the full width of the frame and enter from opposite sides.",
+    "The text keeps running after its band has landed, slows and locks; it never pops into place.",
+    "The middle occurrence of each text fits in the frame and its safe area: it is what is read, and no line of it runs past the measure. The other occurrences are decor, cut by the frame on purpose.",
+    "Nothing pulses or drifts once locked.",
+    "On the way out each band leaves by the side opposite to the one it came from, so the two cross.",
+    "The first band is already entering at frame 0, so the piece can start on a cut."
+  ],
+  "origin": "Kinetic typography direction kept on a delivered film, September 2026; neutral version.",
+  "composition": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 25,
+    "duration": 60,
+    "props": {
+      "haut": { "type": "text", "default": "LE TEXTE DÉFILE" },
+      "bas": { "type": "text", "default": "ET SE CALE SUR LE TEMPS" },
+      "accent": { "type": "color", "default": "#FFD23F" },
+      "texte": { "type": "color", "default": "#000000" },
+      "police": { "type": "text", "default": "Helvetica Neue" },
+      "corps_haut": { "type": "number", "min": 30, "max": 300, "default": 124 },
+      "corps_bas": { "type": "number", "min": 30, "max": 300, "default": 80 },
+      "mesure": { "type": "number", "min": 100, "max": 4000, "default": 800 }
+    },
+    "formats": {
+      "9x16": {
+        "width": 1080,
+        "height": 1920,
+        "props": { "corps_haut": 64, "corps_bas": 48, "mesure": 800 }
+      },
+      "16x9": {
+        "width": 1920,
+        "height": 1080,
+        "props": { "corps_haut": 140, "corps_bas": 96, "mesure": 1728 }
+      },
+      "1x1": {
+        "width": 1080,
+        "height": 1080,
+        "props": { "corps_haut": 80, "corps_bas": 56, "mesure": 972 }
+      }
+    },
+    "root": {
+      "type": "fill",
+      "style": { "justifyContent": "center", "gap": 20 },
+      "children": [
+        {
+          "type": "box",
+          "id": "sortie-haut",
+          "style": { "width": "100%" },
+          "animate": {
+            "translateX": {
+              "interpolate": {
+                "frames": [50, 59],
+                "values": [0, 1920],
+                "easing": "cubic-bezier(0.7, 0, 0.84, 0)"
+              }
+            }
+          },
+          "children": [
+            {
+              "type": "box",
+              "id": "bande-haut",
+              "style": {
+                "width": "100%",
+                "backgroundColor": { "prop": "accent" },
+                "overflow": "hidden",
+                "flexDirection": "row",
+                "justifyContent": "center",
+                "alignItems": "center",
+                "paddingTop": 18,
+                "paddingBottom": 18
+              },
+              "animate": {
+                "translateX": {
+                  "interpolate": {
+                    "frames": [-1, 7],
+                    "values": [-1920, 0],
+                    "easing": "cubic-bezier(0.16, 1, 0.3, 1)"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "type": "box",
+                  "id": "rang-haut",
+                  "style": {
+                    "width": 12000,
+                    "flexShrink": 0,
+                    "flexDirection": "row",
+                    "justifyContent": "center",
+                    "alignItems": "center",
+                    "gap": 36,
+                    "fontFamily": { "prop": "police" },
+                    "fontWeight": 700,
+                    "lineHeight": 1.0,
+                    "fontSize": { "prop": "corps_haut" },
+                    "color": { "prop": "texte" }
+                  },
+                  "animate": {
+                    "translateX": {
+                      "interpolate": {
+                        "frames": [-1, 22],
+                        "values": [700, 0],
+                        "easing": "cubic-bezier(0.16, 1, 0.3, 1)"
+                      }
+                    }
+                  },
+                  "children": [
+                    {
+                      "type": "text",
+                      "content": { "prop": "haut" },
+                      "style": {
+                        "flexShrink": 0,
+                        "maxWidth": { "prop": "mesure" },
+                        "textAlign": "center"
+                      },
+                      "decor": true
+                    },
+                    {
+                      "type": "text",
+                      "content": "·",
+                      "style": { "flexShrink": 0 },
+                      "decor": true
+                    },
+                    {
+                      "type": "text",
+                      "content": { "prop": "haut" },
+                      "style": {
+                        "flexShrink": 0,
+                        "maxWidth": { "prop": "mesure" },
+                        "textAlign": "center"
+                      },
+                      "decor": true
+                    },
+                    {
+                      "type": "text",
+                      "content": "·",
+                      "style": { "flexShrink": 0 },
+                      "decor": true
+                    },
+                    {
+                      "type": "text",
+                      "content": { "prop": "haut" },
+                      "style": {
+                        "flexShrink": 0,
+                        "maxWidth": { "prop": "mesure" },
+                        "textAlign": "center"
+                      },
+                      "id": "haut-centre"
+                    },
+                    {
+                      "type": "text",
+                      "content": "·",
+                      "style": { "flexShrink": 0 },
+                      "decor": true
+                    },
+                    {
+                      "type": "text",
+                      "content": { "prop": "haut" },
+                      "style": {
+                        "flexShrink": 0,
+                        "maxWidth": { "prop": "mesure" },
+                        "textAlign": "center"
+                      },
+                      "decor": true
+                    },
+                    {
+                      "type": "text",
+                      "content": "·",
+                      "style": { "flexShrink": 0 },
+                      "decor": true
+                    },
+                    {
+                      "type": "text",
+                      "content": { "prop": "haut" },
+                      "style": {
+                        "flexShrink": 0,
+                        "maxWidth": { "prop": "mesure" },
+                        "textAlign": "center"
+                      },
+                      "decor": true
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "box",
+          "id": "sortie-bas",
+          "style": { "width": "100%" },
+          "animate": {
+            "translateX": {
+              "interpolate": {
+                "frames": [50, 59],
+                "values": [0, -1920],
+                "easing": "cubic-bezier(0.7, 0, 0.84, 0)"
+              }
+            }
+          },
+          "children": [
+            {
+              "type": "box",
+              "id": "bande-bas",
+              "style": {
+                "width": "100%",
+                "backgroundColor": { "prop": "accent" },
+                "overflow": "hidden",
+                "flexDirection": "row",
+                "justifyContent": "center",
+                "alignItems": "center",
+                "paddingTop": 18,
+                "paddingBottom": 18
+              },
+              "animate": {
+                "translateX": {
+                  "interpolate": {
+                    "frames": [6, 14],
+                    "values": [1920, 0],
+                    "easing": "cubic-bezier(0.16, 1, 0.3, 1)"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "type": "box",
+                  "id": "rang-bas",
+                  "style": {
+                    "width": 12000,
+                    "flexShrink": 0,
+                    "flexDirection": "row",
+                    "justifyContent": "center",
+                    "alignItems": "center",
+                    "gap": 36,
+                    "fontFamily": { "prop": "police" },
+                    "fontWeight": 700,
+                    "lineHeight": 1.0,
+                    "fontSize": { "prop": "corps_bas" },
+                    "color": { "prop": "texte" }
+                  },
+                  "animate": {
+                    "translateX": {
+                      "interpolate": {
+                        "frames": [6, 29],
+                        "values": [-700, 0],
+                        "easing": "cubic-bezier(0.16, 1, 0.3, 1)"
+                      }
+                    }
+                  },
+                  "children": [
+                    {
+                      "type": "text",
+                      "content": { "prop": "bas" },
+                      "style": {
+                        "flexShrink": 0,
+                        "maxWidth": { "prop": "mesure" },
+                        "textAlign": "center"
+                      },
+                      "decor": true
+                    },
+                    {
+                      "type": "text",
+                      "content": "·",
+                      "style": { "flexShrink": 0 },
+                      "decor": true
+                    },
+                    {
+                      "type": "text",
+                      "content": { "prop": "bas" },
+                      "style": {
+                        "flexShrink": 0,
+                        "maxWidth": { "prop": "mesure" },
+                        "textAlign": "center"
+                      },
+                      "decor": true
+                    },
+                    {
+                      "type": "text",
+                      "content": "·",
+                      "style": { "flexShrink": 0 },
+                      "decor": true
+                    },
+                    {
+                      "type": "text",
+                      "content": { "prop": "bas" },
+                      "style": {
+                        "flexShrink": 0,
+                        "maxWidth": { "prop": "mesure" },
+                        "textAlign": "center"
+                      },
+                      "id": "bas-centre"
+                    },
+                    {
+                      "type": "text",
+                      "content": "·",
+                      "style": { "flexShrink": 0 },
+                      "decor": true
+                    },
+                    {
+                      "type": "text",
+                      "content": { "prop": "bas" },
+                      "style": {
+                        "flexShrink": 0,
+                        "maxWidth": { "prop": "mesure" },
+                        "textAlign": "center"
+                      },
+                      "decor": true
+                    },
+                    {
+                      "type": "text",
+                      "content": "·",
+                      "style": { "flexShrink": 0 },
+                      "decor": true
+                    },
+                    {
+                      "type": "text",
+                      "content": { "prop": "bas" },
+                      "style": {
+                        "flexShrink": 0,
+                        "maxWidth": { "prop": "mesure" },
+                        "textAlign": "center"
+                      },
+                      "decor": true
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

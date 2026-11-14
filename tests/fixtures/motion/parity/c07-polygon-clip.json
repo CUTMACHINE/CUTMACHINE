@@ -1,0 +1,40 @@
+{
+  "width": 400,
+  "height": 300,
+  "fps": 25,
+  "duration": 20,
+  "root": {
+    "type": "fill",
+    "uid": "01K77000000000000000000001",
+    "children": [
+      {
+        "type": "box",
+        "id": "panel",
+        "uid": "01K77000000000000000000002",
+        "style": {
+          "position": "absolute",
+          "left": 100,
+          "top": 50,
+          "width": 200,
+          "height": 100,
+          "backgroundColor": "#e4572e"
+        },
+        "animate": {
+          "clipPath": {
+            "interpolate": {
+              "frames": [0, 10],
+              "values": [
+                "polygon(0 0, 0 0, 0 100%)",
+                "polygon(0 0, 100% 0, 50% 100%)"
+              ],
+              "uids": [
+                "01K77000000000000000000003",
+                "01K77000000000000000000004"
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

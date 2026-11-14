@@ -1,0 +1,60 @@
+{
+  "width": 800,
+  "height": 450,
+  "fps": 25,
+  "duration": 40,
+  "root": {
+    "type": "fill",
+    "uid": "01K73000000000000000000001",
+    "style": {
+      "justifyContent": "center",
+      "alignItems": "center",
+      "backgroundColor": "#111111"
+    },
+    "children": [
+      {
+        "type": "text",
+        "id": "words",
+        "uid": "01K73000000000000000000002",
+        "content": "monter voir comprendre",
+        "units": "word",
+        "ranges": [
+          {
+            "unit": "word",
+            "start": 1,
+            "count": 2,
+            "style": { "color": "#e4572e" }
+          }
+        ],
+        "stagger": { "each": 2, "order": "random", "seed": 42 },
+        "style": {
+          "fontFamily": "Fira Sans Condensed",
+          "fontSize": 40,
+          "color": "#ffffff"
+        },
+        "animate": {
+          "opacity": {
+            "interpolate": {
+              "frames": [0, 4],
+              "values": [0, 1],
+              "uids": [
+                "01K73000000000000000000003",
+                "01K73000000000000000000004"
+              ]
+            }
+          },
+          "translateY": {
+            "interpolate": {
+              "frames": [0, 4],
+              "values": [20, 0],
+              "uids": [
+                "01K73000000000000000000005",
+                "01K73000000000000000000006"
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

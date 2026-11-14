@@ -1,0 +1,30 @@
+{
+  "format": "motion-piece.v1",
+  "description": "Un texte centré, sur plusieurs lignes si besoin, dont une plage de mots se surligne dans l'ordre de lecture. Le trait avance de l'image 8 à l'image 32, puis reste jusqu'à l'image 75. Props texte, premier (mot à partir de 0), nombre, feutre, encre, fond, police, corps et largeur (% du cadre).",
+  "composition": {
+    "width": 1080, "height": 1920, "fps": 25, "duration": 75,
+    "props": {
+      "texte": { "type": "text", "default": "Une idée qui prend forme, un mot après l'autre." },
+      "premier": { "type": "number", "min": 0, "max": 10000, "default": 2 },
+      "nombre": { "type": "number", "min": 0, "max": 10000, "default": 4 },
+      "feutre": { "type": "color", "default": "#ffe14d" },
+      "encre": { "type": "color", "default": "#171717" },
+      "fond": { "type": "color", "default": "#f5f1e8" },
+      "police": { "type": "text", "default": "Helvetica Neue" },
+      "corps": { "type": "number", "min": 16, "max": 240, "default": 96 },
+      "largeur": { "type": "number", "unit": "%", "min": 20, "max": 90, "default": 76 }
+    },
+    "formats": {
+      "9x16": { "width": 1080, "height": 1920 },
+      "16x9": { "width": 1920, "height": 1080, "props": { "corps": 110, "largeur": 68 } },
+      "1x1": { "width": 1080, "height": 1080, "props": { "corps": 88 } }
+    },
+    "root": { "type": "fill", "style": { "backgroundColor": { "prop": "fond" }, "justifyContent": "center", "alignItems": "center" },
+      "children": [
+        { "type": "text", "id": "texte", "content": { "prop": "texte" },
+          "style": { "width": { "prop": "largeur" }, "fontFamily": { "prop": "police" }, "fontWeight": 700, "fontSize": { "prop": "corps" }, "textAlign": "center", "color": { "prop": "encre" } },
+          "highlights": [{ "unit": "word", "start": { "prop": "premier" }, "count": { "prop": "nombre" }, "color": { "prop": "feutre" }, "top": 0.52, "bottom": 0.92, "bleed": 8,
+            "progress": { "interpolate": { "frames": [8, 32], "values": [0, 1], "easing": "cubic-bezier(0.65, 0, 0.35, 1)" } } }] }
+      ] }
+  }
+}

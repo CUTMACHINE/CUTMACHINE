@@ -1,0 +1,47 @@
+{
+  "width": 320,
+  "height": 180,
+  "fps": 25,
+  "duration": 30,
+  "root": {
+    "type": "fill",
+    "uid": "01K7C000000000000000001701",
+    "style": {
+      "justifyContent": "center",
+      "alignItems": "center"
+    },
+    "children": [
+      {
+        "type": "text",
+        "uid": "01K7C000000000000000001702",
+        "id": "title",
+        "content": "Lueur",
+        "style": {
+          "fontFamily": "Fira Sans Condensed",
+          "fontWeight": 600,
+          "fontSize": 64,
+          "color": "#ffffff",
+          "filter": "drop-shadow(0px 6px 4px rgba(0,0,0,0.6)) blur(0px) glow(0px #FFD23F 1)"
+        },
+        "animate": {
+          "filter": {
+            "interpolate": {
+              "frames": [
+                0,
+                20
+              ],
+              "values": [
+                "drop-shadow(0px 6px 4px rgba(0,0,0,0.6)) blur(0px) glow(0px #FFD23F 1)",
+                "drop-shadow(0px 6px 4px rgba(0,0,0,0.6)) blur(2px) glow(10px #FFD23F 2)"
+              ],
+              "uids": [
+                "01K7C000000000000000001703",
+                "01K7C000000000000000001704"
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

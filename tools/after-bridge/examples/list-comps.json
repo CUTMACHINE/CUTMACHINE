@@ -1,0 +1,5 @@
+{
+  "schema": "after-request.v2",
+  "method": "list_comps",
+  "arguments": {}
+}

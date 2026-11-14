@@ -1,0 +1,58 @@
+{
+  "width": 640,
+  "height": 360,
+  "fps": 25,
+  "duration": 60,
+  "props": {
+    "accent": {
+      "type": "color",
+      "default": "#E4572E"
+    }
+  },
+  "root": {
+    "type": "fill",
+    "uid": "01K7C000000000000000001411",
+    "children": [
+      {
+        "type": "composition",
+        "id": "left",
+        "uid": "01K7C000000000000000001412",
+        "composition": "01K7C000000000000000001400",
+        "props": {
+          "name": "Ana",
+          "color": {
+            "prop": "accent"
+          }
+        },
+        "style": {
+          "position": "absolute",
+          "left": 40,
+          "top": 40,
+          "width": 240
+        }
+      },
+      {
+        "type": "sequence",
+        "uid": "01K7C000000000000000001413",
+        "from": 12,
+        "children": [
+          {
+            "type": "composition",
+            "id": "right",
+            "uid": "01K7C000000000000000001414",
+            "composition": "01K7C000000000000000001400",
+            "props": {
+              "name": "Bruno"
+            },
+            "style": {
+              "position": "absolute",
+              "right": 40,
+              "top": 200,
+              "width": 240
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

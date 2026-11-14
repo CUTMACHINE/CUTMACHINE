@@ -1,0 +1,11 @@
+{
+  "schema": "after-response.v2",
+  "ok": true,
+  "project_name": "test",
+  "path": "/tmp/test.aep",
+  "item_count": 0,
+  "after_version": "26.0",
+  "result": {
+    "active_item_id": "42"
+  }
+}

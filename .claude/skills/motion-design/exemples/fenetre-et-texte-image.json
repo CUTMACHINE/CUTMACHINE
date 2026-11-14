@@ -1,0 +1,125 @@
+{
+ "width": 1080,
+ "height": 1920,
+ "fps": 25,
+ "duration": 80,
+ "root": {
+  "type": "fill",
+  "style": {
+   "backgroundColor": "#0A0A0F"
+  },
+  "children": [
+   {
+    "type": "sequence",
+    "from": 0,
+    "duration": 40,
+    "children": [
+     {
+      "type": "fill",
+      "style": {
+       "backgroundImage": "linear-gradient(135deg, #E4572E 0%, #3D5AFE 100%)"
+      }
+     },
+     {
+      "type": "fill",
+      "style": {
+       "isolation": "isolate"
+      },
+      "children": [
+       {
+        "type": "fill",
+        "style": {
+         "backgroundColor": "#FFD23F"
+        }
+       },
+       {
+        "type": "fill",
+        "style": {
+         "backgroundColor": "#000000",
+         "mixBlendMode": "mask-out"
+        },
+        "animate": {
+         "clipPath": {
+          "interpolate": {
+           "frames": [
+            2,
+            14
+           ],
+           "values": [
+            "inset(50% 50% 50% 50%)",
+            "inset(12% 10% 30% 10%)"
+           ],
+           "easing": "cubic-bezier(0.16, 1, 0.3, 1)"
+          }
+         }
+        }
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "sequence",
+    "from": 40,
+    "duration": 40,
+    "style": {
+     "backgroundColor": "#0A0A0F"
+    },
+    "children": [
+     {
+      "type": "fill",
+      "style": {
+       "isolation": "isolate",
+       "justifyContent": "center",
+       "alignItems": "center"
+      },
+      "children": [
+       {
+        "type": "fill",
+        "style": {
+         "backgroundImage": "linear-gradient(135deg, #E4572E 0%, #3D5AFE 100%)"
+        }
+       },
+       {
+        "type": "box",
+        "style": {
+         "mixBlendMode": "mask-in"
+        },
+        "animate": {
+         "scale": {
+          "interpolate": {
+           "frames": [
+            0,
+            20
+           ],
+           "values": [
+            1.6,
+            1
+           ],
+           "easing": "cubic-bezier(0.16, 1, 0.3, 1)"
+          }
+         }
+        },
+        "children": [
+         {
+          "type": "text",
+          "content": "IMAGE",
+          "style": {
+           "fontFamily": "Fira Sans Condensed",
+           "fontWeight": 600,
+           "fontSize": 330,
+           "lineHeight": 1.0,
+           "color": "#F4F4F5",
+           "flexShrink": 0,
+           "textAlign": "center"
+          }
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ }
+}

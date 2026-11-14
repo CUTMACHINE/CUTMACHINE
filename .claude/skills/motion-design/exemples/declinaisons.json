@@ -1,0 +1,182 @@
+{
+ "width": 1080,
+ "height": 1920,
+ "fps": 25,
+ "duration": 50,
+ "props": {
+  "fmt": {
+   "type": "enum",
+   "values": [
+    "9x16",
+    "16x9"
+   ],
+   "default": "9x16"
+  },
+  "titre_court": {
+   "type": "text",
+   "default": "UNE DATE\nÀ RETENIR"
+  },
+  "titre_long": {
+   "type": "text",
+   "default": "UNE DATE À RETENIR"
+  }
+ },
+ "formats": {
+  "9x16": {
+   "width": 1080,
+   "height": 1920,
+   "props": {
+    "fmt": "9x16"
+   }
+  },
+  "16x9": {
+   "width": 1920,
+   "height": 1080,
+   "props": {
+    "fmt": "16x9"
+   }
+  }
+ },
+ "variants": {
+  "mars": {
+   "props": {
+    "titre_court": "SAMEDI\n9 MARS",
+    "titre_long": "SAMEDI 9 MARS"
+   }
+  },
+  "avril": {
+   "props": {
+    "titre_court": "SAMEDI\n27 AVRIL",
+    "titre_long": "SAMEDI 27 AVRIL"
+   }
+  }
+ },
+ "root": {
+  "type": "fill",
+  "style": {
+   "backgroundColor": "#0A0A0F"
+  },
+  "children": [
+   {
+    "type": "fill",
+    "visible": {
+     "prop": "fmt",
+     "map": {
+      "9x16": true,
+      "16x9": false
+     }
+    },
+    "style": {
+     "justifyContent": "center",
+     "alignItems": "center"
+    },
+    "children": [
+     {
+      "type": "text",
+      "content": {
+       "prop": "titre_court"
+      },
+      "style": {
+       "fontFamily": "Fira Sans Condensed",
+       "fontWeight": 600,
+       "fontSize": 120,
+       "lineHeight": 1.0,
+       "color": "#F4F4F5",
+       "flexShrink": 0,
+       "textAlign": "center"
+      },
+      "units": "line",
+      "stagger": {
+       "each": 3
+      },
+      "animate": {
+       "opacity": {
+        "interpolate": {
+         "frames": [
+          2,
+          8
+         ],
+         "values": [
+          0,
+          1
+         ],
+         "easing": "cubic-bezier(0.16, 1, 0.3, 1)"
+        }
+       },
+       "translateY": {
+        "spring": {
+         "from": 30,
+         "to": 0,
+         "delay": 2,
+         "damping": 14,
+         "stiffness": 160,
+         "mass": 0.6
+        }
+       }
+      }
+     }
+    ]
+   },
+   {
+    "type": "fill",
+    "visible": {
+     "prop": "fmt",
+     "map": {
+      "9x16": false,
+      "16x9": true
+     }
+    },
+    "style": {
+     "justifyContent": "center",
+     "alignItems": "center"
+    },
+    "children": [
+     {
+      "type": "text",
+      "content": {
+       "prop": "titre_long"
+      },
+      "style": {
+       "fontFamily": "Fira Sans Condensed",
+       "fontWeight": 600,
+       "fontSize": 110,
+       "lineHeight": 1.0,
+       "color": "#F4F4F5",
+       "flexShrink": 0,
+       "textAlign": "center"
+      },
+      "units": "line",
+      "stagger": {
+       "each": 3
+      },
+      "animate": {
+       "opacity": {
+        "interpolate": {
+         "frames": [
+          2,
+          8
+         ],
+         "values": [
+          0,
+          1
+         ],
+         "easing": "cubic-bezier(0.16, 1, 0.3, 1)"
+        }
+       },
+       "translateY": {
+        "spring": {
+         "from": 30,
+         "to": 0,
+         "delay": 2,
+         "damping": 14,
+         "stiffness": 160,
+         "mass": 0.6
+        }
+       }
+      }
+     }
+    ]
+   }
+  ]
+ }
+}

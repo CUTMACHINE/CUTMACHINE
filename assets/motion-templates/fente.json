@@ -1,0 +1,160 @@
+{
+  "format": "motion-piece.v1",
+  "description": "Slot: words take turns in a fixed window. Each rises from below on its coloured band, holds, and leaves upward as the next arrives, 7 frames apart (60 frames at 25 fps, room for 7 words). Props mots (the words, in order), accent (band colour), texte (text colour), police (font family), corps (type size in px), fente (window height in px), largeur (% of the frame the window spans).",
+  "use": "A short line that lands word by word on a beat: two to six short words, one per beat.",
+  "avoid": "A sentence to read: each word is on screen for a quarter of a second. A word wider than the window, which cuts it.",
+  "invariants": [
+    "The window neither moves nor resizes: only the bands travel through it.",
+    "A word enters and leaves by movement, never by a fade or a scale.",
+    "One word at a time: the next arrives as the previous one leaves.",
+    "The first word is already rising at frame 0, so the piece can start on a cut."
+  ],
+  "origin": "Kinetic typography direction kept on a delivered film, September 2026; neutral version.",
+  "composition": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 25,
+    "duration": 60,
+    "props": {
+      "mots": {
+        "type": "list",
+        "of": "text",
+        "default": ["UN", "MOT", "PAR", "TEMPS"]
+      },
+      "accent": {
+        "type": "color",
+        "default": "#FFD23F"
+      },
+      "texte": {
+        "type": "color",
+        "default": "#000000"
+      },
+      "police": {
+        "type": "text",
+        "default": "Helvetica Neue"
+      },
+      "corps": {
+        "type": "number",
+        "min": 40,
+        "max": 400,
+        "default": 200
+      },
+      "fente": {
+        "type": "number",
+        "unit": "px",
+        "min": 60,
+        "max": 600,
+        "default": 280
+      },
+      "largeur": {
+        "type": "number",
+        "unit": "%",
+        "min": 20,
+        "max": 100,
+        "default": 80
+      }
+    },
+    "formats": {
+      "9x16": {
+        "width": 1080,
+        "height": 1920
+      },
+      "16x9": {
+        "width": 1920,
+        "height": 1080,
+        "props": {
+          "corps": 180,
+          "fente": 260,
+          "largeur": 60
+        }
+      },
+      "1x1": {
+        "width": 1080,
+        "height": 1080,
+        "props": {
+          "corps": 180,
+          "fente": 260
+        }
+      }
+    },
+    "root": {
+      "type": "fill",
+      "style": {
+        "justifyContent": "center",
+        "alignItems": "center"
+      },
+      "children": [
+        {
+          "type": "box",
+          "id": "fente",
+          "style": {
+            "width": {
+              "prop": "largeur"
+            },
+            "height": {
+              "prop": "fente"
+            },
+            "overflow": "hidden"
+          },
+          "children": [
+            {
+              "type": "repeat",
+              "each": {
+                "prop": "mots"
+              },
+              "stagger": {
+                "each": 7
+              },
+              "template": {
+                "type": "box",
+                "id": "bande",
+                "style": {
+                  "position": "absolute",
+                  "left": 0,
+                  "top": 0,
+                  "backgroundColor": {
+                    "prop": "accent"
+                  },
+                  "paddingTop": 28,
+                  "paddingBottom": 28,
+                  "paddingLeft": 56,
+                  "paddingRight": 56
+                },
+                "animate": {
+                  "translateY": {
+                    "interpolate": {
+                      "frames": [-1, 4, 6, 11],
+                      "values": [600, 0, 0, -600],
+                      "easing": "cubic-bezier(0.16, 1, 0.3, 1)"
+                    }
+                  }
+                },
+                "children": [
+                  {
+                    "type": "text",
+                    "id": "mot",
+                    "content": {
+                      "item": true
+                    },
+                    "style": {
+                      "fontFamily": { "prop": "police" },
+                      "fontWeight": 700,
+                      "fontSize": {
+                        "prop": "corps"
+                      },
+                      "lineHeight": 1.0,
+                      "color": {
+                        "prop": "texte"
+                      },
+                      "flexShrink": 0
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

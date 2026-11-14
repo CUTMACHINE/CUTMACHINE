@@ -1,0 +1,71 @@
+{
+  "width": 480,
+  "height": 180,
+  "fps": 50,
+  "duration": 100,
+  "props": {
+    "name": {
+      "type": "text",
+      "default": "Nom"
+    },
+    "color": {
+      "type": "color",
+      "default": "#4DABA1"
+    }
+  },
+  "root": {
+    "type": "fill",
+    "uid": "01K7C000000000000000001401",
+    "style": {
+      "justifyContent": "center",
+      "padding": 20
+    },
+    "children": [
+      {
+        "type": "box",
+        "id": "band",
+        "uid": "01K7C000000000000000001402",
+        "style": {
+          "backgroundColor": {
+            "prop": "color"
+          },
+          "height": 60,
+          "paddingLeft": 16,
+          "alignItems": "center"
+        },
+        "animate": {
+          "opacity": {
+            "interpolate": {
+              "frames": [
+                0,
+                10
+              ],
+              "values": [
+                0,
+                1
+              ],
+              "uids": [
+                "01K7C000000000000000001403",
+                "01K7C000000000000000001404"
+              ]
+            }
+          }
+        },
+        "children": [
+          {
+            "type": "text",
+            "id": "label",
+            "uid": "01K7C000000000000000001405",
+            "content": {
+              "prop": "name"
+            },
+            "style": {
+              "fontSize": 40,
+              "color": "#ffffff"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

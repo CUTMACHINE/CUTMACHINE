@@ -1,0 +1,13 @@
+# Les règles par défaut de gitleaks, moins les fausses clés fal.ai des tests
+# de génération (FakeKeychain et FAL_KEY de tests/generation_tests.cc),
+# reconnues par leur valeur et non par un commit.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Fausses clés des tests de génération"
+regexTarget = "match"
+regexes = [
+  '''kc-secret-0123456789''',
+  '''env-key-0123456789''',
+]

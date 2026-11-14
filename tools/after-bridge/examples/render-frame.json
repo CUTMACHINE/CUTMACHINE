@@ -1,0 +1,9 @@
+{
+  "schema": "after-request.v2",
+  "method": "render_frame",
+  "arguments": {
+    "comp_id": "413",
+    "frame": 410,
+    "image_path": "/tmp/cutmachine-after/carte-410.png"
+  }
+}

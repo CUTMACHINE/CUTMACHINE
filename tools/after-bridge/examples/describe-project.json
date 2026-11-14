@@ -1,0 +1,5 @@
+{
+  "schema": "after-request.v2",
+  "method": "describe_project",
+  "arguments": {}
+}

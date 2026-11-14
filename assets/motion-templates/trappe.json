@@ -1,0 +1,159 @@
+{
+  "format": "motion-piece.v1",
+  "description": "Trapdoor: lines rise one after another from below the frame, each on its coloured card, land with a slight overshoot as a staircase, then all drop back down together (62 frames at 25 fps, room for 6 lines). Props lignes (the lines, top to bottom), accent (card colour), texte (text colour), police (font family), corps (type size in px), marge (% of the frame width left of the stack).",
+  "use": "Two to five short lines that build up on the beat and stay readable together: a hook, a list of three, a date.",
+  "avoid": "Body text, or a single word (the staircase needs several steps). Lines wider than the frame.",
+  "invariants": [
+    "Each line arrives from below the frame, 7 frames after the previous one; none fades in.",
+    "Every arrival lands on the same curve, with a slight overshoot that never reaches its neighbour.",
+    "The steps keep their offsets once landed: the stack holds still until it leaves.",
+    "The whole stack leaves downward in one move, faster than it came.",
+    "The first line is already rising at frame 0, so the piece can start on a cut."
+  ],
+  "origin": "Kinetic typography direction kept on a delivered film, September 2026; neutral version.",
+  "composition": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 25,
+    "duration": 62,
+    "props": {
+      "lignes": {
+        "type": "list",
+        "of": "text",
+        "default": ["CHAQUE", "LIGNE", "MONTE", "À SON TOUR"]
+      },
+      "accent": {
+        "type": "color",
+        "default": "#FFD23F"
+      },
+      "texte": {
+        "type": "color",
+        "default": "#000000"
+      },
+      "police": {
+        "type": "text",
+        "default": "Helvetica Neue"
+      },
+      "corps": {
+        "type": "number",
+        "min": 30,
+        "max": 300,
+        "default": 118
+      },
+      "marge": {
+        "type": "number",
+        "unit": "%",
+        "min": 0,
+        "max": 60,
+        "default": 10
+      }
+    },
+    "formats": {
+      "9x16": {
+        "width": 1080,
+        "height": 1920
+      },
+      "16x9": {
+        "width": 1920,
+        "height": 1080,
+        "props": {
+          "corps": 104,
+          "marge": 12
+        }
+      },
+      "1x1": {
+        "width": 1080,
+        "height": 1080,
+        "props": {
+          "corps": 104
+        }
+      }
+    },
+    "root": {
+      "type": "fill",
+      "style": {
+        "justifyContent": "center",
+        "paddingLeft": {
+          "prop": "marge"
+        }
+      },
+      "children": [
+        {
+          "type": "box",
+          "id": "pile",
+          "style": {
+            "flexDirection": "column",
+            "alignItems": "flex-start",
+            "gap": 14
+          },
+          "animate": {
+            "translateY": {
+              "interpolate": {
+                "frames": [50, 56],
+                "values": [0, 1400],
+                "easing": "cubic-bezier(0.7, 0, 0.84, 0)"
+              }
+            }
+          },
+          "children": [
+            {
+              "type": "repeat",
+              "each": {
+                "prop": "lignes"
+              },
+              "stagger": {
+                "each": 7
+              },
+              "cycle": {
+                "marginLeft": [0, 54, 0, 108]
+              },
+              "template": {
+                "type": "box",
+                "id": "carte",
+                "style": {
+                  "backgroundColor": {
+                    "prop": "accent"
+                  },
+                  "paddingTop": 18,
+                  "paddingBottom": 18,
+                  "paddingLeft": 36,
+                  "paddingRight": 36
+                },
+                "animate": {
+                  "translateY": {
+                    "interpolate": {
+                      "frames": [-1, 9],
+                      "values": [1400, 0],
+                      "easing": "cubic-bezier(0.2, 1.12, 0.3, 1)"
+                    }
+                  }
+                },
+                "children": [
+                  {
+                    "type": "text",
+                    "content": {
+                      "item": true
+                    },
+                    "style": {
+                      "fontFamily": { "prop": "police" },
+                      "fontWeight": 700,
+                      "lineHeight": 1.0,
+                      "flexShrink": 0,
+                      "fontSize": {
+                        "prop": "corps"
+                      },
+                      "color": {
+                        "prop": "texte"
+                      }
+                    },
+                    "id": "ligne"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

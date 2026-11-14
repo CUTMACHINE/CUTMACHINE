@@ -1,0 +1,11 @@
+{
+  "schema": "after-request.v2",
+  "method": "set_property",
+  "arguments": {
+    "comp_id": "42",
+    "layer_id": "9",
+    "property_path": ["ADBE Transform Group", "ADBE Position"],
+    "value": [960, 540],
+    "save": true
+  }
+}

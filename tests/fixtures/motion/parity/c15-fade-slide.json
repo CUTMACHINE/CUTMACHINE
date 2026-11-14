@@ -1,0 +1,106 @@
+{
+  "width": 320,
+  "height": 180,
+  "fps": 25,
+  "duration": 70,
+  "root": {
+    "type": "series",
+    "uid": "01K7C000000000000000001501",
+    "id": "scenes",
+    "children": [
+      {
+        "type": "sequence",
+        "id": "first",
+        "uid": "01K7C000000000000000001502",
+        "duration": 30,
+        "style": {
+          "backgroundColor": "#E4572E",
+          "justifyContent": "center",
+          "alignItems": "center"
+        },
+        "children": [
+          {
+            "type": "text",
+            "uid": "01K7C000000000000000001503",
+            "content": "A",
+            "style": {
+              "fontFamily": "Fira Sans Condensed",
+              "fontWeight": 600,
+              "fontSize": 64,
+              "color": "#ffffff"
+            }
+          }
+        ]
+      },
+      {
+        "type": "transition",
+        "uid": "01K7C000000000000000001504",
+        "id": "fade",
+        "presentation": "fade",
+        "timing": {
+          "duration": 10,
+          "easing": "linear"
+        }
+      },
+      {
+        "type": "sequence",
+        "id": "second",
+        "uid": "01K7C000000000000000001505",
+        "duration": 30,
+        "style": {
+          "backgroundColor": "#3D5AFE",
+          "justifyContent": "center",
+          "alignItems": "center"
+        },
+        "children": [
+          {
+            "type": "text",
+            "uid": "01K7C000000000000000001506",
+            "content": "B",
+            "style": {
+              "fontFamily": "Fira Sans Condensed",
+              "fontWeight": 600,
+              "fontSize": 64,
+              "color": "#ffffff"
+            }
+          }
+        ]
+      },
+      {
+        "type": "transition",
+        "uid": "01K7C000000000000000001507",
+        "id": "slide",
+        "presentation": "slide",
+        "direction": "from-right",
+        "timing": {
+          "duration": 10,
+          "easing": "ease-in-out"
+        }
+      },
+      {
+        "type": "sequence",
+        "id": "third",
+        "uid": "01K7C000000000000000001508",
+        "duration": 30,
+        "style": {
+          "backgroundColor": "#4DABA1",
+          "justifyContent": "center",
+          "alignItems": "center"
+        },
+        "children": [
+          {
+            "type": "text",
+            "uid": "01K7C000000000000000001509",
+            "content": "C",
+            "style": {
+              "fontFamily": "Fira Sans Condensed",
+              "fontWeight": 600,
+              "fontSize": 64,
+              "color": "#ffffff"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

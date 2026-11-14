@@ -1,0 +1,12 @@
+{
+  "schema": "after-request.v2",
+  "method": "add_layer",
+  "arguments": {
+    "comp_id": "413",
+    "item_id": "531",
+    "index": 2,
+    "start_frame": 363,
+    "out_frame": 457,
+    "save": false
+  }
+}

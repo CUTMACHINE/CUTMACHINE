@@ -1,0 +1,22 @@
+{
+  "name": "cutmachine-sound",
+  "version": "0.1.0",
+  "description": "Offline, deterministic renderer for Dittytoy-style ditties, driven by the cuts of an edit",
+  "type": "module",
+  "bin": { "cm-sound": "./cli.mjs" },
+  "exports": {
+    ".": "./runtime.mjs",
+    "./edl": "./edl.mjs",
+    "./wav": "./wav.mjs",
+    "./project": "./project.mjs",
+    "./partition": "./partition.mjs",
+    "./time": "./time.mjs",
+    "./strudel": "./strudel.mjs"
+  },
+  "scripts": {
+    "test": "node test/all.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

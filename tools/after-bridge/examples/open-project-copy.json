@@ -1,0 +1,8 @@
+{
+  "schema": "after-request.v2",
+  "method": "open_project_copy",
+  "arguments": {
+    "source_project_path": "/Volumes/projets/Animation.aep",
+    "working_project_path": "/tmp/Animation-test.aep"
+  }
+}

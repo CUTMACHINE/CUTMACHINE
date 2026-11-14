@@ -1,0 +1,152 @@
+{
+ "width": 1080,
+ "height": 1920,
+ "fps": 25,
+ "duration": 60,
+ "root": {
+  "type": "fill",
+  "style": {
+   "backgroundColor": "#0A0A0F"
+  },
+  "children": [
+   {
+    "type": "box",
+    "style": {
+     "position": "absolute",
+     "left": 108,
+     "top": 800
+    },
+    "children": [
+     {
+      "type": "box",
+      "style": {
+       "backgroundColor": "#FFD23F",
+       "overflow": "hidden",
+       "flexDirection": "column",
+       "paddingTop": 17,
+       "paddingBottom": 17,
+       "paddingLeft": 33,
+       "paddingRight": 33,
+       "height": 152
+      },
+      "children": [
+       {
+        "type": "text",
+        "content": "UNE FORME",
+        "style": {
+         "fontFamily": "Fira Sans Condensed",
+         "fontWeight": 600,
+         "fontSize": 118,
+         "lineHeight": 1.0,
+         "color": "#000000",
+         "flexShrink": 0
+        }
+       },
+       {
+        "type": "text",
+        "content": "QUI PORTE",
+        "style": {
+         "fontFamily": "Fira Sans Condensed",
+         "fontWeight": 600,
+         "fontSize": 118,
+         "lineHeight": 1.0,
+         "color": "#000000",
+         "flexShrink": 0
+        },
+        "animate": {
+         "translateX": {
+          "interpolate": {
+           "frames": [
+            8,
+            14
+           ],
+           "values": [
+            900,
+            0
+           ],
+           "easing": "cubic-bezier(0.16, 1, 0.3, 1)"
+          }
+         }
+        }
+       },
+       {
+        "type": "text",
+        "content": "LES MOTS",
+        "style": {
+         "fontFamily": "Fira Sans Condensed",
+         "fontWeight": 600,
+         "fontSize": 118,
+         "lineHeight": 1.0,
+         "color": "#000000",
+         "flexShrink": 0
+        },
+        "animate": {
+         "translateX": {
+          "interpolate": {
+           "frames": [
+            16,
+            22
+           ],
+           "values": [
+            900,
+            0
+           ],
+           "easing": "cubic-bezier(0.16, 1, 0.3, 1)"
+          }
+         }
+        }
+       }
+      ],
+      "animate": {
+       "height": {
+        "interpolate": {
+         "frames": [
+          8,
+          14,
+          16,
+          22
+         ],
+         "values": [
+          152,
+          270,
+          270,
+          388
+         ],
+         "easing": "cubic-bezier(0.16, 1, 0.3, 1)"
+        }
+       },
+       "translateX": {
+        "interpolate": {
+         "frames": [
+          0,
+          7
+         ],
+         "values": [
+          -1100,
+          0
+         ],
+         "easing": "cubic-bezier(0.16, 1, 0.3, 1)"
+        }
+       }
+      }
+     }
+    ],
+    "animate": {
+     "translateX": {
+      "interpolate": {
+       "frames": [
+        50,
+        58
+       ],
+       "values": [
+        0,
+        1100
+       ],
+       "easing": "cubic-bezier(0.7, 0, 0.84, 0)"
+      }
+     }
+    }
+   }
+  ]
+ }
+}

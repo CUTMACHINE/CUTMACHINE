@@ -1,0 +1,31 @@
+{
+  "width": 800,
+  "height": 450,
+  "fps": 25,
+  "duration": 25,
+  "root": {
+    "type": "fill",
+    "uid": "01K78000000000000000000001",
+    "style": {
+      "flexDirection": "row",
+      "justifyContent": "space-around",
+      "alignItems": "center"
+    },
+    "children": [
+      {
+        "type": "image",
+        "id": "contain",
+        "uid": "01K78000000000000000000002",
+        "src": "logo.png",
+        "style": { "width": 240, "height": 240, "objectFit": "contain" }
+      },
+      {
+        "type": "image",
+        "id": "cover",
+        "uid": "01K78000000000000000000003",
+        "src": "logo.png",
+        "style": { "width": 240, "height": 240, "objectFit": "cover", "opacity": 0.5 }
+      }
+    ]
+  }
+}

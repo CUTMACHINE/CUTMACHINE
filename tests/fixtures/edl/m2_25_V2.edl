@@ -1,0 +1,6 @@
+TITLE: VITESSE V2
+FCM: NON-DROP FRAME
+
+001  AX       V     C        00:00:00:00 00:00:00:20 01:00:00:10 01:00:01:05
+M2   AX       050.0                00:00:00:00
+* FROM CLIP NAME: B.MOV

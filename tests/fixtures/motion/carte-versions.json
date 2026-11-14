@@ -1,0 +1,21 @@
+{ "width": 1080, "height": 1920, "fps": 25, "duration": 20,
+  "props": {
+    "date": { "type": "text", "default": "1er avril" },
+    "corps": { "type": "number", "default": 72, "min": 20, "max": 240 },
+    "ecart": { "type": "number", "default": 60, "min": 0, "max": 400 } },
+  "formats": {
+    "9x16": { "width": 1080, "height": 1920 },
+    "16x9": { "width": 1920, "height": 1080, "props": { "corps": 110, "ecart": 40 } } },
+  "variants": {
+    "avril": { "props": { "date": "1er avril" } },
+    "mai": { "props": { "date": "27 mai" } },
+    "mars": { "props": { "date": "22 mars 2031" } } },
+  "root": { "type": "fill", "style": { "justifyContent": "center", "alignItems": "center" }, "children": [
+    { "type": "box", "id": "bloc",
+      "style": { "flexDirection": "column", "alignItems": "center", "gap": { "prop": "ecart" },
+                 "fontFamily": "Fira Sans Condensed", "fontWeight": 600, "fontSize": { "prop": "corps" },
+                 "lineHeight": 1.1, "textTransform": "uppercase", "textAlign": "center", "color": "#fff" },
+      "children": [
+        { "type": "text", "id": "titre", "content": "Titre sur\ntrois\nlignes" },
+        { "type": "text", "id": "date", "content": { "prop": "date" },
+          "animate": { "translateY": { "interpolate": { "frames": [0, 19], "values": [95, 0] } } } } ] } ] } }

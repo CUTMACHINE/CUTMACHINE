@@ -1,0 +1,213 @@
+{
+  "format": "motion-piece.v1",
+  "description": "Mesh warp on word bounds: four words, two per line, meet at the centre of a sheet whose grid lines pass between them. The centre travels left, right, up and down, so each word swells or squeezes whole while its neighbours give way, then the sheet returns to rest (100 frames at 25 fps, a loop). Props mot_1 and mot_2 (top line), mot_3 and mot_4 (bottom line), texte (text colour), police (font family), corps (type size in px), largeur (% of the frame the sheet spans).",
+  "use": "Four short words held on screen for a few seconds: a title, a claim, a question. Reads best in a heavy, tight typeface, which you set on the sheet once added.",
+  "avoid": "A word wider than its quarter of the sheet: it breaks onto a second line and the grid cuts it (lower corps or raise largeur). Anything to read at length. Fewer or more than four words: the grid would cross a word.",
+  "invariants": [
+    "The grid lines pass between the words, never through a letter: one word per cell.",
+    "Whole grid lines move, never a single vertex: the words stretch, they do not bulge.",
+    "The outer edges of the sheet stay put: what one word gains, its neighbours give back.",
+    "The words are on screen from the first frame and never move as a block: only the mesh moves.",
+    "One curve for every gesture (a sharp start, a long arrival), and the mesh is back on its regular grid at the last key."
+  ],
+  "origin": "After Effects mesh-warp typography, rebuilt in the engine as mesh() in September 2026; grid set on the word bounds at the author's request, 2 October 2026; neutral version.",
+  "composition": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 25,
+    "duration": 100,
+    "props": {
+      "mot_1": {
+        "type": "text",
+        "default": "UN"
+      },
+      "mot_2": {
+        "type": "text",
+        "default": "MOT"
+      },
+      "mot_3": {
+        "type": "text",
+        "default": "PAR"
+      },
+      "mot_4": {
+        "type": "text",
+        "default": "CASE"
+      },
+      "texte": {
+        "type": "color",
+        "default": "#F4F4F5"
+      },
+      "police": {
+        "type": "text",
+        "default": "Helvetica Neue"
+      },
+      "corps": {
+        "type": "number",
+        "min": 40,
+        "max": 600,
+        "default": 170
+      },
+      "largeur": {
+        "type": "number",
+        "unit": "%",
+        "min": 20,
+        "max": 100,
+        "default": 96
+      }
+    },
+    "formats": {
+      "9x16": {
+        "width": 1080,
+        "height": 1920
+      },
+      "16x9": {
+        "width": 1920,
+        "height": 1080,
+        "props": {
+          "corps": 220,
+          "largeur": 70
+        }
+      },
+      "1x1": {
+        "width": 1080,
+        "height": 1080
+      }
+    },
+    "root": {
+      "type": "fill",
+      "style": {
+        "justifyContent": "center",
+        "alignItems": "center"
+      },
+      "children": [
+        {
+          "type": "box",
+          "id": "feuille",
+          "style": {
+            "width": {
+              "prop": "largeur"
+            },
+            "flexDirection": "row",
+            "flexWrap": "wrap",
+            "filter": "mesh(2 2, 0 0, 50% 0, 100% 0, 0 50%, 50% 50%, 100% 50%, 0 100%, 50% 100%, 100% 100%)",
+            "fontFamily": { "prop": "police" },
+            "fontWeight": 700,
+            "fontSize": {
+              "prop": "corps"
+            },
+            "lineHeight": 1.0,
+            "color": {
+              "prop": "texte"
+            }
+          },
+          "animate": {
+            "filter": {
+              "interpolate": {
+                "frames": [0, 17, 33, 50, 67, 83],
+                "values": [
+                  "mesh(2 2, 0 0, 50% 0, 100% 0, 0 50%, 50% 50%, 100% 50%, 0 100%, 50% 100%, 100% 100%)",
+                  "mesh(2 2, 0 0, 66% 0, 100% 0, 0 50%, 66% 50%, 100% 50%, 0 100%, 66% 100%, 100% 100%)",
+                  "mesh(2 2, 0 0, 66% 0, 100% 0, 0 68%, 66% 68%, 100% 68%, 0 100%, 66% 100%, 100% 100%)",
+                  "mesh(2 2, 0 0, 34% 0, 100% 0, 0 68%, 34% 68%, 100% 68%, 0 100%, 34% 100%, 100% 100%)",
+                  "mesh(2 2, 0 0, 34% 0, 100% 0, 0 34%, 34% 34%, 100% 34%, 0 100%, 34% 100%, 100% 100%)",
+                  "mesh(2 2, 0 0, 50% 0, 100% 0, 0 50%, 50% 50%, 100% 50%, 0 100%, 50% 100%, 100% 100%)"
+                ],
+                "easing": "cubic-bezier(0.325, 0, 0, 1)"
+              }
+            }
+          },
+          "children": [
+            {
+              "type": "box",
+              "id": "case-mot_1",
+              "style": {
+                "width": "50%",
+                "flexDirection": "row",
+                "justifyContent": "flex-end",
+                "paddingRight": 22
+              },
+              "children": [
+                {
+                  "type": "text",
+                  "id": "mot_1",
+                  "content": {
+                    "prop": "mot_1"
+                  },
+                  "style": {
+                    "flexShrink": 0
+                  }
+                }
+              ]
+            },
+            {
+              "type": "box",
+              "id": "case-mot_2",
+              "style": {
+                "width": "50%",
+                "flexDirection": "row",
+                "justifyContent": "flex-start",
+                "paddingLeft": 22
+              },
+              "children": [
+                {
+                  "type": "text",
+                  "id": "mot_2",
+                  "content": {
+                    "prop": "mot_2"
+                  },
+                  "style": {
+                    "flexShrink": 0
+                  }
+                }
+              ]
+            },
+            {
+              "type": "box",
+              "id": "case-mot_3",
+              "style": {
+                "width": "50%",
+                "flexDirection": "row",
+                "justifyContent": "flex-end",
+                "paddingRight": 22
+              },
+              "children": [
+                {
+                  "type": "text",
+                  "id": "mot_3",
+                  "content": {
+                    "prop": "mot_3"
+                  },
+                  "style": {
+                    "flexShrink": 0
+                  }
+                }
+              ]
+            },
+            {
+              "type": "box",
+              "id": "case-mot_4",
+              "style": {
+                "width": "50%",
+                "flexDirection": "row",
+                "justifyContent": "flex-start",
+                "paddingLeft": 22
+              },
+              "children": [
+                {
+                  "type": "text",
+                  "id": "mot_4",
+                  "content": {
+                    "prop": "mot_4"
+                  },
+                  "style": {
+                    "flexShrink": 0
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

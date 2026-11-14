@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cutmachine.local/schemas/word-alignment-manifest-v1.json",
+  "title": "CUTMACHINE word alignment manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "sample_id",
+    "media_id",
+    "language",
+    "source_rate",
+    "alignment",
+    "processing",
+    "words"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "sample_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "media_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "language": {
+      "const": "fr"
+    },
+    "source_rate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["num", "den"],
+      "properties": {
+        "num": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "den": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "alignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "version",
+        "model",
+        "timing_provenance",
+        "reference_text_sha256"
+      ],
+      "properties": {
+        "method": {
+          "enum": ["gold", "cutmachine", "mfa", "nemo", "qwen"]
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "timing_provenance": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reference_text_sha256": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "processing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["wall_time_ms", "audio_duration_frames"],
+      "properties": {
+        "wall_time_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "audio_duration_frames": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "words": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "text",
+          "frame_start",
+          "frame_end",
+          "confidence",
+          "filler_word",
+          "silence_after_frames",
+          "silence_after_ms",
+          "speaker_id"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1
+          },
+          "frame_start": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "frame_end": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "confidence": {
+            "type": ["number", "null"],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "filler_word": {
+            "type": "boolean"
+          },
+          "silence_after_frames": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "silence_after_ms": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "speaker_id": {
+            "type": ["string", "null"]
+          }
+        }
+      }
+    }
+  }
+}

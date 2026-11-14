@@ -1,0 +1,33 @@
+{
+  "format": "motion-piece.v1",
+  "description": "Logo: an image in a corner, fading in and out (250 frames). Props logo (image path, relative to the project package or absolute), largeur (% of the frame width), coin (haut-droite, haut-gauche, bas-droite, bas-gauche), marge_gauche and marge_droite (% of the frame width kept free on each side), marge_haut and marge_bas (% of the frame height kept free above and below). In 9:16 the margins are those of the social apps' interface, so the logo stays in their safe zone: 9 % on the left, where the name card starts, 14 % on the right, clear of the button rail.",
+  "composition": {
+    "width": 1080, "height": 1920, "fps": 25, "duration": 250,
+    "props": {
+      "logo": { "type": "text", "default": "logo.png" },
+      "largeur": { "type": "number", "unit": "%", "min": 2, "max": 60, "default": 18 },
+      "coin": { "type": "enum", "values": ["haut-droite", "haut-gauche", "bas-droite", "bas-gauche"], "default": "haut-droite" },
+      "marge_gauche": { "type": "number", "unit": "%", "min": 0, "max": 40, "default": 6 },
+      "marge_droite": { "type": "number", "unit": "%", "min": 0, "max": 40, "default": 6 },
+      "marge_haut": { "type": "number", "unit": "%", "min": 0, "max": 60, "default": 6 },
+      "marge_bas": { "type": "number", "unit": "%", "min": 0, "max": 60, "default": 6 }
+    },
+    "tokens": {
+      "vertical": { "haut-droite": "flex-start", "haut-gauche": "flex-start", "bas-droite": "flex-end", "bas-gauche": "flex-end" },
+      "horizontal": { "haut-droite": "flex-end", "haut-gauche": "flex-start", "bas-droite": "flex-end", "bas-gauche": "flex-start" }
+    },
+    "formats": {
+      "9x16": { "width": 1080, "height": 1920, "props": { "marge_gauche": 9, "marge_droite": 14, "marge_haut": 15, "marge_bas": 36 } },
+      "16x9": { "width": 1920, "height": 1080, "props": { "largeur": 10 } },
+      "1x1": { "width": 1080, "height": 1080, "props": { "largeur": 14 } }
+    },
+    "root": { "type": "fill", "children": [
+      { "type": "box", "id": "cadre",
+        "style": { "position": "absolute", "top": { "prop": "marge_haut" }, "bottom": { "prop": "marge_bas" }, "left": 0, "right": 0, "flexDirection": "column",
+                   "justifyContent": { "prop": "coin", "map": "vertical" }, "alignItems": { "prop": "coin", "map": "horizontal" } },
+        "children": [
+          { "type": "image", "id": "logo", "src": { "prop": "logo" },
+            "style": { "width": { "prop": "largeur" }, "marginLeft": { "prop": "marge_gauche" }, "marginRight": { "prop": "marge_droite" } },
+            "animate": { "opacity": { "interpolate": { "frames": [0, 10, 240, 250], "values": [0, 1, 1, 0] } } } } ] } ] }
+  }
+}

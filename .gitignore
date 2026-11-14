@@ -1,0 +1,75 @@
+# Local toolchain and dependencies
+.tools/
+.firecrawl/
+.env
+
+# Claude Code agent worktree scratch space (per-agent repo checkouts,
+# not project history). Les skills font exception : ce sont des procédures
+# de projet, que l'agent suivant doit retrouver dans le dépôt.
+.claude/*
+!.claude/skills/
+
+# CMake build trees, including instrumented ones (build-sanitize,
+# build-tsan, build-ci)
+build/
+build-*/
+cmake-build-*/
+CMakeUserPresets.json
+
+# CMake in-source artefacts
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+compile_commands.json
+
+# Apple and compiler artefacts
+.DS_Store
+*.dSYM/
+*.o
+*.a
+*.dylib
+
+# CTest and profiling artefacts
+Testing/
+DartConfiguration.tcl
+*.profraw
+*.profdata
+*.gcda
+*.gcno
+
+# Runtime and tooling logs
+*.log
+.cutmachine/
+
+# Generated repo snapshot for AI review (scripts/export_for_ai.py). It is a
+# verbatim copy of every tracked file, so committing it doubles every diff
+# and it starts contradicting the real files the moment anything changes --
+# which is exactly how it ended up advertising a project layout that no
+# longer exists. Regenerate on demand instead.
+repo_export.md
+
+# Python tooling (harnesses, scripts)
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Raw/test media (camera footage, not source-controlled)
+*.mp4
+*.MP4
+*.mov
+*.MOV
+*.mxf
+*.MXF
+
+# Delivery/design bundles dropped in the working tree. They are inputs to a
+# design pass, not sources: the repo keeps the SVGs under assets/ instead.
+*.zip

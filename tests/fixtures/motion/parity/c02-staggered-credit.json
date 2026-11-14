@@ -1,0 +1,70 @@
+{
+  "width": 1080,
+  "height": 1920,
+  "fps": 25,
+  "duration": 75,
+  "root": {
+    "type": "fill",
+    "uid": "01K72000000000000000000001",
+    "style": {
+      "justifyContent": "center",
+      "alignItems": "flex-start",
+      "paddingLeft": 80,
+      "fontFamily": "Fira Sans Condensed"
+    },
+    "children": [
+      {
+        "type": "box",
+        "id": "credit",
+        "uid": "01K72000000000000000000002",
+        "style": { "flexDirection": "column", "gap": 12 },
+        "children": [
+          {
+            "type": "text",
+            "id": "name",
+            "uid": "01K72000000000000000000003",
+            "content": "Nora Bell",
+            "style": { "fontSize": 60, "color": "#ffffff" },
+            "animate": {
+              "translateX": {
+                "spring": { "from": -80, "to": 0, "damping": 14 }
+              },
+              "opacity": {
+                "interpolate": {
+                  "frames": [0, 6],
+                  "values": [0, 1],
+                  "uids": [
+                    "01K72000000000000000000004",
+                    "01K72000000000000000000005"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "type": "text",
+            "id": "role",
+            "uid": "01K72000000000000000000006",
+            "content": "Monteuse",
+            "style": { "fontSize": 36, "color": "#4daba1" },
+            "animate": {
+              "translateX": {
+                "spring": { "from": -80, "to": 0, "delay": 6, "damping": 14 }
+              },
+              "opacity": {
+                "interpolate": {
+                  "frames": [6, 12],
+                  "values": [0, 1],
+                  "uids": [
+                    "01K72000000000000000000007",
+                    "01K72000000000000000000008"
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
