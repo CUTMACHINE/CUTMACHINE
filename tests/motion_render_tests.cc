@@ -443,6 +443,36 @@ void TestDrawing() {
             "rotate turns the drawing around the centre of its box");
     }
 
+    // MOTION-WEB-2026-10 MW5 -- the painter turns about transformOrigin
+    // and slants by skewX as the geometry says: a bar turned a quarter
+    // about its left end hangs from it; a square slanted by 45 degrees
+    // about its centre fills a parallelogram, its bottom pushed right.
+    MotionRaster hung;
+    if (Render(R"({"width": 100, "height": 100, "fps": 25, "duration": 1,
+      "root": {"type": "fill", "children": [
+        {"type": "box", "style": {"position": "absolute", "left": 50, "top": 20, "width": 40, "height": 10,
+                                  "backgroundColor": "#ffffff", "rotate": 90,
+                                  "transformOrigin": "0 50%"}}]}})",
+               hung, "rotation about an origin")) {
+        Check(Pixel(hung, 50, 50)[3] == 255 && Pixel(hung, 50, 22)[3] == 0 &&
+                  Pixel(hung, 70, 25)[3] == 0,
+              "rotate turns the drawing around its transform origin");
+    }
+    MotionRaster slanted;
+    if (Render(R"({"width": 100, "height": 100, "fps": 25, "duration": 1,
+      "root": {"type": "fill", "children": [
+        {"type": "box", "style": {"position": "absolute", "left": 30, "top": 30, "width": 40, "height": 40,
+                                  "backgroundColor": "#ffffff", "skewX": 45}}]}})",
+               slanted, "skew")) {
+        // Rows 32 and 67: the square's top row starts at 30 - 18 = 12, its
+        // bottom row at 30 + 17 = 47.
+        Check(Pixel(slanted, 14, 32)[3] == 255 &&
+                  Pixel(slanted, 85, 67)[3] == 255 &&
+                  Pixel(slanted, 85, 32)[3] == 0 &&
+                  Pixel(slanted, 14, 67)[3] == 0,
+              "skewX slants the drawing as CSS's skewX()");
+    }
+
     MotionRaster first;
     MotionRaster second;
     const std::string text = TitleCard(1080, 1920, 700, 58, 73.4, 72);

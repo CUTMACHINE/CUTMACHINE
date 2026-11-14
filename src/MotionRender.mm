@@ -786,6 +786,36 @@ bool ListMotionFontFamilies(std::vector<std::string>& families,
     return true;
 }
 
+// MB7 -- docs/roadmap/MOTION-BIBLIOTHEQUE-2026-10.md. After names a text
+// layer's face by its PostScript name; the format names a family, a weight
+// and a slant. Core Text gives a substitute for a name it does not know, so
+// the face found must carry the very name asked.
+bool MotionFontForPostScriptName(const std::string& name, std::string& family,
+                                 int& weight, bool& italic) {
+    if (name.empty()) {
+        return false;
+    }
+    const CFRef<CFStringRef> postScript = MakeString(name);
+    const CFRef<CTFontRef> font(
+        CTFontCreateWithName(postScript.get(), 12.0, nullptr));
+    if (!font) {
+        return false;
+    }
+    const CFRef<CFStringRef> found(CTFontCopyPostScriptName(font.get()));
+    if (ToUtf8(found.get()) != name) {
+        return false;
+    }
+    const CFRef<CTFontDescriptorRef> descriptor(
+        CTFontCopyFontDescriptor(font.get()));
+    const CFRef<CFStringRef> familyName(
+        static_cast<CFStringRef>(CTFontDescriptorCopyAttribute(
+            descriptor.get(), kCTFontFamilyNameAttribute)));
+    family = ToUtf8(familyName.get());
+    weight = WeightClass(font.get(), descriptor.get());
+    italic = (CTFontGetSymbolicTraits(font.get()) & kCTFontTraitItalic) != 0;
+    return !family.empty();
+}
+
 MotionCoreTextMeasurer::MotionCoreTextMeasurer(std::string media_directory)
     : impl_(std::make_unique<Impl>()) {
     impl_->media_directory = std::move(media_directory);
@@ -1119,6 +1149,28 @@ void Transform(CGContextRef context, const MotionBox& box, double translateX,
     CGContextRotateCTM(context, rotate * kPi / 180.0);
     CGContextScaleCTM(context, scaleX, scaleY);
     CGContextTranslateCTM(context, -centerX, -centerY);
+}
+
+// A node's own transforms. MOTION-WEB-2026-10 MW5 -- about its transform
+// origin, with its skew between the rotation and the scale; without
+// either, the calls above, so that nothing else moves by a bit.
+void TransformNode(CGContextRef context, const MotionEvaluatedNode& node) {
+    if (node.origin.IsCentre() && node.skew_x == 0.0 && node.skew_y == 0.0) {
+        Transform(context, node.box, node.translate_x, node.translate_y,
+                  node.rotate, node.scale_x, node.scale_y);
+        return;
+    }
+    const double pivotX = MotionPivotX(node);
+    const double pivotY = MotionPivotY(node);
+    CGContextTranslateCTM(context, pivotX + node.translate_x,
+                          pivotY + node.translate_y);
+    CGContextRotateCTM(context, node.rotate * kPi / 180.0);
+    CGContextConcatCTM(
+        context, CGAffineTransformMake(1.0, std::tan(node.skew_y * kPi / 180.0),
+                                       std::tan(node.skew_x * kPi / 180.0), 1.0,
+                                       0.0, 0.0));
+    CGContextScaleCTM(context, node.scale_x, node.scale_y);
+    CGContextTranslateCTM(context, -pivotX, -pivotY);
 }
 
 // M1b -- the path the evaluator already transformed and trimmed.
@@ -1791,8 +1843,7 @@ bool DrawFiltered(CGContextRef context, const MotionEvaluatedNode& node,
                     "cannot make an image of the node's effects");
     }
     CGContextSaveGState(context);
-    Transform(context, node.box, node.translate_x, node.translate_y,
-              node.rotate, node.scale_x, node.scale_y);
+    TransformNode(context, node);
     ClipNode(context, node);
     if (node.has_mask) {
         MaskNode(context, node);
@@ -1837,6 +1888,7 @@ bool DrawProjected(CGContextRef context, const MotionEvaluatedNode& node,
     MotionEvaluatedNode flat = node;
     flat.translate_x = flat.translate_y = 0.0;
     flat.rotate = flat.rotate_x = flat.rotate_y = 0.0;
+    flat.skew_x = flat.skew_y = 0.0;
     flat.scale_x = flat.scale_y = 1.0;
     flat.has_3d = false;
     flat.blend_plus_lighter = false;
@@ -2014,9 +2066,9 @@ bool DrawNode(CGContextRef context, const MotionEvaluatedNode& node,
     }
     CGContextSaveGState(context);
     // CSS individual transforms apply translate, then rotate, then scale,
-    // around the centre of the box.
-    Transform(context, node.box, node.translate_x, node.translate_y,
-              node.rotate, node.scale_x, node.scale_y);
+    // around the centre of the box (MW5: skew before the scale, about the
+    // transform origin).
+    TransformNode(context, node);
 
     // M1b -- clip-path moves with the node's transforms and clips it and its
     // descendants. REM3 -- every shape, and a transition's wipe or iris.

@@ -82,13 +82,106 @@ Ce qui reste hors périmètre de cet import : les mots-clés, drapeaux et
 commentaires de clip, et le timecode de départ — `LibraryMedia` n'a pas de
 champ pour l'accueillir. Les timelines Resolve elles-mêmes se lisent à part,
 par `--import-resolve-timeline` (MCP : `import_resolve_timeline`), et le
-trajet retour vers Resolve passe par `--export-resolve-timeline` et
+trajet retour vers Resolve passe par `send_to_resolve` (plus bas) ou par
 `--export-resolve-xml` (MCP : `export_resolve_xml`).
 
 L'export XML exige une destination nouvelle : un fichier ou un lien déjà
 présent est refusé avec `OutputExists`, y compris le projet et les rushes.
 Choisir un nouveau nom pour chaque livraison. Le XML complet est préparé
 à côté de la destination, puis publié sans remplacement (FI6).
+
+## Renvoyer un montage dans Resolve, entier
+
+> Écrit le 13 novembre 2026 (PARITE-2026-11, PA16). Chaque appel d'API sur
+> lequel repose le renvoi a été mesuré dans Resolve Studio 21.1.0.17 le même
+> jour, dans un projet jetable, sur des rushes portant leur numéro d'image
+> incrusté, puis un montage de test renvoyé, rendu par Resolve et comparé à
+> l'export du moteur image par image (PA16). Le
+> renvoi d'un vrai film n'a pas encore été fait.
+
+Un seul appel envoie la timeline active dans le projet ouvert dans Resolve,
+comme une timeline neuve, puis la relit :
+
+```sh
+./build/cutmachine --send-resolve ./Film.cutmachine-project/project.cutmachine.json \
+  --name 'Film v3'
+```
+
+MCP : `send_to_resolve` (`name`, `grade`, `resolve_node`, `dry_run`) ; dans
+la fenêtre, **Fichier ▸ Envoyer dans Resolve**, qui envoie la timeline à
+l'écran sans demander de nom et dit le résultat dans la ligne d'état (une
+feuille quand quelque chose n'est pas parti ou que l'envoi est refusé). Il
+faut Resolve **Studio** 21.1 ou plus récent, ouvert sur le projet, avec les
+rushes du montage dans son Media Pool (`--import-resolve` les y relie dans
+l'autre sens). Le moteur écrit le descripteur (schéma
+`cutmachine.resolve-timeline.v3`) dans
+`~/Library/Application Support/CUTMACHINE/resolve-send/` (ou
+`CUTMACHINE_RESOLVE_SEND_DIR`), puis lance
+`sidecar/resolve_bridge.py --send` et rend son rapport. Le pont se trouve par
+`CUTMACHINE_RESOLVE_BRIDGE`, puis à côté de l'exécutable, puis dans l'arbre
+du build ; son Python par `CUTMACHINE_RESOLVE_PYTHON`, sinon
+`/usr/bin/python3`.
+
+**Ce qui passe**, par l'API de Resolve 21.1 :
+
+| Dans CUTMACHINE | Dans Resolve |
+|---|---|
+| plan vidéo | image seule (`mediaType` 1), sur sa piste V |
+| plan son | son seul (`mediaType` 2), sur sa piste A ; une piste qui ne porte que le son des rushes est **mono**, une musique reste stéréo. Une piste mono est centrée à −3 dB dans le bus stéréo de Resolve : la voix y sort 2,5 à 2,8 dB plus bas que dans le moteur (mesuré) |
+| image et son d'une même séparation | reliés (`SetClipsLinked`) |
+| vitesse constante | `SetSpeed` : le plan est posé sur sa longueur à vitesse 1, puis ralenti ou accéléré ; position et durée ne bougent pas |
+| arrêt sur image | `SetSpeed` à 0, qui fige la **dernière** image de la plage posée |
+| fondu enchaîné, fondu croisé du son | `AddTransition` (« Cross Dissolve », « Cross Fade +3 dB ») sur la fin du plan sortant, centré, à gauche ou à droite de la coupe |
+| ouverture ou fermeture au noir, creux au noir | fondus d'opacité des plans (`SetFades`), sans poignée, comme le voile du moteur |
+| cadrage | Zoom, Pan, Tilt, calculés pour « Scale entire image to fit » **et** pour « Scale full frame with crop » ; le pont prend celui du projet |
+| opacité, plan désactivé | `Opacity`, `SetClipEnabled` |
+| gain et fondus d'un plan son | `AudioVolume`, `SetFades` |
+| piste masquée, coupée, ou hors du solo | piste désactivée |
+| marqueurs | `AddMarker`, couleur la plus proche parmi les seize de Resolve ; deux marqueurs sur la même image n'en font qu'un, leurs noms joints |
+| cartons de la première piste de légendes | piste de sous-titres, posée **en premier** |
+| étalonnage, avec `grade: "cdl"` | `SetCDL` sur le nœud `resolve_node`, la CDL qu'`export_cdl` replie : juste seulement si ce nœud étalonne les valeurs que le moteur étalonne |
+
+**Ce qui ne passe pas** n'est pas refusé : c'est nommé dans `not_sent`, plan
+par plan, et le reste du montage part. Les images clés (aucune API n'en
+pose : le plan garde le cadrage et l'opacité de sa première image ; un
+cadrage animé passe par `export_resolve_xml`), un recadrage, un flou, un
+masque, une rampe de vitesse (envoyée à sa vitesse moyenne), un plan de
+motion (sa place reste vide : `render_motion_video` en fait une plaque à
+poser), une seconde piste de légendes, le style des cartons (il se greffe
+par le `.drt`, voir le skill), le look de la séquence, l'étalonnage sauf
+demande, un creux par une autre couleur que le noir.
+
+**Ce qui est refusé avant de rien créer dans Resolve** : un rush absent du
+Media Pool, un projet à une autre cadence, un montage cadré dans un projet
+qui ni n'ajuste ni ne remplit, une borne qui ne tombe pas sur une image
+entière, un arrêt sur image trop près du début de son rush, un ralenti trop
+près de sa fin (tous deux liraient hors du rush à vitesse 1). Une timeline
+d'une autre taille que le projet prend ses propres réglages.
+
+**La relecture.** Le pont relit chaque plan (position, durée, vitesse,
+activation), chaque transition (ses bornes), les marqueurs, les
+sous-titres, la longueur de la timeline. Un écart ne défait rien : il est
+listé dans `mismatches` et `verified` est faux. `GetSourceStartFrame` n'est
+pas relu : il se trompe d'une image sur la moitié des plans (mesuré ; l'image
+affichée, elle, est juste).
+
+**Le nom.** Sans `name`, la timeline prend le nom de la séquence, ou le
+premier « nom 2 », « nom 3 »… que le projet Resolve n'a pas encore : un
+second envoi du même montage ne bute pas sur le premier. Un `name` donné et
+déjà pris est refusé, comme un nom qui contient « : ». Une fenêtre ouverte dans Resolve
+le fait taire : le renvoi abandonne au bout de dix minutes
+(`ResolveTimeout`), la timeline commencée reste dans Resolve.
+
+**Le temps.** Le rapport porte `timings_ms`, étape par étape, et
+`elapsed_ms`, le tout. Mesuré le 13 novembre sur un montage de la taille
+d'une interview (220 plans, 100 sous-titres, 10 marqueurs) : 1,7 à 1,9 s,
+dont 0,8 s pour l'`AppendToTimeline` de Resolve, 0,25 à 0,34 s pour la
+timeline et ses sous-titres, 0,23 à 0,26 s pour les réglages des plans,
+0,17 s pour les marqueurs, 0,10 à 0,14 s pour la relecture, 7 ms pour la
+connexion.
+
+`--export-resolve-timeline` écrit le même descripteur sans rien envoyer ;
+`dry_run` aussi, en rendant ce qui partirait et ce qui resterait.
 
 ## Relire une timeline, et ce qui y a été étalonné
 
@@ -190,10 +283,12 @@ L'étape `color.resolve_primaries` d'un plan prend les primaires d'un nœud
 telles que Resolve les stocke. Ce sont les mêmes noms que `grades` (`lift_r`
 … `lift_master`, `gamma_*`, `gain_*`, `offset_r`, `offset_g`, `offset_b`,
 `saturation`, `lum_mix`, `contrast`, `pivot`, `temperature`, `tint`), en
-fractions exactes, et l'étape les rend par la loi ci-dessus. Deux paramètres de plus disent les
-réglages du projet dont dépend le contraste, à 0 ou 1 :
-`color_space_aware` (0 quand il est absent, comme dans Resolve) et
-`contrast_s_curve` (1 quand il est absent).
+fractions exactes, et l'étape les rend par la loi ci-dessus. Trois
+paramètres de plus disent les réglages du projet, à 0 ou 1 : ceux dont
+dépend le contraste, `color_space_aware` (0 quand il est absent, comme dans
+Resolve) et `contrast_s_curve` (1 quand il est absent), et `acescct` (0
+quand il est absent), qui dit qu'un nœud a été étalonné dans un projet en
+ACEScct.
 
 Le contraste au-dessus de 1, avec la courbe en S, n'a pas de formule : le
 moteur porte une table mesurée dans Resolve 21.1 le 25 octobre 2026. Elle
@@ -215,12 +310,20 @@ entre eux. Le moniteur reçoit la courbe de chaque nœud en 65 valeurs.
   - 0,75 code avec le contraste, outils « color space aware » allumés ;
   - 1,14 code outils coupés, et 1,73 sans la courbe en S ;
   - 3,5 codes avec une température et un contraste sous 1 au Lum Mix 100,
-    où le contraste seul manque déjà le cube de Resolve de 2,7 codes.
+    où le contraste seul manque déjà le cube de Resolve de 2,7 codes ;
+  - en ACEScct (211 cas, 14 novembre 2026), 0,03 code pour les primaires
+    et la saturation, nœuds complets compris ; jusqu'à 1,9 code avec une
+    température ou une teinte, sur des valeurs de plus de 100 en lumière
+    linéaire où Resolve arrondit (0,035 au 99ᵉ centile) ; le contraste comme
+    en YRGB ; avec un contraste et une température, jusqu'à 23 codes là où
+    la température pousse un canal loin sous 0, où Resolve prolonge le
+    contraste d'une autre pente que la table (4 codes ailleurs).
 
   Entre les réglages de la table, 16 courbes mesurées hors grille tombent à
   0,06 code pour un pivot de 0,25 à 0,75, et jusqu'à 4,8 aux pivots
   extrêmes. Le moniteur (Metal) et l'export (le cube) rendent la même
-  chose : à 2·10⁻⁶ près sur le signal affiché, et à 10⁻³ en ACEScct.
+  chose : à 2·10⁻⁶ près sur le signal affiché, et à 10⁻³ en ACEScct ou
+  pour un nœud ACEScct.
 
   Sur de vrais étalonnages, ceux de 11 plans de PRJH, l'étape tombe à
   1,1 code au pire des cubes que Resolve a sortis pour ces plans, et à 0,28
@@ -253,6 +356,21 @@ entre eux. Le moniteur reçoit la courbe de chaque nœud en 65 valeurs.
   décimales, et garde la coquille de la table de Wyszecki et Stiles à
   325 mired : le moteur fait de même. La suite de la loi lit les valeurs
   ainsi équilibrées, part Y comprise.
+- **En ACEScct** (`acescct` à 1, mesuré les 7 et 14 novembre 2026). Le
+  nœud étalonne des codes ACEScct en AP1 : sous gestion couleur, l'étape y
+  prend la valeur de travail (telle quelle quand le moteur étalonne en
+  ACEScct), et non DaVinci Intermediate. La loi y change en trois points :
+  - une valeur négative traverse le gamma inchangée, au lieu de garder son
+    signe sous la puissance ;
+  - la saturation tourne autour de la luminance Rec.709 (0,2126, 0,7152,
+    0,0722), et non des poids de DaVinci YRGB ;
+  - la température et la teinte : la même matrice, sur la lumière
+    ACES2065-1 (AP0) portée à la puissance 1/2,4, une valeur négative
+    gardant son signe ; un gris bouge d'une constante en log.
+
+  Le contraste suit la loi des outils coupés, et la luminance de travail
+  n'y change rien. Outils allumés, le contraste suit une autre loi, jamais
+  mesurée : l'étape le refuse par son nom.
 - **Où elle se place.** En tête de l'ordre canonique : ce qu'on ajoute ensuite
   à la main vient après le nœud importé, comme un second nœud.
 - **Le format.** Un document qui porte l'étape passe en version 22. Un
@@ -278,11 +396,9 @@ avec eux. La réponse les donne dans `grades.project_settings` (`read`,
 La science couleur décide de ce qui se rend (mesuré le 6 novembre 2026) :
 - en DaVinci YRGB et en DaVinci YRGB Color Managed, tout ce que l'étape
   prend ; leurs cubes sont identiques au dernier chiffre ;
-- en ACEScct, le lift, le gamma, le gain, l'offset et le Lum Mix, qui y
-  donnent les mêmes cubes. La saturation y bouge de 9 à 18 codes, la
-  température et la teinte y suivent une autre loi (un décalage en log),
-  et le contraste n'y a pas été mesuré : un nœud qui les règle ne s'écrit
-  pas ;
+- en ACEScct (depuis le 14 novembre 2026), tout ce que l'étape prend,
+  chaque étape portant `acescct` à 1, sauf un contraste outils « color
+  space aware » allumés, qu'aucun projet ACEScct n'allume ;
 - ailleurs (Color Managed v1, ACEScc, jamais mesurés), aucun nœud.
 
 Le 7 novembre 2026, sur les 293 projets du disque : 101 en Color Managed,

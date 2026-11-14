@@ -2,9 +2,13 @@
 // Effects, read without After: what each node became, where it sits, and
 // the keyframes and eases After is given. MA1 -- export_motion_after, the
 // tool that describes and hands the description to the bridge, with a
-// describer and a bridge that stand in for Core Text and After. The build
-// itself and the comparison of After's frames with the engine's run by
-// hand against After (tools/after-bridge/scripts/motion_import.jsx).
+// describer and a bridge that stand in for Core Text and After. MA2 --
+// verify_after_export, with a renderer and an After that stand in for the
+// real ones. The build itself and the comparison of After's frames with the
+// engine's run against After (tools/after-bridge/scripts/motion_import.jsx,
+// verify_after_export). MB7 -- the other way: a reading of the bridge's
+// read_comp translated into a composition, and import_after_comp, with an
+// importer and a bridge that stand in for Core Text and After.
 
 #include "AfterBridge.h"
 #include "Document.h"
@@ -13,16 +17,22 @@
 #include "McpBackend.h"
 #include "McpTools.h"
 #include "MotionAfterExport.h"
+#include "MotionAfterImport.h"
+#include "MotionAfterVerify.h"
 #include "MotionComposition.h"
 #include "MotionEvaluate.h"
 #include "Ulid.h"
+#include "golden_image.h"
 
+#include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -1761,9 +1771,9 @@ private:
     FakeMeasurer text_;
 };
 
-// MW7 -- After is given a PostScript name and no axis: a text in an
-// instance of a variable font is said, a named one as unchecked, one set
-// between named instances as not translated; a static face says nothing.
+// MW7 -- a text in an instance of a variable font gives After its family,
+// its weight and its slope, whatever the instance, named or not, and the
+// report says nothing; a static face gives only its PostScript name.
 void TestVariableFontNote() {
     const std::string json = R"J({
       "width": 400, "height": 300, "fps": 25, "duration": 10,
@@ -1784,62 +1794,247 @@ void TestVariableFontNote() {
     if (!Describe(json, measurer, description, report, "variable font")) {
         return;
     }
-    std::vector<std::string> said;
-    for (const std::string& note : report.notes) {
-        if (note.find("fontWeight") != std::string::npos) {
-            said.push_back(note);
-        }
-    }
-    Check(said.size() == 2 &&
-              said[0].find("children[0]") != std::string::npos &&
-              said[0].find("instance nommée « Variable_wght600 »") !=
-                  std::string::npos &&
-              said[0].find("non vérifié") != std::string::npos &&
-              said[1].find("children[1]") != std::string::npos &&
-              said[1].find("wght 650") != std::string::npos &&
-              said[1].find("non traduit") != std::string::npos,
-          "two texts in a variable font, two notes, the static face none: " +
-              std::to_string(said.size()));
+    const mcp_json::Value* main = MainComp(description);
+    const auto variableOf = [&](const std::string& name) -> std::string {
+        const mcp_json::Value* layer =
+            main != nullptr ? Layer(*main, name) : nullptr;
+        const mcp_json::Value* text =
+            layer != nullptr ? layer->Find("text") : nullptr;
+        const mcp_json::Value* axes =
+            text != nullptr ? text->Find("variable") : nullptr;
+        return axes != nullptr ? axes->Dump() : "none";
+    };
+    Check(variableOf("nommée") ==
+                  R"({"family":"Variable","wght":600,"italic":false})" &&
+              variableOf("entre deux") ==
+                  R"({"family":"Variable","wght":650,"italic":false})" &&
+              variableOf("statique") == "none",
+          "the variable texts give their axes, the static one none: " +
+              variableOf("nommée") + " " + variableOf("entre deux") + " " +
+              variableOf("statique"));
+    Check(!Said(report, "fontWeight"),
+          "the report says nothing of the weights: " +
+              (report.notes.empty() ? std::string() : report.notes[0]));
 }
 
-// MOTION-WEB-2026-10 MW1 -- a key between two frames goes to After on the
-// frame before it, and the report counts such instants once each.
+// MOTION-WEB-2026-10 MW2 -- a key between two frames goes to After at its
+// instant, spelled "n/d" frames as the format spells it, with the eases of
+// its true spans; a key on a frame stays an integer, and the report says
+// nothing of either (MW1 said « posé sur l'image d'avant »).
 void TestKeysBetweenFrames() {
-    const auto card = [](const std::string& frames) {
+    const auto card = [](const std::string& fps, const std::string& frames) {
         return R"J({
-      "width": 400, "height": 200, "fps": 25, "duration": 20,
+      "width": 400, "height": 200, "fps": )J" +
+               fps + R"J(, "duration": 20,
       "root": {"type": "fill", "children": [
-        {"type": "box", "style": {"width": 40, "height": 40,
-                                  "backgroundColor": "#ff0000"},
+        {"type": "box", "id": "carre",
+         "style": {"width": 40, "height": 40, "backgroundColor": "#ff0000"},
          "animate": {"translateX": {"interpolate": {"frames": )J" +
-               frames + R"J(, "values": [0, 50, 100]}},
+               frames + R"J(, "values": [0, 50, 100],
+                       "easing": "cubic-bezier(0.5, 0.5, 0.5, 0.5)"}},
                      "opacity": {"interpolate": {"frames": )J" +
                frames + R"J(, "values": [0, 1, 1]}}}}]}})J";
     };
-    const auto between = [](const MotionAfterExportReport& report) {
-        std::string said;
-        for (const std::string& note : report.notes) {
-            if (note.find("entre deux images") != std::string::npos) {
-                said += note;
-            }
+    const auto spelled = [](const mcp_json::Value* keys) {
+        std::string out;
+        if (keys == nullptr || !keys->IsArray()) {
+            return std::string("none");
         }
-        return said;
+        for (const mcp_json::Value& key : keys->AsArray()) {
+            out += (out.empty() ? "" : " ") + key.Find("f")->Dump();
+        }
+        return out;
+    };
+    const auto keysOf = [](const mcp_json::Value& description,
+                           const std::string& property) {
+        const mcp_json::Value* main = MainComp(description);
+        const mcp_json::Value* layer =
+            main != nullptr ? Layer(*main, "carre") : nullptr;
+        const mcp_json::Value* transform =
+            layer != nullptr ? layer->Find("transform") : nullptr;
+        const mcp_json::Value* keys =
+            transform != nullptr ? transform->Find("keys") : nullptr;
+        return keys != nullptr ? keys->Find(property) : nullptr;
     };
     FakeMeasurer measurer;
     mcp_json::Value description;
     MotionAfterExportReport report;
-    if (Describe(card(R"([0, "5/2", 10])"), measurer, description, report,
+    if (Describe(card("25", R"([0, "5/2", 10])"), measurer, description, report,
                  "keys between frames")) {
-        Check(between(report).find("composition: 1 instant") == 0,
-              "one instant between frames, shared by two tracks, is said "
-              "once: " +
-                  between(report));
+        const mcp_json::Value* x = keysOf(description, "position.x");
+        Check(spelled(x) == R"(0 "5/2" 10)",
+              "position keys at their instants: " + spelled(x));
+        Check(spelled(keysOf(description, "opacity")) == R"(0 "5/2" 10)",
+              "opacity keys at their instants: " +
+                  spelled(keysOf(description, "opacity")));
+        // 50 px in 0.1 s, then 50 px in 0.3 s, along a straight curve: the
+        // speeds of the true spans (on the frame before, 0.08 s gave 625).
+        if (x != nullptr && x->AsArray().size() == 3) {
+            const auto speed = [&](size_t key, const char* side) {
+                const mcp_json::Value* ease = x->AsArray()[key].Find(side);
+                return ease != nullptr
+                           ? std::stod(ease->AsArray()[0].AsArray()[0].Dump())
+                           : -1.0;
+            };
+            Check(std::abs(speed(0, "ease_out") - 500.0) < 1e-3 &&
+                      std::abs(speed(1, "ease_in") - 500.0) < 1e-3 &&
+                      std::abs(speed(1, "ease_out") - 500.0 / 3.0) < 1e-3,
+                  "eases measured on the exact spans: " +
+                      std::to_string(speed(0, "ease_out")) + ", " +
+                      std::to_string(speed(1, "ease_in")) + ", " +
+                      std::to_string(speed(1, "ease_out")));
+        }
+        Check(report.notes.empty(),
+              "keys between frames say nothing: " +
+                  (report.notes.empty() ? std::string() : report.notes[0]));
     }
     MotionAfterExportReport whole;
-    if (Describe(card("[0, 5, 10]"), measurer, description, whole,
+    if (Describe(card("25", "[0, 5, 10]"), measurer, description, whole,
                  "keys on frames")) {
-        Check(between(whole).empty(), "keys on frames say nothing");
+        Check(spelled(keysOf(description, "position.x")) == "0 5 10" &&
+                  whole.notes.empty(),
+              "keys on frames stay integers: " +
+                  spelled(keysOf(description, "position.x")));
     }
+    MotionAfterExportReport ntsc;
+    if (Describe(card(R"("30000/1001")", R"([0, "1/3", "10/3"])"), measurer,
+                 description, ntsc, "keys between frames at 29.97")) {
+        Check(spelled(keysOf(description, "position.x")) == R"(0 "1/3" "10/3")",
+              "a third of a frame at 29.97 stays a third: " +
+                  spelled(keysOf(description, "position.x")));
+    }
+    // A sequence's own keys are moved by its start (MA8), exactly.
+    const std::string scene = R"J({
+      "width": 400, "height": 200, "fps": 25, "duration": 30,
+      "root": {"type": "fill", "children": [
+        {"type": "sequence", "id": "scene", "from": 10, "duration": 20,
+         "animate": {"opacity": {"interpolate": {"frames": [0, "5/2"],
+                                                 "values": [0, 1]}}},
+         "children": [{"type": "box", "style": {"width": 40, "height": 40,
+                                                "backgroundColor": "#fff"}}]}]}})J";
+    MotionAfterExportReport shifted;
+    if (Describe(scene, measurer, description, shifted, "a scene's keys")) {
+        const std::string dump = description.Dump();
+        Check(dump.find(R"("f":10,)") != std::string::npos &&
+                  dump.find(R"("f":"25/2")") != std::string::npos,
+              "a scene's key at 5/2 lands at 25/2 in its parent");
+    }
+    // What the layout moves is read at whole frames: a width that ends
+    // between two frames pushes its neighbour until the frame after.
+    const std::string row = R"J({
+      "width": 400, "height": 200, "fps": 25, "duration": 10,
+      "root": {"type": "fill", "style": {"fontFamily": "Fake"}, "children": [
+        {"type": "box", "style": {"position": "absolute", "left": 0,
+                                  "top": 100, "flexDirection": "row"},
+         "children": [
+           {"type": "box", "id": "pousse",
+            "style": {"width": 20, "height": 10, "backgroundColor": "#000"},
+            "animate": {"width": {"interpolate": {"frames": [0, "5/2"],
+               "values": [20, 120]}}}},
+           {"type": "text", "content": "mot"}]}]}})J";
+    MotionAfterExportReport pushed;
+    if (Describe(row, measurer, description, pushed, "a pushed word")) {
+        const mcp_json::Value* main = MainComp(description);
+        const mcp_json::Value* word =
+            main != nullptr ? Layer(*main, "mot") : nullptr;
+        const mcp_json::Value* keys =
+            word != nullptr && word->Find("transform") != nullptr &&
+                    word->Find("transform")->Find("keys") != nullptr
+                ? word->Find("transform")->Find("keys")->Find("position.x")
+                : nullptr;
+        const bool read =
+            keys != nullptr && keys->IsArray() && !keys->AsArray().empty();
+        Check(read && Frame(keys->AsArray().back()) == 3 &&
+                  std::abs(First(keys->AsArray().back()) -
+                           First(keys->AsArray().front()) - 100.0) < 1e-3,
+              "the word is pushed until frame 3, by the whole width: " +
+                  (read ? keys->Dump() : std::string("no keys")));
+    }
+}
+
+// MOTION-WEB-2026-10 MW5 -- transformOrigin becomes the layer's anchor
+// point, the position following it; a skew becomes the Transform effect,
+// skewX(a) as -a on axis 90, skewY(a) as a on axis 0 (measured in After 26),
+// with the angle a footage or precomposition layer needs under a scale that
+// is not uniform; a skewed group is a precomposition; an exact skew says
+// nothing.
+void TestOriginAndSkew() {
+    const std::string json = R"J({
+      "width": 400, "height": 300, "fps": 25, "duration": 10,
+      "root": {"type": "fill", "children": [
+        {"type": "box", "id": "pendule",
+         "style": {"position": "absolute", "left": 100, "top": 50,
+                   "width": 40, "height": 80, "backgroundColor": "#fff",
+                   "transformOrigin": "50% 0"},
+         "animate": {"rotate": {"interpolate": {"frames": [0, 9],
+                                                "values": [-20, 20]}}}},
+        {"type": "box", "id": "penche",
+         "style": {"position": "absolute", "left": 200, "top": 50,
+                   "width": 40, "height": 40, "backgroundColor": "#fff",
+                   "skewX": 20},
+         "animate": {"skewX": {"interpolate": {"frames": [0, "5/2"],
+                                               "values": [20, 0]}}}},
+        {"type": "box", "id": "large",
+         "style": {"position": "absolute", "left": 300, "top": 50,
+                   "width": 40, "height": 40, "backgroundColor": "#fff",
+                   "skewY": 30, "scaleX": 2}},
+        {"type": "box", "id": "groupe",
+         "style": {"position": "absolute", "left": 0, "top": 200,
+                   "width": 100, "height": 50, "skewX": -10},
+         "children": [{"type": "box", "style": {"width": 50, "height": 50,
+                                                "backgroundColor": "#f00"}},
+                      {"type": "box", "style": {"width": 50, "height": 50,
+                                                "backgroundColor": "#0f0"}}]}]}})J";
+    FakeMeasurer measurer;
+    mcp_json::Value description;
+    MotionAfterExportReport report;
+    if (!Describe(json, measurer, description, report, "origin and skew")) {
+        return;
+    }
+    const mcp_json::Value* main = MainComp(description);
+    const auto transformOf =
+        [&](const std::string& name) -> const mcp_json::Value* {
+        const mcp_json::Value* layer =
+            main != nullptr ? Layer(*main, name) : nullptr;
+        return layer != nullptr ? layer->Find("transform") : nullptr;
+    };
+    const mcp_json::Value* pendulum = transformOf("pendule");
+    Check(pendulum != nullptr &&
+              Near(pendulum->Find("anchor")->AsArray()[0], 20.0) &&
+              Near(pendulum->Find("anchor")->AsArray()[1], 0.0) &&
+              Near(pendulum->Find("position")->AsArray()[0], 120.0) &&
+              Near(pendulum->Find("position")->AsArray()[1], 50.0),
+          "the anchor sits on the origin, the position where it lands: " +
+              (pendulum != nullptr ? pendulum->Dump() : std::string("none")));
+    const mcp_json::Value* slanted = transformOf("penche");
+    const mcp_json::Value* skew =
+        slanted != nullptr ? slanted->Find("skew") : nullptr;
+    Check(skew != nullptr && Near(*skew->Find("axis"), 90.0) &&
+              Near(*skew->Find("angle"), -20.0) &&
+              skew->Find("raster_angle") == nullptr &&
+              skew->Find("keys") != nullptr &&
+              skew->Find("keys")->AsArray().size() == 2 &&
+              skew->Find("keys")->AsArray()[1].Find("f")->Dump() == R"("5/2")",
+          "skewX(20) is a skew of -20 on axis 90, its keys at their "
+          "instants: " +
+              (skew != nullptr ? skew->Dump() : std::string("none")));
+    const mcp_json::Value* wide = transformOf("large");
+    const mcp_json::Value* wideSkew =
+        wide != nullptr ? wide->Find("skew") : nullptr;
+    const double expected =
+        std::atan(std::tan(30.0 * M_PI / 180.0) * 2.0) * 180.0 / M_PI;
+    Check(wideSkew != nullptr && Near(*wideSkew->Find("axis"), 0.0) &&
+              Near(*wideSkew->Find("angle"), 30.0) &&
+              wideSkew->Find("raster_angle") != nullptr &&
+              Near(*wideSkew->Find("raster_angle"), expected),
+          "skewY under scaleX 2: 30 on axis 0 for a shape, the angle a "
+          "footage layer needs before its scale beside it: " +
+              (wideSkew != nullptr ? wideSkew->Dump() : std::string("none")));
+    Check(Comp(description, "groupe") != nullptr,
+          "a skewed group is a precomposition");
+    Check(report.notes.empty(),
+          "an origin and exact skews say nothing: " +
+              (report.notes.empty() ? std::string() : report.notes[0]));
 }
 
 // MOTION-WEB-2026-10 MW3 -- a GSAP curve reaches After as its closest
@@ -1882,6 +2077,972 @@ void TestGsapCurvesNoted() {
     }
 }
 
+// MA7 -- a measurer that cannot lay one text out: the timecode of frame 7.
+class FailingMeasurer final : public MotionMeasurer {
+public:
+    bool LayoutText(const std::string& text, const MotionTextStyle& style,
+                    double max_width, MotionTextLayout& layout,
+                    MotionError& error) override {
+        if (text == "00:00:00:07") {
+            error = {"FontMissing", "", "no glyphs for frame 7"};
+            return false;
+        }
+        return inner_.LayoutText(text, style, max_width, layout, error);
+    }
+
+    bool ImageSize(const std::string& source, double& width, double& height,
+                   MotionError& error) override {
+        return inner_.ImageSize(source, width, height, error);
+    }
+
+    bool FontPostScriptName(const MotionTextStyle& style, std::string& name,
+                            MotionError& error) override {
+        return inner_.FontPostScriptName(style, name, error);
+    }
+
+private:
+    FakeMeasurer inner_;
+};
+
+// MA7 -- what the review of the export found, each shown failing first.
+void TestExportEdges() {
+    // A frame read only for the layout that does not evaluate: refused,
+    // not taken for a frame where nothing is shown.
+    FailingMeasurer failing;
+    mcp_json::Value description;
+    MotionAfterExportReport report;
+    MotionComposition composition;
+    MotionError error;
+    MotionAfterExportOptions options;
+    const std::string sliding = R"J({
+      "width": 400, "height": 200, "fps": 25, "duration": 10,
+      "root": {"type": "fill", "style": {"fontFamily": "Fake"}, "children": [
+        {"type": "box", "style": {"position": "absolute", "left": 0, "top": 0, "height": 20,
+                                  "backgroundColor": "#ff0000"},
+         "animate": {"width": {"interpolate": {"frames": [0, 9], "values": [10, 100]}}}},
+        {"type": "text", "content": {"timecode": "composition"},
+         "style": {"position": "absolute", "left": 0, "top": 100, "fontSize": 20}}]}})J";
+    if (ParseMotionComposition(sliding, composition, error)) {
+        Check(!ExportMotionToAfter(composition, mcp_json::Value(), failing, {},
+                                   options, description, report, error) &&
+                  error.code == "FontMissing",
+              "a frame of the layout that does not evaluate refuses the "
+              "export: " +
+                  error.code);
+    } else {
+        Check(false, "the sliding composition parses: " + error.message);
+    }
+
+    // A box that clips, wider than After's largest composition: its frame
+    // is cut to 30 000 px, and the report says so.
+    FakeMeasurer measurer;
+    if (Describe(R"J({"width": 1920, "height": 1080, "fps": 25, "duration": 10,
+          "root": {"type": "fill", "children": [
+            {"type": "box", "id": "bande", "style": {"position": "absolute", "left": -20000, "top": 0,
+              "width": 40000, "height": 100, "overflow": "hidden", "opacity": 0.5,
+              "backgroundColor": "#00ff00"},
+             "children": [{"type": "box", "style": {"width": 40000, "height": 100,
+                                                    "backgroundColor": "#0000ff"}}]}]}})J",
+                 measurer, description, report, "a wide clipping box")) {
+        bool within = true;
+        for (const mcp_json::Value& comp :
+             description.Find("comps")->AsArray()) {
+            int64_t width = 0;
+            comp.Find("width")->AsInt64(width);
+            within = within && width <= 30000;
+        }
+        bool said = false;
+        for (const std::string& note : report.notes) {
+            said = said || note.find("30 000 px") != std::string::npos;
+        }
+        Check(within && said,
+              "no composition over 30 000 px, and the cut is said");
+    }
+
+    // Blend modes: the parser's, and the mattes, which After has no layer
+    // mode for.
+    if (Describe(R"J({"width": 200, "height": 100, "fps": 25, "duration": 10,
+          "root": {"type": "fill", "children": [
+            {"type": "box", "style": {"width": 50, "height": 50, "backgroundColor": "#ff0000",
+                                      "mixBlendMode": "multiply"}},
+            {"type": "box", "style": {"width": 50, "height": 50, "backgroundColor": "#00ff00",
+                                      "mixBlendMode": "mask-in"}}]}})J",
+                 measurer, description, report, "blend modes")) {
+        const std::string dumped = description.Dump();
+        bool said = false;
+        for (const std::string& note : report.notes) {
+            said = said || note.find("mask-in") != std::string::npos;
+        }
+        Check(dumped.find("\"MULTIPLY\"") != std::string::npos && said,
+              "multiply is After's, mask-in is said to have no layer mode");
+    }
+    Check(!ParseMotionComposition(
+              R"J({"width": 200, "height": 100, "fps": 25, "duration": 10,
+                   "root": {"type": "fill", "style": {"mixBlendMode": "hue"}}})J",
+              composition, error),
+          "hue, which the export no longer names, is refused by the parser");
+}
+
+// MA3 -- the layer of the node at `path` in a composition of a description.
+const mcp_json::Value* LayerAt(const mcp_json::Value& comp,
+                               const std::string& path) {
+    for (const mcp_json::Value& layer : comp.Find("layers")->AsArray()) {
+        const mcp_json::Value* at = layer.Find("path");
+        if (at != nullptr && at->AsString() == path &&
+            layer.Find("kind")->AsString() == "text") {
+            return &layer;
+        }
+    }
+    return nullptr;
+}
+
+// MA3 -- a flow's terms as "layer-name:k" pairs, in order.
+std::string FlowOf(const mcp_json::Value& comp, const mcp_json::Value* layer) {
+    if (layer == nullptr || layer->Find("flow") == nullptr) {
+        return "";
+    }
+    std::string said;
+    for (const mcp_json::Value& term :
+         layer->Find("flow")->Find("terms")->AsArray()) {
+        std::string name = "?";
+        for (const mcp_json::Value& other : comp.Find("layers")->AsArray()) {
+            if (other.Find("id")->AsString() ==
+                term.Find("layer")->AsString()) {
+                name = other.Find("path")->AsString();
+            }
+        }
+        char k[32];
+        std::snprintf(k, sizeof k, "%g", std::stod(term.Find("k")->Dump()));
+        said += (said.empty() ? "" : " ") + name + ":" + k;
+    }
+    return said;
+}
+
+// MA3 -- a row of words keeps its flexbox push in After: each text names
+// the texts whose change of width moves it, with the engine's coefficient.
+void TestRowFlow() {
+    const std::string json = R"J({
+      "width": 1000, "height": 400, "fps": 25, "duration": 10,
+      "root": {"type": "fill", "style": {"fontFamily": "Fake"}, "children": [
+        {"type": "box", "style": {"position": "absolute", "left": 100, "top": 20, "gap": 10}, "children": [
+          {"type": "text", "content": "COU", "style": {"fontSize": 40},
+           "animate": {"scale": {"interpolate": {"frames": [0, 4], "values": [1.2, 1]}}}},
+          {"type": "text", "content": "PER", "style": {"fontSize": 40},
+           "animate": {"translateY": {"interpolate": {"frames": [0, 5], "values": [20, 0]}}}},
+          {"type": "text", "content": "X", "style": {"fontSize": 40, "width": 30}}]},
+        {"type": "box", "style": {"position": "absolute", "left": 0, "top": 120, "width": 1000,
+                                  "justifyContent": "center"}, "children": [
+          {"type": "text", "content": "COU", "style": {"fontSize": 40}},
+          {"type": "text", "content": "PER", "style": {"fontSize": 40}}]},
+        {"type": "box", "style": {"position": "absolute", "left": 0, "top": 200, "flexDirection": "column"}, "children": [
+          {"type": "text", "content": "A", "style": {"fontSize": 40}},
+          {"type": "text", "content": "B", "style": {"fontSize": 40}}]},
+        {"type": "box", "style": {"position": "absolute", "left": 0, "top": 300}, "children": [
+          {"type": "text", "content": "C", "style": {"fontSize": 40}},
+          {"type": "text", "content": "D", "style": {"fontSize": 40, "position": "absolute", "left": 500}}]},
+        {"type": "text", "content": "LIBRE", "style": {"position": "absolute", "left": 10, "top": 360, "fontSize": 40}}]}})J";
+    FakeMeasurer measurer;
+    mcp_json::Value description;
+    MotionAfterExportReport report;
+    if (!Describe(json, measurer, description, report, "rows")) {
+        return;
+    }
+    const mcp_json::Value* main = MainComp(description);
+    if (main == nullptr) {
+        Check(false, "the film has its main composition");
+        return;
+    }
+    const std::string a = "root.children[0].children[";
+    const std::string b = "root.children[1].children[";
+    const mcp_json::Value* first = LayerAt(*main, a + "0]");
+    const mcp_json::Value* flow =
+        first != nullptr ? first->Find("flow") : nullptr;
+    Check(FlowOf(*main, first).empty() && flow != nullptr &&
+              flow->Find("terms")->AsArray().empty() &&
+              Near(*flow->Find("anchor"), 0.5) &&
+              flow->Find("self")->AsString() == first->Find("id")->AsString(),
+          "the first word of a row packed to the start moves for no one, "
+          "but the centre it scales about follows its own width");
+    const mcp_json::Value* second = LayerAt(*main, a + "1]");
+    Check(second != nullptr && second->Find("flow") != nullptr &&
+              second->Find("flow")->Find("anchor") == nullptr,
+          "a word that only slides keeps its anchor");
+    Check(FlowOf(*main, LayerAt(*main, a + "1]")) == a + "0]:1",
+          "the second moves by the first one's change of width: " +
+              FlowOf(*main, LayerAt(*main, a + "1]")));
+    Check(FlowOf(*main, LayerAt(*main, a + "2]")) == a + "0]:1 " + a + "1]:1",
+          "a text of fixed width is pushed, and pushes nothing: " +
+              FlowOf(*main, LayerAt(*main, a + "2]")));
+    Check(FlowOf(*main, LayerAt(*main, b + "0]")) ==
+                  b + "0]:-0.5 " + b + "1]:-0.5" &&
+              FlowOf(*main, LayerAt(*main, b + "1]")) ==
+                  b + "0]:0.5 " + b + "1]:-0.5",
+          "a centred row spreads each change on both sides: " +
+              FlowOf(*main, LayerAt(*main, b + "0]")) + " / " +
+              FlowOf(*main, LayerAt(*main, b + "1]")));
+    Check(
+        FlowOf(*main, LayerAt(*main, "root.children[2].children[1]")).empty() &&
+            FlowOf(*main, LayerAt(*main, "root.children[3].children[0]"))
+                .empty() &&
+            FlowOf(*main, LayerAt(*main, "root.children[4]")).empty(),
+        "a column, a row with a word out of the flow and a free text keep "
+        "their fixed places");
+    // Without a row, the description is the one it was.
+    mcp_json::Value plain;
+    if (Describe(R"J({"width": 400, "height": 200, "fps": 25, "duration": 10,
+          "root": {"type": "fill", "style": {"fontFamily": "Fake"}, "children": [
+            {"type": "text", "content": "COU", "style": {"position": "absolute", "left": 10, "top": 10, "fontSize": 40}},
+            {"type": "text", "content": "PER", "style": {"position": "absolute", "left": 90, "top": 10, "fontSize": 40}}]}})J",
+                 measurer, plain, report, "absolute words")) {
+        Check(plain.Dump().find("\"flow\"") == std::string::npos,
+              "words placed one by one have no flow");
+    }
+}
+
+// MA2 -- the composition the scopes and the verification read: a slice
+// that cuts at frame 5 only, one that always cuts but whose text is gone
+// from frame 8, and a rounded letterSpacing shown from frame 3 to 5.
+const char kScoped[] = R"J({
+  "width": 20, "height": 10, "fps": 25, "duration": 10,
+  "root": {"type": "fill", "style": {"fontFamily": "Fake"}, "children": [
+    {"type": "text", "content": "UN", "style": {"position": "absolute", "left": 0, "top": 0, "fontSize": 4,
+                                               "filter": "slice(0px 10px 3 0)"},
+     "animate": {"filter": {"interpolate": {"frames": [4, 5, 6],
+       "values": ["slice(0px 10px 3 4)", "slice(8px 10px 3 5)", "slice(0px 10px 3 6)"], "easing": "step-end"}}}},
+    {"type": "text", "content": "DEUX", "style": {"position": "absolute", "left": 0, "top": 5, "fontSize": 4,
+                                                 "filter": "slice(5px 10px 3 0)"},
+     "animate": {"opacity": {"interpolate": {"frames": [0, 7, 8], "values": [1, 1, 0], "easing": "step-end"}}}},
+    {"type": "sequence", "from": 3, "duration": 3, "children": [
+      {"type": "text", "content": "TROIS", "style": {"position": "absolute", "left": 10, "top": 0, "fontSize": 3,
+                                                    "letterSpacing": 1}}]}]}})J";
+
+std::vector<size_t> ShownAt(const MotionComposition& composition,
+                            const MotionAfterExportReport& report,
+                            int64_t frame) {
+    FakeMeasurer measurer;
+    MotionFrame evaluated;
+    MotionError error;
+    if (!EvaluateMotionFrame(composition, mcp_json::Value(), frame, measurer,
+                             evaluated, error)) {
+        Check(false, "frame " + std::to_string(frame) + ": " + error.message);
+        return {};
+    }
+    return MotionAfterNotesShown(report, evaluated);
+}
+
+// MA2 -- each note keeps the node it is about, a slice() only while it
+// cuts, and a note about the whole composition none.
+void TestNoteScopes() {
+    MotionComposition composition;
+    MotionError error;
+    if (!ParseMotionComposition(kScoped, composition, error)) {
+        Check(false, "the scoped composition parses: " + error.message);
+        return;
+    }
+    FakeMeasurer measurer;
+    MotionAfterExportOptions options;
+    mcp_json::Value description;
+    MotionAfterExportReport report;
+    if (!ExportMotionToAfter(composition, mcp_json::Value(), measurer, {},
+                             options, description, report, error)) {
+        Check(false, "the scoped composition is described: " + error.message);
+        return;
+    }
+    size_t slice = report.notes.size();
+    size_t spacing = report.notes.size();
+    for (size_t index = 0; index < report.notes.size(); ++index) {
+        if (report.notes[index].find("slice()") != std::string::npos) {
+            slice = index;
+        }
+        if (report.notes[index].find("letterSpacing") != std::string::npos) {
+            spacing = index;
+        }
+    }
+    int slices = 0;
+    for (const MotionAfterNoteScope& scope : report.scopes) {
+        slices += scope.note == slice && scope.slice ? 1 : 0;
+    }
+    Check(slice < report.notes.size() && spacing < report.notes.size() &&
+              slices == 2,
+          "one note for both slice(), each node in its scope: " +
+              std::to_string(slices));
+    const auto shown = [&](int64_t frame) {
+        const std::vector<size_t> notes = ShownAt(composition, report, frame);
+        std::string said;
+        for (const size_t note : notes) {
+            said += note == slice     ? "slice "
+                    : note == spacing ? "spacing "
+                                      : "other ";
+        }
+        return said;
+    };
+    Check(shown(1) == "slice ", "frame 1: the second slice cuts: " + shown(1));
+    Check(shown(5) == "slice spacing " || shown(5) == "spacing slice ",
+          "frame 5: both cut, the rounded spacing is shown: " + shown(5));
+    Check(shown(9).empty(),
+          "frame 9: the first slice is at 0, the second text is hidden, the "
+          "third gone: " +
+              shown(9));
+    MotionAfterExportReport whole = report;
+    whole.notes.push_back("composition: grain non traduit");
+    Check(ShownAt(composition, whole, 1).size() == 1,
+          "a note about the whole composition never shows at a frame");
+}
+
+// MA2 -- a picture of `width` x `height`, 8-bit RGBA, every pixel `value`.
+std::string Png(int32_t width, int32_t height, uint8_t value,
+                uint8_t alpha = 255) {
+    std::vector<uint8_t> samples;
+    for (int32_t index = 0; index < width * height; ++index) {
+        samples.insert(samples.end(), {value, value, value, alpha});
+    }
+    const std::string path =
+        (std::filesystem::temp_directory_path() / (GenerateUlid() + ".png"))
+            .string();
+    std::string error;
+    WriteGoldenPng(path, GoldenImageFromBytes(width, height, 4, samples),
+                   GoldenDepth::Eight, error);
+    std::ifstream file(path, std::ios::binary);
+    std::ostringstream bytes;
+    bytes << file.rdbuf();
+    std::error_code ignored;
+    std::filesystem::remove(path, ignored);
+    return bytes.str();
+}
+
+void TestPngLuma() {
+    int32_t width = 0;
+    int32_t height = 0;
+    std::vector<float> luma;
+    std::string error;
+    Check(MotionAfterPngLuma(Png(2, 1, 255), width, height, luma, error) &&
+              width == 2 && height == 1 && luma.size() == 2 &&
+              std::abs(luma[0] - 255.0F) < 1e-3F,
+          "a white PNG is 255 levels: " + error);
+    Check(MotionAfterPngLuma(Png(1, 1, 255, 128), width, height, luma, error) &&
+              std::abs(luma[0] - 128.0F) < 1e-3F,
+          "half transparent white over black is half way");
+    const std::string path =
+        (std::filesystem::temp_directory_path() / (GenerateUlid() + ".png"))
+            .string();
+    WriteGoldenPng(path, GoldenImageFromWords(1, 1, 3, {65535, 0, 0}),
+                   GoldenDepth::Sixteen, error);
+    std::ifstream file(path, std::ios::binary);
+    std::ostringstream bytes;
+    bytes << file.rdbuf();
+    std::error_code ignored;
+    std::filesystem::remove(path, ignored);
+    Check(MotionAfterPngLuma(bytes.str(), width, height, luma, error) &&
+              luma[0] == 76.0F,
+          "16-bit red is weighed as Pillow's L weighs it (BT.601): " + error);
+    Check(!MotionAfterPngLuma("not a png", width, height, luma, error),
+          "bytes that are no PNG are refused");
+    const MotionAfterFrameGap gap =
+        MotionAfterCompareLuma({0.0F, 255.0F}, {1.0F, 245.0F});
+    Check(std::abs(gap.mean - 5.5) < 1e-9 && std::abs(gap.max - 10.0) < 1e-9 &&
+              std::abs(gap.over - 0.5) < 1e-9,
+          "the mean, the largest gap and the share past 8 levels");
+}
+
+// MA2 -- a picture per frame: the frame's number in grey levels, so that a
+// side that renders another frame shows.
+bool FakeRender(const MotionFrameRequest& request, MotionFrameImage& image,
+                MotionError& error) {
+    FakeMeasurer measurer;
+    if (!EvaluateMotionFrame(*request.composition, request.props, request.frame,
+                             measurer, image.evaluated, error)) {
+        return false;
+    }
+    image.png = Png(20, 10, static_cast<uint8_t>(request.frame * 10));
+    image.width = 20;
+    image.height = 10;
+    return true;
+}
+
+// MA2 -- a project, and an After that renders what it is told to: the
+// engine's picture, off by `gap` levels at the frames in `off`.
+class VerifyBackend final : public McpBackend {
+public:
+    VerifyBackend() {
+        DocumentComposition composition;
+        composition.name = "Rangée";
+        std::string parseError;
+        mcp_json::Value::Parse(kScoped, composition.definition, parseError);
+        document_.compositions.push_back(composition);
+        composition_id = composition.id;
+    }
+
+    bool SnapshotDocument(Document& document, std::string&) override {
+        document = document_;
+        return true;
+    }
+
+    bool ApplyOperation(Operation, std::string&, std::string& errorName,
+                        std::string& message) override {
+        errorName = "UnsupportedOperation";
+        message = "not used here";
+        return false;
+    }
+
+    bool RunAfterRequest(const std::string& requestJson,
+                         std::string& resultJson, std::string& errorName,
+                         std::string& message) override {
+        AfterBridgeRequest request;
+        if (!ParseAfterBridgeRequest(requestJson, request, message)) {
+            errorName = "ValidationFailed";
+            return false;
+        }
+        int64_t frame = 0;
+        request.arguments.Find("frame")->AsInt64(frame);
+        rendered.push_back(frame);
+        comp_id = request.arguments.Find("comp_id")->AsString();
+        const bool moved =
+            std::find(off.begin(), off.end(), frame) != off.end();
+        std::ofstream file(request.arguments.Find("image_path")->AsString(),
+                           std::ios::binary);
+        file << Png(width, 10,
+                    static_cast<uint8_t>(frame * 10 + (moved ? 40 : 0)));
+        AfterBridgeResponse response;
+        response.ok = request.method == AfterBridgeMethod::RenderFrame;
+        response.result = mcp_json::Value::MakeObject();
+        resultJson = SerializeAfterBridgeResponse(response);
+        return true;
+    }
+
+    bool Undo(std::string&, std::string& errorName,
+              std::string& message) override {
+        errorName = "UnsupportedOperation";
+        message = "not used here";
+        return false;
+    }
+
+    bool Redo(std::string&, std::string& errorName,
+              std::string& message) override {
+        errorName = "UnsupportedOperation";
+        message = "not used here";
+        return false;
+    }
+
+    bool Describe(std::string& json, std::string&) override {
+        json = "{}";
+        return true;
+    }
+
+    std::string composition_id;
+    std::vector<int64_t> off;
+    std::vector<int64_t> rendered;
+    std::string comp_id;
+    int32_t width = 20;
+
+private:
+    Document document_;
+};
+
+// MA2 -- verify_after_export: both sides rendered, each frame judged, the
+// pictures kept, and what it refuses.
+void TestVerifyTool() {
+    const McpToolRegistry registry;
+    VerifyBackend backend;
+    backend.off = {5, 9};
+    const std::filesystem::path directory =
+        std::filesystem::temp_directory_path() / (GenerateUlid() + "-verif");
+    mcp_json::Value arguments = mcp_json::Value::MakeObject();
+    arguments.Set("composition_id",
+                  mcp_json::Value::MakeString(backend.composition_id));
+    arguments.Set("comp_id", mcp_json::Value::MakeString("12"));
+    arguments.Set("image_dir", mcp_json::Value::MakeString(directory.string()));
+    mcp_json::Value frames = mcp_json::Value::MakeArray();
+    for (const int64_t frame : {0, 5, 9}) {
+        frames.Push(mcp_json::Value::MakeInt(frame));
+    }
+    arguments.Set("frames", frames);
+
+    SetMotionAfterDescriber(&FakeDescribe);
+    SetMotionFrameRenderer(nullptr);
+    McpToolCallOutcome outcome =
+        registry.Call(backend, "verify_after_export", arguments);
+    Check(!outcome.ok && outcome.error_name == "UnsupportedOperation" &&
+              backend.rendered.empty() && !std::filesystem::exists(directory),
+          "without a renderer nothing is asked of After");
+
+    SetMotionFrameRenderer(&FakeRender);
+    outcome = registry.Call(backend, "verify_after_export", arguments);
+    mcp_json::Value result;
+    std::string parseError;
+    mcp_json::Value::Parse(outcome.result_json, result, parseError);
+    Check(outcome.ok && backend.rendered == std::vector<int64_t>({0, 5, 9}) &&
+              backend.comp_id == "12",
+          "After renders each frame of the composition it was given: " +
+              outcome.message);
+    if (outcome.ok) {
+        const auto& checked = result.Find("frames")->AsArray();
+        Check(result.Find("within")->Dump() == "1" &&
+                  result.Find("announced")->Dump() == "1" &&
+                  result.Find("unexplained")->Dump() == "1" &&
+                  checked.size() == 3 &&
+                  checked[0].Find("verdict")->AsString() == "within" &&
+                  checked[1].Find("verdict")->AsString() == "announced" &&
+                  checked[2].Find("verdict")->AsString() == "unexplained" &&
+                  std::abs(std::stod(checked[1].Find("mean")->Dump()) - 40.0) <
+                      1e-6,
+              "frame 0 equal, 5 explained by the slice that cuts, 9 by "
+              "nothing: " +
+                  outcome.result_json);
+        Check(checked[1].Find("notes") != nullptr &&
+                  checked[1].Find("notes")->Dump().find("slice()") !=
+                      std::string::npos &&
+                  checked[2].Find("notes") == nullptr &&
+                  result.Find("composition_notes")->IsArray(),
+              "an announced frame names its notes");
+        Check(std::filesystem::exists(directory / "moteur-000005.png") &&
+                  std::filesystem::exists(directory / "after-000009.png"),
+              "both pictures of each frame stay to be looked at");
+    }
+    outcome = registry.Call(backend, "verify_after_export", arguments);
+    Check(!outcome.ok && outcome.error_name == "IoError",
+          "an existing directory is refused, nothing overwritten");
+
+    const std::filesystem::path other =
+        std::filesystem::temp_directory_path() / (GenerateUlid() + "-verif");
+    arguments.Set("image_dir", mcp_json::Value::MakeString(other.string()));
+    arguments.Set("step", mcp_json::Value::MakeInt(2));
+    outcome = registry.Call(backend, "verify_after_export", arguments);
+    Check(!outcome.ok && outcome.error_name == "ValidationFailed",
+          "frames and step together are refused");
+    mcp_json::Value outside = mcp_json::Value::MakeObject();
+    for (const auto& [key, value] : arguments.AsObject()) {
+        if (key != "step" && key != "frames") {
+            outside.Set(key, value);
+        }
+    }
+    mcp_json::Value late = mcp_json::Value::MakeArray();
+    late.Push(mcp_json::Value::MakeInt(10));
+    outside.Set("frames", late);
+    outcome = registry.Call(backend, "verify_after_export", outside);
+    Check(!outcome.ok && outcome.error_name == "ValidationFailed" &&
+              !std::filesystem::exists(other),
+          "a frame past the composition is refused before anything is made");
+    outside.Set("frames", frames);
+    backend.width = 30;
+    backend.rendered.clear();
+    outcome = registry.Call(backend, "verify_after_export", outside);
+    Check(
+        !outcome.ok && outcome.error_name == "ValidationFailed" &&
+            backend.rendered.size() == 1,
+        "an After picture of another size stops the check: " + outcome.message);
+    std::error_code ignored;
+    std::filesystem::remove_all(directory, ignored);
+    std::filesystem::remove_all(other, ignored);
+    SetMotionFrameRenderer(nullptr);
+    SetMotionAfterDescriber(nullptr);
+}
+
+// MB7 -- a reading as read_comp.jsx gives it: neutral names, one of each
+// kind the import handles or names. 25 fps, two seconds.
+const char kReading[] = R"J({"schema":"after-response.v2","ok":true,
+ "project_name":"Essai","path":"","item_count":3,"after_version":"26.0x67",
+ "result":{"schema":"after-comp.v1","comp":{"id":"7","name":"Titre",
+  "width":200,"height":100,"frame_rate":25,"frame_duration":0.04,
+  "duration":2,"pixel_aspect":1,"background":[0,0,0],"motion_blur":false,
+  "layers":[
+   {"id":"11","index":1,"name":"TITRE","kind":"text","enabled":true,
+    "guide":false,"solo":false,"three_d":false,"motion_blur":false,
+    "parent_id":"","start":0,"in_point":0,"out_point":2,"stretch":100,
+    "blending_mode":"NORMAL","track_matte":"ALPHA","is_track_matte":false,
+    "track_matte_layer_id":"12","time_remap":false,"width":200,"height":100,
+    "source":null,
+    "transform":{"match_name":"ADBE Transform Group","name":"Transformer",
+     "properties":{
+      "ADBE Anchor Point":{"name":"Point d'ancrage","value":[0,0,0]},
+      "ADBE Position":{"name":"Position","value":[20,60,0]},
+      "ADBE Position_0":{"name":"Position X","value":0},
+      "ADBE Position_1":{"name":"Position Y","value":0},
+      "ADBE Scale":{"name":"Échelle","value":[100,100,100]},
+      "ADBE Rotate Z":{"name":"Rotation","value":0},
+      "ADBE Opacity":{"name":"Opacité","value":100}},"groups":[]},
+    "masks":{"match_name":"ADBE Mask Parade","name":"Masques",
+     "properties":{},"groups":[]},
+    "effects":{"match_name":"ADBE Effect Parade","name":"Effets",
+     "properties":{},"groups":[]},
+    "styles":false,
+    "text":{"keyed":false,"expression":false,"animators":0,"on_path":false,
+     "text":"TITRE","font":"FakeSans-Bold","font_family":"Fake Sans",
+     "font_style":"Bold","font_size":20,"apply_fill":true,
+     "fill_color":[1,1,1],"apply_stroke":false,"justification":"LEFT_JUSTIFY",
+     "tracking":50,"leading":24,"auto_leading":true,"all_caps":false,
+     "small_caps":false,"faux_bold":false,"faux_italic":false,
+     "baseline_shift":0,"horizontal_scale":1,"vertical_scale":1,
+     "auto_kern":"NO_AUTO_KERN","box_text":false}},
+   {"id":"12","index":2,"name":"Bande","kind":"shape","enabled":true,
+    "guide":false,"solo":false,"three_d":false,"motion_blur":false,
+    "parent_id":"11","start":0,"in_point":0,"out_point":2,"stretch":100,
+    "blending_mode":"NORMAL","track_matte":"NO_TRACK_MATTE",
+    "is_track_matte":true,"track_matte_layer_id":"","time_remap":false,
+    "width":200,"height":100,"source":null,
+    "transform":{"match_name":"ADBE Transform Group","name":"Transformer",
+     "properties":{
+      "ADBE Anchor Point":{"name":"Point d'ancrage","value":[0,0,0]},
+      "ADBE Position":{"name":"Position","value":[0,0,0]},
+      "ADBE Scale":{"name":"Échelle","value":[0,100,100],"keys":[
+       {"t":0,"v":[0,100,100],"in_type":"bezier","out_type":"bezier",
+        "in_ease":[[0,33.333333],[0,33.333333],[0,33.333333]],
+        "out_ease":[[0,33.333333],[0,33.333333],[0,33.333333]]},
+       {"t":0.4,"v":[100,100,100],"in_type":"bezier","out_type":"bezier",
+        "in_ease":[[0,33.333333],[0,33.333333],[0,33.333333]],
+        "out_ease":[[0,33.333333],[0,33.333333],[0,33.333333]]}]},
+      "ADBE Rotate Z":{"name":"Rotation","value":0},
+      "ADBE Opacity":{"name":"Opacité","value":100}},"groups":[]},
+    "masks":null,"effects":null,"styles":false,
+    "contents":{"match_name":"ADBE Root Vectors Group","name":"Contenu",
+     "properties":{},"groups":[
+      {"match_name":"ADBE Vector Group","name":"Rectangle 1","enabled":true,
+       "properties":{},"groups":[
+        {"match_name":"ADBE Vectors Group","name":"Contenu","properties":{},
+         "groups":[
+          {"match_name":"ADBE Vector Shape - Rect","name":"Rectangle Path 1",
+           "enabled":true,"properties":{
+            "ADBE Vector Rect Size":{"name":"Taille","value":[100,30]},
+            "ADBE Vector Rect Position":{"name":"Position","value":[50,-5]},
+            "ADBE Vector Rect Roundness":{"name":"Arrondi","value":0}},
+           "groups":[]},
+          {"match_name":"ADBE Vector Graphic - Fill","name":"Fill 1",
+           "enabled":true,"properties":{
+            "ADBE Vector Fill Color":{"name":"Couleur","value":[1,0,0,1]},
+            "ADBE Vector Fill Opacity":{"name":"Opacité","value":100}},
+           "groups":[]}]},
+        {"match_name":"ADBE Vector Transform Group","name":"Transformer",
+         "properties":{
+          "ADBE Vector Anchor":{"name":"Point d'ancrage","value":[0,0]},
+          "ADBE Vector Position":{"name":"Position","value":[0,0]},
+          "ADBE Vector Scale":{"name":"Échelle","value":[100,100]},
+          "ADBE Vector Rotation":{"name":"Rotation","value":0},
+          "ADBE Vector Group Opacity":{"name":"Opacité","value":100}},
+         "groups":[]}]}]}},
+   {"id":"13","index":3,"name":"Contrôle","kind":"null","enabled":true,
+    "guide":false,"parent_id":"","in_point":0,"out_point":2,"stretch":100,
+    "blending_mode":"NORMAL","track_matte":"NO_TRACK_MATTE",
+    "is_track_matte":false,"width":100,"height":100,"source":null,
+    "transform":{"match_name":"ADBE Transform Group","name":"Transformer",
+     "properties":{},"groups":[]},"masks":null,"effects":null},
+   {"id":"14","index":4,"name":"Scène","kind":"av","enabled":true,
+    "guide":false,"parent_id":"","in_point":0,"out_point":2,"stretch":100,
+    "blending_mode":"NORMAL","track_matte":"NO_TRACK_MATTE",
+    "is_track_matte":false,"width":200,"height":100,
+    "source":{"kind":"comp","id":"3","name":"Scène"},
+    "transform":{"match_name":"ADBE Transform Group","name":"Transformer",
+     "properties":{},"groups":[]},"masks":null,"effects":null},
+   {"id":"15","index":5,"name":"Fond","kind":"av","enabled":true,
+    "guide":false,"parent_id":"","in_point":0.2,"out_point":2,
+    "stretch":100,"blending_mode":"NORMAL","track_matte":"NO_TRACK_MATTE",
+    "is_track_matte":false,"width":200,"height":100,
+    "source":{"kind":"solid","name":"Fond","color":[0,0,1]},
+    "transform":{"match_name":"ADBE Transform Group","name":"Transformer",
+     "properties":{
+      "ADBE Anchor Point":{"name":"Point d'ancrage","value":[100,50,0]},
+      "ADBE Position":{"name":"Position","value":[100,50,0]},
+      "ADBE Scale":{"name":"Échelle","value":[100,100,100]},
+      "ADBE Rotate Z":{"name":"Rotation","value":0,
+       "expression":"time * 25","expression_error":"",
+       "samples_from":5,"samples":[5,6,7,7,7]},
+      "ADBE Opacity":{"name":"Opacité","value":0,"keys":[
+       {"t":0.2,"v":0,"in_type":"linear","out_type":"linear",
+        "in_ease":[[0,16.666667]],"out_ease":[[500,16.666667]]},
+       {"t":0.4,"v":100,"in_type":"linear","out_type":"hold",
+        "in_ease":[[500,16.666667]],"out_ease":[[0,16.666667]]}]}},
+     "groups":[]},
+    "masks":null,"effects":null}]}}})J";
+
+bool FakeFont(const std::string& name, MotionAfterFont& face) {
+    if (name != "FakeSans-Bold") {
+        return false;
+    }
+    face = {"Fake Sans", 700, false};
+    return true;
+}
+
+const mcp_json::Value* Child(const mcp_json::Value& node, size_t index) {
+    const mcp_json::Value* children = node.Find("children");
+    return children != nullptr && children->IsArray() &&
+                   index < children->AsArray().size()
+               ? &children->AsArray()[index]
+               : nullptr;
+}
+
+std::string At(const mcp_json::Value* node, const std::string& path) {
+    const mcp_json::Value* value = node;
+    std::stringstream stream(path);
+    std::string key;
+    while (value != nullptr && std::getline(stream, key, '.')) {
+        value = value->Find(key);
+    }
+    return value == nullptr ? "<absent>" : value->Dump();
+}
+
+bool HasNote(const MotionAfterImportReport& report, const std::string& layer,
+             const std::string& part) {
+    return std::any_of(report.notes.begin(), report.notes.end(),
+                       [&](const MotionAfterImportNote& note) {
+                           return note.layer == layer &&
+                                  note.note.find(part) != std::string::npos;
+                       });
+}
+
+// MB7 -- docs/roadmap/MOTION-BIBLIOTHEQUE-2026-10.md. Each layer a node named
+// after it, in After's stacking order; the matte a clip in the text's own
+// box; keys with After's eases; what is computed, sampled; the rest named.
+void TestImportComposition() {
+    mcp_json::Value reading;
+    std::string parseError;
+    Check(mcp_json::Value::Parse(kReading, reading, parseError),
+          "the reading parses: " + parseError);
+    FakeMeasurer measurer;
+    mcp_json::Value definition;
+    MotionAfterImportReport report;
+    MotionError error;
+    const bool ok = ImportAfterComposition(reading, {}, &FakeFont, measurer,
+                                           definition, report, error);
+    Check(ok, "a reading imports: " + error.code + " " + error.message);
+    Check(At(&definition, "fps") == "25" &&
+              At(&definition, "duration") == "50" &&
+              At(&definition, "width") == "200",
+          "size, rate and length are After's: " + definition.Dump());
+    const mcp_json::Value* root = definition.Find("root");
+    const mcp_json::Value* fond = root ? Child(*root, 0) : nullptr;
+    const mcp_json::Value* bande = root ? Child(*root, 1) : nullptr;
+    const mcp_json::Value* titre = root ? Child(*root, 2) : nullptr;
+    Check(
+        root != nullptr && Child(*root, 3) == nullptr && fond && bande && titre,
+        "three drawn layers, the null and the precomposition left out: " +
+            (root ? root->Dump() : std::string()));
+    if (!fond || !bande || !titre) {
+        return;
+    }
+    // The solid starts at frame 5: a sequence, its keys in its own time.
+    Check(At(fond, "type") == "\"sequence\"" &&
+              At(fond, "id") == "\"Fond#plage\"" && At(fond, "from") == "5" &&
+              At(fond, "duration") == "45",
+          "a layer that starts late is a sequence: " + fond->Dump());
+    const mcp_json::Value* solid = Child(*fond, 0);
+    Check(solid && At(solid, "id") == "\"Fond\"" &&
+              At(solid, "style.backgroundColor") == "\"#0000FF\"" &&
+              At(solid, "style.transformOrigin") == "\"100px 50px\"" &&
+              At(solid, "animate.opacity.interpolate.frames") == "[0,5]" &&
+              At(solid, "animate.opacity.interpolate.values") == "[0,1]" &&
+              At(solid, "animate.opacity.interpolate.easing") == "\"linear\"",
+          "a solid is a box, its fade on its own time: " +
+              (solid ? solid->Dump() : std::string()));
+    Check(solid &&
+              At(solid, "animate.rotate.interpolate.frames") == "[0,1,2,4]" &&
+              At(solid, "animate.rotate.interpolate.values") == "[5,6,7,7]" &&
+              HasNote(report, "Fond",
+                      "Rotation : expression lue image par "
+                      "image, valeurs figées"),
+          "an expression becomes one key per frame where it changes, said: " +
+              (solid ? solid->Dump() : std::string()));
+    // The shape, parented to the text: a box with the text's transform
+    // around the shape's own.
+    Check(At(bande, "id") == "\"TITRE#Bande\"" &&
+              At(bande, "style.translateX") == "20" &&
+              At(bande, "style.translateY") == "60" &&
+              At(bande, "animate") == "<absent>",
+          "a parent is a box around its child, without its opacity: " +
+              bande->Dump());
+    const mcp_json::Value* shape = Child(*bande, 0);
+    Check(shape && At(shape, "id") == "\"Bande\"" &&
+              At(shape, "animate.scaleX.interpolate.frames") == "[0,10]" &&
+              At(shape, "animate.scaleX.interpolate.values") == "[0,1]" &&
+              At(shape, "animate.scaleX.interpolate.easing") ==
+                  "\"cubic-bezier(0.3333, 0, 0.6667, 1)\"" &&
+              At(shape, "style.scaleY") == "<absent>",
+          "After's ease is the segment's cubic-bezier, one axis: " +
+              (shape ? shape->Dump() : std::string()));
+    const mcp_json::Value* group = shape ? Child(*shape, 0) : nullptr;
+    const mcp_json::Value* rectangle = group ? Child(*group, 0) : nullptr;
+    Check(group && At(group, "id") == "\"Rectangle 1\"" && rectangle &&
+              At(rectangle, "type") == "\"box\"" &&
+              At(rectangle, "style.left") == "0" &&
+              At(rectangle, "style.top") == "-20" &&
+              At(rectangle, "style.width") == "100" &&
+              At(rectangle, "style.backgroundColor") == "\"#FF0000\"",
+          "a filled rectangle is a box: " +
+              (group ? group->Dump() : std::string()));
+    // The text: its face, on its baseline (0.8 of the size, the fake
+    // measurer's), the matte a clip in its own box.
+    Check(At(titre, "type") == "\"text\"" &&
+              At(titre, "style.fontFamily") == "\"Fake Sans\"" &&
+              At(titre, "style.fontWeight") == "700" &&
+              At(titre, "style.top") == "-16" &&
+              At(titre, "style.left") == "0" &&
+              At(titre, "style.letterSpacing") == "1" &&
+              At(titre, "style.lineHeight") == "\"24px\"" &&
+              At(titre, "style.translateX") == "20",
+          "a text keeps its face and sits on its baseline: " + titre->Dump());
+    const std::string clip = At(titre, "animate.clipPath.interpolate.values");
+    Check(
+        clip.find("\"polygon(0px -4px, 0px -4px, 0px 26px, 0px 26px)\"") == 1 &&
+            clip.find("polygon(0px -4px, 50px -4px, 50px 26px, 0px 26px)") !=
+                std::string::npos &&
+            clip.find("polygon(0px -4px, 100px -4px, 100px 26px, 0px "
+                      "26px)\"]") != std::string::npos,
+        "the matte is the rectangle, frame by frame, in the text's box "
+        "(half open at frame 5, After's ease): " +
+            clip);
+    Check(HasNote(report, "Scène", "précomposition") &&
+              HasNote(report, "TITRE", "cache de piste de « Bande »") &&
+              !HasNote(report, "TITRE", "crénage") && report.layers == 5,
+          "what is left out or read is named: " +
+              std::to_string(report.notes.size()));
+
+    // Without the face, the import says the render will refuse it.
+    report = {};
+    Check(ImportAfterComposition(reading, {}, {}, measurer, definition, report,
+                                 error) &&
+              HasNote(report, "TITRE", "absente de cette machine"),
+          "a missing face is named");
+    // A replaced face is resolved by its replacement, and named.
+    MotionAfterImportOptions options;
+    options.fonts["FakeSans-Bold"] = "Autre-Regular";
+    report = {};
+    ImportAfterComposition(reading, options, &FakeFont, measurer, definition,
+                           report, error);
+    Check(HasNote(report, "TITRE", "remplacée par Autre-Regular") &&
+              HasNote(report, "TITRE", "absente de cette machine"),
+          "a replacement is named, and resolved like any face");
+
+    mcp_json::Value other;
+    mcp_json::Value::Parse(R"({"comp": {"name": "x"}})", other, parseError);
+    Check(!ImportAfterComposition(other, {}, &FakeFont, measurer, definition,
+                                  report, error) &&
+              error.code == "InvalidValue",
+          "what is not a reading is refused");
+}
+
+bool FakeImport(const MotionAfterImportRequest& request,
+                mcp_json::Value& definition, MotionAfterImportReport& report,
+                MotionError& error) {
+    FakeMeasurer measurer;
+    return ImportAfterComposition(*request.comp, request.options, &FakeFont,
+                                  measurer, definition, report, error);
+}
+
+// The bridge answers read_comp with kReading; the composition added is
+// kept.
+class ImportBackend final : public McpBackend {
+public:
+    bool SnapshotDocument(Document& document, std::string&) override {
+        document = {};
+        return true;
+    }
+
+    bool ApplyOperation(Operation operation, std::string& resultJson,
+                        std::string& errorName, std::string& message) override {
+        const auto* add =
+            std::get_if<AddMotionCompositionOperation>(&operation);
+        if (add == nullptr) {
+            errorName = "UnsupportedOperation";
+            message = "only an added composition here";
+            return false;
+        }
+        added.push_back(add->composition);
+        resultJson = R"({"revision": 1})";
+        return true;
+    }
+
+    bool RunAfterRequest(const std::string& requestJson,
+                         std::string& resultJson, std::string& errorName,
+                         std::string& message) override {
+        ++calls;
+        if (!ParseAfterBridgeRequest(requestJson, request, message)) {
+            errorName = "ValidationFailed";
+            return false;
+        }
+        resultJson = kReading;
+        return true;
+    }
+
+    bool Undo(std::string&, std::string& errorName,
+              std::string& message) override {
+        errorName = "UnsupportedOperation";
+        message = "not used here";
+        return false;
+    }
+
+    bool Redo(std::string&, std::string& errorName,
+              std::string& message) override {
+        errorName = "UnsupportedOperation";
+        message = "not used here";
+        return false;
+    }
+
+    bool Describe(std::string& json, std::string&) override {
+        json = "{}";
+        return true;
+    }
+
+    int calls = 0;
+    AfterBridgeRequest request;
+    std::vector<DocumentComposition> added;
+};
+
+void TestImportTool() {
+    const McpToolRegistry registry;
+    ImportBackend backend;
+    mcp_json::Value arguments = mcp_json::Value::MakeObject();
+    arguments.Set("comp_id", mcp_json::Value::MakeString("7"));
+
+    SetMotionAfterImporter(nullptr);
+    McpToolCallOutcome outcome =
+        registry.Call(backend, "import_after_comp", arguments);
+    Check(!outcome.ok && outcome.error_name == "UnsupportedOperation" &&
+              backend.calls == 0,
+          "without Core Text the import is refused, After untouched");
+
+    SetMotionAfterImporter(&FakeImport);
+    const std::string kept = (std::filesystem::temp_directory_path() /
+                              (GenerateUlid() + "-lecture.json"))
+                                 .string();
+    arguments.Set("reading_path", mcp_json::Value::MakeString(kept));
+    outcome = registry.Call(backend, "import_after_comp", arguments);
+    mcp_json::Value result;
+    std::string parseError;
+    mcp_json::Value::Parse(outcome.result_json, result, parseError);
+    Check(outcome.ok && backend.calls == 1 &&
+              backend.request.method == AfterBridgeMethod::ReadComp &&
+              backend.request.arguments.Find("comp_id")->AsString() == "7" &&
+              backend.added.size() == 1 && backend.added[0].name == "Titre" &&
+              At(&result, "composition_id") ==
+                  "\"" + backend.added[0].id + "\"" &&
+              At(&result, "layers") == "5" && result.Find("notes") != nullptr &&
+              std::filesystem::exists(kept),
+          "the comp is read, translated and added by name, the reading "
+          "kept: " +
+              outcome.message + outcome.result_json);
+    outcome = registry.Call(backend, "import_after_comp", arguments);
+    Check(!outcome.ok && outcome.error_name == "IoError" && backend.calls == 1,
+          "a reading is never written over a file, nor After asked");
+    arguments.Set("reading_path", mcp_json::Value::MakeString("lecture.json"));
+    outcome = registry.Call(backend, "import_after_comp", arguments);
+    Check(!outcome.ok && outcome.error_name == "ValidationFailed",
+          "a relative reading path is refused");
+    mcp_json::Value bad = mcp_json::Value::MakeObject();
+    bad.Set("comp_id", mcp_json::Value::MakeString("7"));
+    mcp_json::Value fonts = mcp_json::Value::MakeObject();
+    fonts.Set("FakeSans-Bold", mcp_json::Value::MakeInt(3));
+    bad.Set("fonts", fonts);
+    outcome = registry.Call(backend, "import_after_comp", bad);
+    Check(!outcome.ok && outcome.error_name == "ValidationFailed",
+          "fonts maps a name to a name");
+    bad = mcp_json::Value::MakeObject();
+    bad.Set("comp_id", mcp_json::Value::MakeString("7"));
+    bad.Set("name", mcp_json::Value::MakeString("Carton importé"));
+    outcome = registry.Call(backend, "import_after_comp", bad);
+    Check(outcome.ok && backend.added.size() == 2 &&
+              backend.added[1].name == "Carton importé",
+          "a name of its own: " + outcome.message);
+    std::error_code ignored;
+    std::filesystem::remove(kept, ignored);
+    SetMotionAfterImporter(nullptr);
+}
 }  // namespace
 
 int main() {
@@ -1909,7 +3070,15 @@ int main() {
     TestHighlightUnitBounds();
     TestBoundHighlightProgress();
     TestKeysBetweenFrames();
+    TestOriginAndSkew();
     TestGsapCurvesNoted();
+    TestRowFlow();
+    TestNoteScopes();
+    TestPngLuma();
+    TestVerifyTool();
+    TestExportEdges();
+    TestImportComposition();
+    TestImportTool();
     if (failures > 0) {
         std::cerr << failures << " failure(s)\n";
         return 1;

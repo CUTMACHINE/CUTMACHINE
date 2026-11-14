@@ -1,6 +1,7 @@
 #include "MotionSafeArea.h"
 
 #include "Json.h"
+#include "MotionGeometry.h"
 
 #include <algorithm>
 #include <cmath>
@@ -37,21 +38,26 @@ Affine Translation(double x, double y) {
 }
 
 // The renderer's Transform (MotionRender.mm): translate to the centre plus
-// the node's translation, rotate, scale, translate back.
+// the node's translation, rotate, scale, translate back. MOTION-WEB-2026-10
+// MW5 -- about the transform origin, with the skew before the scale.
 Affine NodeTransform(const MotionEvaluatedNode& node) {
-    const double centerX = node.box.x + (node.box.width / 2.0);
-    const double centerY = node.box.y + (node.box.height / 2.0);
+    const double centerX = MotionPivotX(node);
+    const double centerY = MotionPivotY(node);
     const double radians = node.rotate * M_PI / 180.0;
     Affine rotation;
     rotation.a = std::cos(radians);
     rotation.b = std::sin(radians);
     rotation.c = -std::sin(radians);
     rotation.d = std::cos(radians);
+    Affine skew;
+    skew.c = std::tan(node.skew_x * M_PI / 180.0);
+    skew.b = std::tan(node.skew_y * M_PI / 180.0);
     Affine scale;
     scale.a = node.scale_x;
     scale.d = node.scale_y;
     return Translation(centerX + node.translate_x, centerY + node.translate_y)
         .Then(rotation)
+        .Then(skew)
         .Then(scale)
         .Then(Translation(-centerX, -centerY));
 }

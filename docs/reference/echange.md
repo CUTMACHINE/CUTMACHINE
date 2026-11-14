@@ -4,9 +4,9 @@
 
 Une timeline s'écrit dans les deux formats que lisent les autres éditeurs :
 OpenTimelineIO (`.otio`, un fichier JSON) et Final Cut Pro XML (`.fcpxml`,
-version 1.10). Pour DaVinci Resolve, la route mesurée reste
-[`export_resolve_xml`](resolve.md) ; pour une liste par piste,
-[l'EDL](edl.md).
+version 1.10). Pour DaVinci Resolve, le montage entier part par
+[`send_to_resolve`](resolve.md) (PA16), et un cadrage animé par
+`export_resolve_xml` ; pour une liste par piste, [l'EDL](edl.md).
 
 **Rien de ce que ces deux exports écrivent n'a été ouvert dans un éditeur**,
 ni relu par la bibliothèque OpenTimelineIO : les fichiers suivent les formats

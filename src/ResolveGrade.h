@@ -125,10 +125,11 @@ struct ResolveDatabaseTimeline {
 // contrast was measured at HDR 1000 alone. Field 7 is the colour science,
 // found the same way on 6 November 2026: absent for DaVinci YRGB, 2 for
 // DaVinci YRGB Color Managed v1, 6 for ACEScc, 8 for ACEScct, 10 for
-// DaVinci YRGB Color Managed (today's, v2). A node's lift, gamma, gain and
-// offset render the same in YRGB, Color Managed v2 and ACEScct; its saturation
-// moves by up to 18 codes in ACEScct and its temperature and tint follow
-// another law there. `read` is false, with `unread` saying why, when the
+// DaVinci YRGB Color Managed (today's, v2). A node renders the same in YRGB
+// and Color Managed v2; in ACEScct it grades ACEScct codes, and its gamma,
+// saturation and temperature and tint follow laws of their own there
+// (measured on 7 and 14 November 2026, rendered with `acescct`,
+// ColorEffects.h). `read` is false, with `unread` saying why, when the
 // configuration could not be read: then no contrast, saturation,
 // temperature or tint is rendered.
 struct ResolveProjectSettings {
@@ -145,9 +146,10 @@ struct ResolveProjectSettings {
 };
 
 // GR16 -- the colour sciences each part of a node was measured in, by the
-// name ResolveProjectSettings gives them: the lift, gamma, gain, offset and
-// Lum Mix in DaVinci YRGB, Color Managed v2 and ACEScct; the saturation,
-// contrast, temperature and tint in DaVinci YRGB and Color Managed v2 only.
+// name ResolveProjectSettings gives them: since 14 November 2026 the same
+// three for both, DaVinci YRGB, Color Managed v2 and ACEScct (the contrast
+// there with the colour-space-aware tools off only); never Color Managed v1
+// or ACEScc.
 bool ResolveScienceRendersPrimaries(const std::string& science);
 bool ResolveScienceRendersBalance(const std::string& science);
 

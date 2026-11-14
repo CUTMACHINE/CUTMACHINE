@@ -1028,6 +1028,11 @@ const std::vector<EdlMarkerColor>& EdlResolveMarkerColors() {
     return ResolveColors();
 }
 
+bool EdlResolveMarkerColorWord(const std::string& hex, std::string& word,
+                               bool& exact, std::string& error) {
+    return WordOfColor(ResolveColors(), hex, word, exact, error);
+}
+
 bool BuildEdlMarkers(const Document& document, EdlMarkerStyle style,
                      const std::string& startTimecode,
                      EdlMarkerExport& exported, std::string& error) {

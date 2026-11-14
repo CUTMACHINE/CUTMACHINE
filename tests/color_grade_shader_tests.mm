@@ -318,6 +318,28 @@ int Run() {
                             context});
             // GR16 -- a temperature and a tint: their matrix ends the
             // block, alone and after a contrast.
+            // GR16 -- a node graded in ACEScct: its saturation about
+            // Rec.709's luma, three weights read from the block.
+            std::map<std::string, EffectParamValue> aces = resolveNode;
+            aces["acescct"] = {1, 1};
+            aces["saturation"] = {3, 2};
+            runs.push_back({"resolve primaries, ACEScct saturation, " + space,
+                            {Effect("color.resolve_primaries", aces)},
+                            context});
+            // GR16 -- in ACEScct (14 November 2026): the node's own codes,
+            // its gamma passing the negative values its lifts make, the
+            // temperature and tint on AP0 light to the power 1/2.4, then a
+            // contrast without the aware tools.
+            std::map<std::string, EffectParamValue> acesFull = aces;
+            acesFull["temperature"] = {-1500, 1};
+            acesFull["tint"] = {30, 1};
+            acesFull["contrast"] = {13, 10};
+            acesFull["pivot"] = {3, 10};
+            runs.push_back(
+                {"resolve primaries, ACEScct contrast, temperature and tint, " +
+                     space,
+                 {Effect("color.resolve_primaries", acesFull)},
+                 context});
             std::map<std::string, EffectParamValue> balanced = resolveNode;
             balanced["temperature"] = {-1500, 1};
             balanced["tint"] = {30, 1};
@@ -405,9 +427,22 @@ int Run() {
             // that comes out at -5.5, and 1.6e-5 in linear BT.709 -- 0.016
             // of a 10-bit code. A temperature and a tint (6 November 2026)
             // multiply those differences by their matrix: 5.2e-4 under
-            // ACEScct, at a code of 1.18 that comes out at -3.7.
+            // ACEScct, at a code of 1.18 that comes out at -3.7. A saturation
+            // of 1.5 (the ACEScct run, 7 November 2026) stretches them the
+            // same way: 5.7e-4 under ACEScct at a code of 1.07 that comes out
+            // at -2.5, 2.0e-5 in linear BT.2020 at a light of 1.3. A node
+            // graded in ACEScct (14 November 2026) holds ACEScct codes from
+            // every space, and its temperature and tint go to light and back
+            // through pow: 4.6e-4 of the value at most, in linear BT.709 at
+            // a light of 1.18 that comes out at -3.6, and 2.9e-4 on the
+            // display signal at a code of 1.3.
+            const bool acesNode =
+                name.find("ACEScct saturation") != std::string::npos ||
+                name.find("ACEScct contrast") != std::string::npos;
+            const bool stretched = acesNode;
             const bool balanced =
-                name.find("temperature and tint") != std::string::npos;
+                name.find("temperature and tint") != std::string::npos ||
+                stretched;
             const bool extremeLight =
                 context.space == ColorGradeSpace::AcesCct &&
                 (name.rfind("temperature", 0) == 0 ||
@@ -415,11 +450,12 @@ int Run() {
             const bool contrasted =
                 name.find("contrast,") != std::string::npos &&
                 name.rfind("resolve primaries", 0) == 0;
-            Check(worst < (extremeLight ? (contrasted ? 2e-3
-                                           : balanced ? 1e-3
-                                                      : 5e-4)
-                           : contrasted ? 3e-5
-                                        : 1e-5),
+            Check(worst < (acesNode                    ? 1e-3
+                           : extremeLight              ? (contrasted ? 2e-3
+                                                          : balanced ? 1e-3
+                                                                     : 5e-4)
+                           : (contrasted || stretched) ? 3e-5
+                                                       : 1e-5),
                   agree.str());
             std::cout << "shader parity, " << name << ": worst " << worst
                       << '\n';

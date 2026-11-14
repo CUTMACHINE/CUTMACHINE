@@ -346,6 +346,8 @@ foreach(_script IN ITEMS
         # MA1 -- build_motion_project, also run by hand from After.
         motion_import.jsx
         open_project_copy.jsx
+        # MB7 -- read_comp, what import_after_comp translates.
+        read_comp.jsx
         render_frame.jsx
         replace_footage.jsx
         set_layer_state.jsx
@@ -607,6 +609,10 @@ add_library(cutmachine_model
     src/MotionMedia.cc
     # MOTION-AFTER-2026-09 -- a composition described for After Effects.
     src/MotionAfterExport.cc
+    # MA2 -- a project After built, compared with the engine frame by frame.
+    src/MotionAfterVerify.cc
+    # MB7 -- an After composition read by the bridge, as a composition.
+    src/MotionAfterImport.cc
     # REM3 -- where an evaluated node lands once transformed, and the
     # raster effects on what it paints.
     src/MotionEffects.cc
@@ -685,6 +691,8 @@ add_library(cutmachine_model
     src/Proxy.cc
     src/Relink.cc
     src/ResolveExport.cc
+    # PA16 -- docs/roadmap/PARITE-2026-11.md. The send to Resolve, whole.
+    src/ResolveSend.cc
     # DEC15 (GR15) -- docs/roadmap/GRADE-RESOLVE-2026-10.md. What was graded
     # in a Resolve project, read from a copy of its database.
     src/ResolveGrade.cc
@@ -777,6 +785,9 @@ target_compile_definitions(cutmachine_model PRIVATE
     CUTMACHINE_DIARIZATION_PYTHON_DEFAULT="${CMAKE_BINARY_DIR}/diarization/env/bin/python"
     CUTMACHINE_DIARIZATION_SCRIPT_DEFAULT="${CMAKE_SOURCE_DIR}/scripts/diarize.py"
     CUTMACHINE_DIARIZATION_MODEL_DEFAULT="${CMAKE_BINARY_DIR}/diarization/models/wespeaker_en_voxceleb_resnet34_LM.onnx"
+    # PA16 -- docs/roadmap/PARITE-2026-11.md. The Resolve bridge the send
+    # runs; CUTMACHINE_RESOLVE_BRIDGE and CUTMACHINE_RESOLVE_PYTHON override.
+    CUTMACHINE_RESOLVE_BRIDGE_DEFAULT="${CMAKE_SOURCE_DIR}/sidecar/resolve_bridge.py"
 )
 target_link_libraries(cutmachine_model PUBLIC
     PkgConfig::FFMPEG
@@ -1792,8 +1803,10 @@ if(BUILD_TESTING)
 
     # MOTION-AFTER-2026-09 -- the description After builds a project from,
     # read without After.
+    # MA2 -- verify_after_export, its pictures made by tests/golden_image.cc.
     add_executable(cutmachine_motion_after_export_tests
-        tests/motion_after_export_tests.cc)
+        tests/motion_after_export_tests.cc
+        tests/golden_image.cc)
     target_link_libraries(cutmachine_motion_after_export_tests PRIVATE
         cutmachine_model)
     add_test(NAME cutmachine_motion_after_export_tests
@@ -3349,7 +3362,12 @@ if(BUILD_TESTING)
             "CUTMACHINE_MOTION_LIBRARY=${CMAKE_CURRENT_BINARY_DIR}/test-motion-library"
             # RM3 -- no suite cuts cartons with a model installed on the
             # machine it runs on; a suite that checks the models sets its own.
-            "CUTMACHINE_MODELS=off")
+            "CUTMACHINE_MODELS=off"
+            # PA16 -- no suite sends a timeline to the Resolve open on the
+            # machine: the bridge named here does not exist, and the
+            # descriptors stay in the build tree.
+            "CUTMACHINE_RESOLVE_BRIDGE=${CMAKE_CURRENT_BINARY_DIR}/test-no-resolve-bridge.py"
+            "CUTMACHINE_RESOLVE_SEND_DIR=${CMAKE_CURRENT_BINARY_DIR}/test-resolve-send")
     endforeach()
 
     # Test hygiene -- the same variables for a suite run by hand, outside

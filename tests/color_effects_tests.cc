@@ -285,6 +285,35 @@ void TestResolvePrimaries() {
             "no slope", "a straight contrast of 2 is refused");
     refuses(ResolveStage({{"color_space_aware", {1, 2}}}), "is 0 or 1",
             "a project setting is 0 or 1");
+    // GR16 -- in ACEScct (7 and 14 November 2026): everything the stage
+    // takes was measured, the contrast with the colour-space-aware tools off
+    // only.
+    refuses(ResolveStage({{"acescct", {2, 1}}}), "is 0 or 1",
+            "acescct is 0 or 1");
+    Check(ValidateColorEffect(ResolveStage({{"acescct", {1, 1}},
+                                            {"saturation", {3, 2}},
+                                            {"gain_r", {6, 5}},
+                                            {"contrast", {6, 5}},
+                                            {"pivot", {2, 5}},
+                                            {"contrast_s_curve", {1, 1}},
+                                            {"temperature", {400, 1}},
+                                            {"tint", {-20, 1}}}),
+                              error),
+          "in ACEScct, a saturation, a gain, a contrast, a temperature and a "
+          "tint are taken: " +
+              error);
+    refuses(ResolveStage({{"acescct", {1, 1}},
+                          {"color_space_aware", {1, 1}},
+                          {"contrast", {6, 5}}}),
+            "contrast 6/5 is not measured in ACEScct with the "
+            "colour-space-aware tools",
+            "in ACEScct, a contrast with the aware tools is refused by name");
+    Check(ValidateColorEffect(ResolveStage({{"acescct", {1, 1}},
+                                            {"color_space_aware", {1, 1}},
+                                            {"temperature", {400, 1}}}),
+                              error),
+          "in ACEScct, the aware tools change nothing but the contrast: " +
+              error);
     Check(ValidateColorEffect(ResolveStage({{"contrast", {9, 5}},
                                             {"pivot", {87, 200}},
                                             {"color_space_aware", {1, 1}},
@@ -356,15 +385,94 @@ void TestResolvePrimaries() {
                            1.0) < 1.5e-3,
               "a temperature of 4000 warms a grey and keeps its luma");
     }
+    {
+        // GR16 -- the saturation turns about DaVinci YRGB's luma, or
+        // Rec.709's in ACEScct: three weights in the block, after it.
+        const ResolvedColorGrade yrgb =
+            ResolveColorGrade({ResolveStage({{"saturation", {3, 2}}})}, {});
+        const ResolvedColorGrade aces = ResolveColorGrade(
+            {ResolveStage({{"saturation", {3, 2}}, {"acescct", {1, 1}}})}, {});
+        Check(yrgb.count == 1 && aces.count == 1 && yrgb.data[37] == 0.21f &&
+                  yrgb.data[38] == 0.70f && yrgb.data[39] == 0.09f &&
+                  aces.data[37] == 0.2126f && aces.data[38] == 0.7152f &&
+                  aces.data[39] == 0.0722f && yrgb.data[40] == 0.0f &&
+                  aces.data[40] == 1.0f,
+              "the saturation's luma weights follow the block's saturation: "
+              "DaVinci YRGB's, or Rec.709's in ACEScct, and the block says "
+              "which");
+        // Y + 1.5 (x - Y), Y with each set of weights.
+        const std::array<float, 3> bluish = {0.2f, 0.2f, 0.5f};
+        const std::array<float, 3> a = ApplyResolvedColorGrade(bluish, yrgb);
+        const std::array<float, 3> b = ApplyResolvedColorGrade(bluish, aces);
+        const float lumaYrgb = (0.21f * 0.2f) + (0.70f * 0.2f) + (0.09f * 0.5f);
+        const float luma709 =
+            (0.2126f * 0.2f) + (0.7152f * 0.2f) + (0.0722f * 0.5f);
+        Check(
+            std::abs(a[0] - (lumaYrgb + (1.5f * (0.2f - lumaYrgb)))) < 1e-6f &&
+                std::abs(b[0] - (luma709 + (1.5f * (0.2f - luma709)))) < 1e-6f,
+            "a saturation of 1.5 turns about DaVinci YRGB's luma, or "
+            "Rec.709's in ACEScct");
+    }
+    {
+        // GR16 -- in ACEScct a negative value goes through the gamma
+        // unchanged; in DaVinci YRGB it keeps its sign, -(|v|^e).
+        const auto gammaOf = [](int32_t acescct) {
+            return ResolveColorGrade(
+                {ResolveStage({{"lift_r", {-1, 5}},
+                               {"gamma_r", {1, 4}},
+                               {"lum_mix", {0, 1}},
+                               {"acescct", {acescct, 1}}})},
+                {});
+        };
+        // On black, v = a = L G / (1 - L + L G) = -1/5 at a gain of 1.
+        const float yrgb =
+            ApplyResolvedColorGrade({0.0f, 0.5f, 0.5f}, gammaOf(0))[0];
+        const float aces =
+            ApplyResolvedColorGrade({0.0f, 0.5f, 0.5f}, gammaOf(1))[0];
+        Check(std::abs(yrgb + std::pow(0.2f, 0.8f)) < 1e-6f &&
+                  std::abs(aces + 0.2f) < 1e-6f,
+              "a negative value keeps its sign through the gamma in DaVinci "
+              "YRGB, and goes through unchanged in ACEScct");
+        // GR16 -- the temperature and tint in ACEScct: on a grey, a
+        // constant in log, the AP0 light of each channel multiplied by its
+        // row sum to the power 2.4 (14 November 2026).
+        const ResolvedColorGrade warm = ResolveColorGrade(
+            {ResolveStage({{"temperature", {1000, 1}}, {"acescct", {1, 1}}})},
+            {});
+        const std::array<double, 9> m = ResolveWhiteBalanceMatrix(1000, 0);
+        std::array<double, 3> gain{};
+        for (size_t row = 0; row < 3; ++row) {
+            for (size_t k = 0; k < 3; ++k) {
+                gain.at(row) +=
+                    kResolveAp0ToAp1.at((row * 3) + k) *
+                    std::pow(m[k * 3] + m[(k * 3) + 1] + m[(k * 3) + 2], 2.4);
+            }
+        }
+        double worst = 0.0;
+        for (const float code : {0.3f, 0.4135884f, 0.6f}) {
+            const std::array<float, 3> out =
+                ApplyResolvedColorGrade({code, code, code}, warm);
+            for (size_t row = 0; row < 3; ++row) {
+                const double expected =
+                    code + (std::log2(gain.at(row)) / 17.52);
+                worst = std::max(worst, std::abs(out[row] - expected));
+            }
+        }
+        Check(worst < 1e-5,
+              "in ACEScct, a temperature moves a grey by a constant in log, "
+              "its AP0 light by the row sums of its matrix to the power 2.4 "
+              "(miss " +
+                  std::to_string(worst) + ")");
+    }
 
     // --- Against Resolve's own cubes ----------------------------------
     const std::vector<ResolveCase> cases = ReadResolveCubes();
-    Check(cases.size() == 295 && std::all_of(cases.begin(), cases.end(),
+    Check(cases.size() == 519 && std::all_of(cases.begin(), cases.end(),
                                              [](const ResolveCase& one) {
                                                  return one.points.size() ==
                                                         125;
                                              }),
-          "the reference holds 295 cases of 125 lattice points each");
+          "the reference holds 519 cases of 125 lattice points each");
     // GR16 -- the worst miss of each folder of the measurement: the
     // primaries alone, then the contrast in each of the project settings,
     // then the temperature and the tint (6 November 2026), whose last two
@@ -376,9 +484,16 @@ void TestResolvePrimaries() {
               one.name + " is a valid stage: " + message);
         const ResolvedColorGrade grade = ResolveColorGrade({one.effect}, {});
         std::string folder = one.name.substr(0, one.name.find('/'));
-        if ((folder == "chaine" || folder == "hasard") &&
+        if ((folder == "chaine" || folder == "hasard" ||
+             folder == "acescct-chaine" || folder == "acescct-hasard" ||
+             folder == "acescct-temoin") &&
             one.effect.params.count("contrast") != 0)
             folder += " avec contraste";
+        // GR16 -- in ACEScct, the two full nodes (every primary and a
+        // saturation) apart from the single settings.
+        if (folder == "acescct" &&
+            one.name.find("noeud_type") != std::string::npos)
+            folder += " nœud complet";
         for (const std::array<float, 6>& point : one.points) {
             const std::array<float, 3> out =
                 ApplyResolvedColorGrade({point[0], point[1], point[2]}, grade);
@@ -406,6 +521,18 @@ void TestResolvePrimaries() {
     Check(std::max(worstOf["yrgb"].first, worstOf["serie2"].first) <= 1e-4,
           "every lattice point of every case of the primaries lands within a "
           "tenth of a 10-bit code of Resolve's own cube");
+    // GR16 -- the same thirteen nodes posed in a project in ACEScct (6
+    // November 2026), the saturation about Rec.709's luma: each setting
+    // alone within a tenth of a code. The two full nodes missed by 4 codes
+    // where a channel went below 0 before the gamma, until the gamma passed
+    // a negative value unchanged there (14 November 2026).
+    Check(worstOf.count("acescct") == 1 && worstOf["acescct"].first <= 1e-4,
+          "in ACEScct, every single setting of the primaries and the "
+          "saturation lands within a tenth of a code of Resolve's cube");
+    Check(worstOf.count("acescct nœud complet") == 1 &&
+              worstOf["acescct nœud complet"].first <= 1e-4,
+          "in ACEScct, a full node lands within a tenth of a code of "
+          "Resolve's cube");
     // GR16 -- the temperature and the tint: alone, together, with every
     // other primary, and on the 12 nodes drawn at random without a
     // contrast, the measured law
@@ -439,6 +566,37 @@ void TestResolvePrimaries() {
           "without them, within a code and a half");
     Check(worstOf["contraste-lin"].first <= 2.0 / 1023,
           "with the S-curve switched off, within two codes");
+    // GR16 -- in ACEScct (14 November 2026), the folders above posed again
+    // in the probe project, then 24 nodes drawn at random for it alone
+    // (acescct-temoin), never used to look for the laws. Without a
+    // contrast, within two codes: the worst points are values above 100 in
+    // linear light whose balanced channel nearly cancels, where Resolve's
+    // floats round (p99 of the full cubes 0.035). The contrast alone lands
+    // as in DaVinci YRGB, whose cubes it gives to the last digit. With a
+    // contrast and a temperature, up to 24 codes: the temperature takes a
+    // channel of a bright saturated colour far below 0 (to -15), and below 0
+    // Resolve's contrast goes on along a slope 13 % flatter to 32 % steeper
+    // than the table's first step (measured, gr16-acescct/extrap;
+    // GRADE-RESOLVE-2026-10, "Ce qui reste"). Where no channel goes below
+    // -0.05, 4 codes.
+    const std::map<std::string, double> acescctMost = {
+        {"acescct-temperature", 2.0},
+        {"acescct-teinte", 2.0},
+        {"acescct-grille", 2.0},
+        {"acescct-chaine", 2.0},
+        {"acescct-hasard", 2.0},
+        {"acescct-temoin", 2.0},
+        {"acescct-contraste", 1.5},
+        {"acescct-contraste-lin", 2.0},
+        {"acescct-chaine avec contraste", 24.0},
+        {"acescct-hasard avec contraste", 24.0},
+        {"acescct-temoin avec contraste", 24.0}};
+    for (const auto& [folder, most] : acescctMost) {
+        Check(
+            worstOf.count(folder) == 1 && worstOf[folder].first <= most / 1023,
+            "in ACEScct, " + folder + " lands within " + std::to_string(most) +
+                " codes of Resolve's cubes");
+    }
 
     // --- The contrast table, off its grid -----------------------------
     {
@@ -532,6 +690,44 @@ void TestResolvePrimaries() {
               "under ACEScct the stage grades DaVinci Intermediate, as a "
               "Resolve timeline in DaVinci Wide Gamut does (miss " +
                   std::to_string(miss) + ")");
+    }
+    {
+        // GR16 -- a node graded in ACEScct grades ACEScct codes in AP1: an
+        // engine grading in ACEScct hands its own values over, a linear one
+        // goes through AP1 (a grey stays a grey) and ACEScct.
+        const auto doubled = [](ColorGradeSpace space) {
+            return ResolveColorGrade({ResolveStage({{"gain_r", {2, 1}},
+                                                    {"gain_g", {2, 1}},
+                                                    {"gain_b", {2, 1}},
+                                                    {"gain_master", {2, 1}},
+                                                    {"acescct", {1, 1}}})},
+                                     {space, 0});
+        };
+        const ResolvedColorGrade aces = doubled(ColorGradeSpace::AcesCct);
+        const ResolvedColorGrade linear =
+            doubled(ColorGradeSpace::LinearRec709);
+        double codes = 0.0;
+        double light = 0.0;
+        for (const double code : {0.1, 0.3, 0.4135884, 0.55}) {
+            for (const float channel : ApplyResolvedColorGrade(
+                     {static_cast<float>(code), static_cast<float>(code),
+                      static_cast<float>(code)},
+                     aces))
+                codes = std::max(codes, std::abs(channel - (2.0 * code)));
+            const double x = DecodeAcesCct(code);
+            const double expected = DecodeAcesCct(2.0 * code);
+            for (const float channel : ApplyResolvedColorGrade(
+                     {static_cast<float>(x), static_cast<float>(x),
+                      static_cast<float>(x)},
+                     linear))
+                light =
+                    std::max(light, std::abs(channel - expected) / expected);
+        }
+        Check(codes < 1e-6 && light < 1e-4,
+              "a node graded in ACEScct grades ACEScct codes, from an engine "
+              "in ACEScct (miss " +
+                  std::to_string(codes) + ") or in linear Rec.709 (relative " +
+                  std::to_string(light) + ")");
     }
     Check(
         EncodeDaVinciIntermediate(0.18) > 0.33 &&

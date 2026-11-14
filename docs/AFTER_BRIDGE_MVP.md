@@ -86,6 +86,8 @@ Aucun de ces outils ne demande de projet CUTMACHINE ouvert : ils adressent un
 | `after_duplicate_layer` | copie un calque avec son animation intacte |
 | `after_save_project` | enregistre le projet actif |
 | `export_motion_after` | construit une composition de motion en projet modifiable (MOTION-AFTER-2026-09 MA1) |
+| `verify_after_export` | fait rendre des images à After par `render_frame`, les compare au moteur et classe chaque écart : dans la tolérance, annoncé par le bilan de l'export, ou inexpliqué (MA2) |
+| `import_after_comp` | lit une composition entière par la méthode `read_comp` (`after-comp.v1`, lecture seule) et l'ajoute au projet CUTMACHINE ouvert, un nœud par calque, ce qui n'est pas traduit dans `notes` (MOTION-BIBLIOTHEQUE-2026-10 MB7) ; `--import-after-comp` rejoue une lecture enregistrée |
 
 Les mêmes requêtes strictes sont accessibles sans projet CUTMACHINE :
 

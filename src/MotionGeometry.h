@@ -50,10 +50,17 @@ struct MotionHomography {
     double LocalScale(double x, double y) const;
 };
 
+// MOTION-WEB-2026-10 MW5 -- the point a node's scale, rotate and skew turn
+// about, in composition pixels: its transformOrigin in its box, the centre
+// by default (bit for bit the centre it always was).
+double MotionPivotX(const MotionEvaluatedNode& node);
+double MotionPivotY(const MotionEvaluatedNode& node);
+
 // REM4 -- a node's transform in its parent's space, 4x4 row-major, for
-// points of its plane: translate, rotateX, rotateY, rotate, scale about the
-// centre of its box, then `perspective` (0: none) about (originX,
-// originY), its parent's centre.
+// points of its plane: translate, rotateX, rotateY, rotate, skew (MW5),
+// scale about its transform origin (the centre of its box by default),
+// then `perspective` (0: none) about (originX, originY), its parent's
+// centre.
 void MotionNodeMatrix3D(const MotionEvaluatedNode& node, double perspective,
                         double originX, double originY, double matrix[16]);
 

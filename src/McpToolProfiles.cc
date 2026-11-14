@@ -81,6 +81,7 @@ const std::vector<McpToolProfile>& McpToolProfiles() {
           // delivery
           "check_timeline", "export_timeline", "export_timelines",
           "verify_export", "timeline_stats", "export_resolve_xml",
+          "send_to_resolve",
           // motion: a title card laid on the film
           "add_motion_template", "list_motion_templates", "place_motion_clip"}},
         // PA10 -- for an agent that cuts a reel or an ad: a clip's
@@ -112,6 +113,7 @@ const std::vector<McpToolProfile>& McpToolProfiles() {
           // delivery
           "check_timeline", "export_timeline", "export_timelines",
           "verify_export", "timeline_stats", "export_resolve_xml",
+          "send_to_resolve",
           // motion: a title card laid on the film
           "add_motion_template", "list_motion_templates", "render_motion_frame",
           // speech and captions, for a face to camera

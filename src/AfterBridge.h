@@ -34,6 +34,9 @@ enum class AfterBridgeMethod {
     // MA1 -- docs/roadmap/MOTION-AFTER-2026-09.md. A new project built from
     // an after-motion.v1 description (MotionAfterExport.h) and saved.
     BuildMotionProject,
+    // MB7 -- docs/roadmap/MOTION-BIBLIOTHEQUE-2026-10.md. One composition
+    // read whole (after-comp.v1) for the importer (MotionAfterImport.h).
+    ReadComp,
 };
 
 struct AfterBridgeRequest {

@@ -1,6 +1,7 @@
 #include "TimelineAudioReport.h"
 #include "Ulid.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>

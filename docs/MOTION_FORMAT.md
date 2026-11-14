@@ -118,7 +118,7 @@ opacité » : une table, pas du code.
 | Type | Rôle | Champs propres |
 |---|---|---|
 | `fill` | couche plein cadre (`AbsoluteFill` : position absolue sur tout le parent, colonne flexbox) | mêmes styles que `box` |
-| `box` | conteneur flexbox (direction `row` par défaut, comme en CSS) | style CSS : `flexDirection`, `justifyContent`, `alignItems`, `alignSelf`, `alignContent`, `flexWrap`, `flexGrow`, `flexShrink`, `flexBasis`, `gap`, `rowGap`, `columnGap`, `padding`, `margin`, `width`/`height` et bornes (px, %, `auto`), `position: absolute` + `top/right/bottom/left/inset`, `backgroundColor`, `borderRadius` ; M1b : `clipPath` ; REM2 : `overflow` ; REM3 : `backgroundImage`, `maskImage`, `filter` ; REM4 : `perspective`, `rotateX`, `rotateY` ; plus tard : `border` |
+| `box` | conteneur flexbox (direction `row` par défaut, comme en CSS) | style CSS : `flexDirection`, `justifyContent`, `alignItems`, `alignSelf`, `alignContent`, `flexWrap`, `flexGrow`, `flexShrink`, `flexBasis`, `gap`, `rowGap`, `columnGap`, `padding`, `margin`, `width`/`height` et bornes (px, %, `auto`), `position: absolute` + `top/right/bottom/left/inset`, `backgroundColor`, `borderRadius` ; M1b : `clipPath` ; REM2 : `overflow` ; REM3 : `backgroundImage`, `maskImage`, `filter` ; REM4 : `perspective`, `rotateX`, `rotateY` ; MW5 : `transformOrigin`, `skewX`, `skewY` ; plus tard : `border` |
 | `text` | texte mesuré par le moteur | `content` ; style `fontFamily`, `fontWeight`, `fontStyle` (REM3), `fontVariantNumeric` (MM2), `fontSize`, `lineHeight`, `letterSpacing`, `wordSpacing`, `textTransform`, `textAlign`, `color`, `textStroke` ; `units`, `ranges`, `stagger`, `highlights` (MB3) ; plus tard : `boxDecoration` |
 | `image` | image du paquet ou d'un fichier | `src`, `objectFit` |
 | `video` | images (et son, sauf `muted`) d'un média, REM2 | `media` (ULID d'un média du projet) ou `src` (fichier), `startFrom`, `endAt`, `playbackRate`, `muted` ; style `objectFit`, `volume` |
@@ -177,8 +177,8 @@ courants, le refus dit quoi écrire à la place (MB6) :
 
 | CSS | Ici |
 |---|---|
-| `transform-origin` | `scale` et `rotate` tournent autour du centre de la boîte ; pour grandir depuis un bord, animer `width`/`height`, un `clipPath` `inset()`, ou compenser par `translateX`/`translateY` |
-| `transform`, `translate` | des propriétés à part : `translateX`, `translateY`, `scale`, `scaleX`, `scaleY`, `rotate`, `rotateX`, `rotateY` |
+| `transform`, `translate` | des propriétés à part : `translateX`, `translateY`, `scale`, `scaleX`, `scaleY`, `rotate`, `rotateX`, `rotateY`, `skewX`, `skewY`, autour de `transformOrigin` |
+| `skew` | `skewX` et `skewY`, en degrés |
 | `white-space`, `text-wrap` | un texte passe à la ligne à la largeur de sa boîte ; pour garder une ligne entière, une boîte plus large que la ligne, `flexShrink: 0` |
 | `box-shadow`, `text-shadow` | `filter` : `drop-shadow(x y flou couleur)` ou `glow(rayon couleur force)` |
 | `display`, `visibility` | toute boîte est un conteneur flex ; `visible` masque en libérant la place, `opacity` en la gardant |
@@ -234,9 +234,8 @@ courants, le refus dit quoi écrire à la place (MB6) :
   non réduite (`"4/2"`) ou entière (`"5/1"`) sont refusés
   (`InvalidAnimation`) : une seule écriture par instant. Le canvas place une
   clé ajoutée à sa vraie position et n'adresse que les clés posées sur une
-  image ; l'export After pose une clé entre deux images sur l'image d'avant
-  et le bilan le dit, tant qu'After n'a pas été vérifié sur ce point ;
-  `humanize` laisse telles quelles les pièces qui en ont.
+  image ; l'export After la pose à son instant (MW2, voir « Vers After
+  Effects ») ; `humanize` laisse telles quelles les pièces qui en ont.
 - `spring` : `from`, `to`, `delay` (images), `mass`, `damping`, `stiffness`,
   `overshootClamping`, défauts de Remotion (1, 10, 100). Évalué en forme
   analytique : même valeur au même instant quelle que soit la cadence.
@@ -702,6 +701,34 @@ fonction garde ses chiffres. Le descripteur le dit
 Vers After : After n'applique aucune fonction OpenType à un calque texte ;
 le bilan de l'export nomme chaque texte dont les chiffres changeraient.
 
+## Origine et inclinaison (MW5)
+
+MOTION-WEB-2026-10, MW5. Ce que les pages web et After écrivent le plus
+souvent et que le format n'avait pas : le point autour duquel un nœud
+tourne, et l'inclinaison.
+
+```json
+{ "type": "box", "style": { "width": 40, "height": 160, "transformOrigin": "50% 0", "skewX": -8 },
+  "animate": { "rotate": { "interpolate": { "frames": [0, 30], "values": [-20, 20] } } } }
+```
+
+- `transformOrigin` : le point autour duquel `scale`, `rotate`, `skewX` et
+  `skewY` tournent (et `rotateX`, `rotateY`), comme `transform-origin` de
+  CSS dans le plan : un ou deux mots parmi `left`, `center`, `right`,
+  `top`, `bottom`, un pourcentage de la boîte ou des pixels (`"left top"`,
+  `"50% 100%"`, `"0 12px"`). Un seul mot règle x (ou y pour `top`,
+  `bottom`), l'autre axe reste au centre. Le centre par défaut. Fixe, pas
+  animable (`InvalidAnimation`) ; une troisième valeur (la profondeur de
+  CSS) est refusée. Les unités d'un texte (`units`) tournent toujours
+  autour de leur propre centre. Vers After, c'est le point d'ancrage du
+  calque.
+- `skewX`, `skewY` : l'inclinaison de `skewX()` et `skewY()` de CSS, en
+  degrés, animables. L'ordre est `translate() rotate() skew() scale()` :
+  l'échelle d'abord, puis l'inclinaison, puis la rotation (celui de GSAP
+  en `skewType: "simple"` et de Lottie). Le `skewX` par défaut de GSAP
+  (`"compensated"`) est un `skewX` suivi d'un `scaleY` de cos(angle). Pas
+  d'inclinaison dans les unités d'un texte.
+
 ## Perspective (REM4)
 
 REMOTION-PARITY-2026-09, REM4. Une carte peut tourner en profondeur, ce
@@ -714,9 +741,10 @@ qu'un motion éditorial demande (C19) ; ce n'est pas un moteur 3D.
 ```
 
 - `rotateX`, `rotateY` : rotations en degrés autour des axes horizontal et
-  vertical du nœud passant par le centre de sa boîte, animables. Avec
-  `translateX/Y`, `rotate` et `scale`, l'ordre est celui des fonctions CSS
-  `translate() rotateX() rotateY() rotate() scale()`.
+  vertical du nœud passant par le centre de sa boîte (son
+  `transformOrigin`, MW5), animables. Avec `translateX/Y`, `rotate`,
+  `skewX/Y` et `scale`, l'ordre est celui des fonctions CSS
+  `translate() rotateX() rotateY() rotate() skew() scale()`.
 - `perspective` (sur le **parent**, comme en CSS) : distance en pixels
   entre l'œil et le plan du parent, `none` par défaut ; elle donne de la
   profondeur à ses enfants, autour du centre du parent
@@ -957,6 +985,44 @@ côtés) :
   parent (MA8) ;
 - `letterSpacing` devient l'approche du paragraphe en millièmes de
   cadratin, arrondie à l'entier qu'After exige (MA9, dit au bilan).
+- une clé entre deux images (`"5/2"`, MW1) part à son instant : la
+  description l'écrit `"f": "5/2"` et `motion_import.jsx` la pose à 5/2 de
+  durée d'image, qu'After garde (MW2, construit et rendu dans After 26 le
+  14 novembre 2026 : 0,02 niveau d'écart moyen avec le moteur sur seize
+  images, à 25 et à 29,97 i/s). After range les instants au 1/800 d'image
+  près, mesuré à 29,97 i/s : une clé à 1/3 d'image y tombe à 267/800
+  (0,02 ms). Ce que la mise en page bouge reste lu aux images entières, de
+  l'image d'avant le début à l'image d'après la fin ;
+- `transformOrigin` devient le point d'ancrage du calque, la position
+  suivant l'ancre ; sur une boîte que la mise en page redimensionne,
+  l'ancre reste au centre (dit au bilan) (MW5) ;
+- `skewX`, `skewY` deviennent l'effet Transformer d'After, dernier de la
+  pile, autour de l'ancre : `skewX(a)` une oblique de −a sur l'axe 90,
+  `skewY(a)` une de a sur l'axe 0 (mesuré dans After 26). Sur un calque de
+  forme ou de texte, que After pixellise après sa transformation, le pivot
+  et l'axe suivent l'ancre et la rotation par expression ; sur un métrage
+  ou une précomposition, l'angle est réglé pour une échelle non uniforme,
+  exact tant qu'elle tient. Un groupe incliné devient une précomposition
+  (un null ne transmet pas d'effet). Comparé au moteur, chaque forme tombe
+  sur les mêmes pixels ; un texte incliné s'adoucit un peu, l'effet
+  rééchantillonnant le texte pixellisé. Le bilan dit `skewX` et `skewY`
+  ensemble (seul `skewX` passe) et une inclinaison sous une échelle non
+  uniforme qui bouge, sur un métrage ou une précomposition (approchée)
+  (MW5).
+- une rangée de textes (une boîte en ligne, sans retour à la ligne, dont
+  chaque enfant est un texte d'une ligne aligné à gauche que le flux
+  place) reste une rangée : chaque texte reçoit une expression sur sa
+  position x, et sur son ancre s'il tourne ou change d'échelle, qui le
+  déplace de la variation de largeur des textes qui le poussent, mesurée
+  par After (`sourceRectAtTime`, là où finissent les lettres) contre ce
+  qu'il a mesuré à la construction. Sans retouche, chaque variation vaut 0
+  et les pixels sont ceux du moteur ; un mot changé dans After pousse les
+  autres comme le moteur, au pixel près tant que sa dernière lettre ne
+  change pas (sinon de l'écart entre les approches latérales des deux
+  dernières lettres : 5 px pour COU → COUR à 300 px). Les coefficients
+  viennent du moteur : chaque texte élargi de 64 px, la mise en page
+  refaite (1 pour un mot qui suit dans une rangée calée au début, ±0,5
+  autour d'un mot centré) (MA3) ;
 - un `clipPath` (`inset()`, `polygon()`, `circle()`, `ellipse()`) devient
   un masque du calque, à clés s'il s'anime : le soulignement qui s'écrit,
   le volet (MA11). Une boîte à `overflow: hidden` aux coins arrondis, ou
@@ -989,14 +1055,33 @@ côtés) :
   Une vidéo se cadre comme une image ; muette, ou à une autre vitesse
   (`stretch`), son son est coupé, comme dans le moteur (MA11).
 
+Une boîte qui découpe, une séquence ou un groupe plus grand que la plus
+grande composition d'After (30 000 px) est coupé à elle, centrée sur son
+parent, et le bilan le dit (MA7).
+
+**Vérifier (MA2).** `verify_after_export` (MCP) compare le projet que
+l'export a construit au moteur, image par image : After rend chaque image
+par la méthode `render_frame` du pont (le projet ouvert dans After, comme
+l'export le laisse), le moteur rend la même, et l'écart est la luma
+moyenne de Pillow (`convert("L")`, chaque image sur du noir), la mesure employée
+depuis le 29 septembre. Une image au-delà de la tolérance (0,5 niveau
+par défaut) est « annoncée » quand une note du bilan sur un nœud dessiné à
+cette image l'explique (un `slice()` seulement tant qu'il coupe),
+« inexpliquée » sinon ; les notes sur toute la composition sont listées à
+part et n'expliquent aucune image. Les deux images de chaque image restent
+dans `image_dir`. Sur le teaser v7 (le 14 novembre 2026) : 95 images sur 98
+à 0,5 niveau près (médiane 0,22), les trois autres annoncées par
+`slice()`, en 2 min 15 s.
+
 Ce qui ne se traduit pas à l'identique est dit dans le bilan de la commande :
 `slice()` devient un effet Onde progressive approché, un spring garde sa
 valeur de référence, un tracé que la mise en page déplace garde sa
 géométrie de référence, et After n'applique pas `fontVariantNumeric`. Un
-texte dans une police variable est dit aussi : After ne reçoit que le nom
-PostScript de l'instance, sans réglage d'axe ; une instance nommée n'a pas
-encore été vérifiée dans After, une graisse entre deux instances nommées
-n'y est pas traduite (MW7).
+texte dans une police variable sort à sa graisse : la description donne sa
+famille, sa graisse et sa pente, et `motion_import.jsx` demande à After
+l'instance à ce point de l'axe `wght` (`postScriptNameForDesignVector`),
+nommée ou non, les autres axes à leur défaut (MW7, comparé dans After 26 :
+même chasse que le moteur).
 Un film de marque écrit sans détour (découpes, couleurs et tailles
 animées, dix-huit sons) passe en 54 compositions et
 292 calques, sans autre note que l'approche arrondie ; dix-huit images
@@ -1015,6 +1100,41 @@ plus ceux du moteur : le bilan nomme chaque piste convertie. Les nœuds
 sont nommés, jamais devinés d'après leurs clés ; un nœud nommé sans piste
 en paliers réguliers est refusé. Sur le teaser v7, les deux textures
 passent de 1 572 clés à quatre expressions (2 028 → 456 clés en tout).
+
+## Depuis After Effects (MOTION-BIBLIOTHEQUE-2026-10 MB7)
+
+L'autre sens : `import_after_comp` (MCP) lit une composition du projet
+ouvert dans After par le pont (méthode `read_comp`, lecture seule) et
+l'ajoute au projet, comme `add_motion_composition`. Une lecture gardée
+(`reading_path`) se rejoue sans After :
+
+```sh
+cutmachine --import-after-comp <lecture.json> <composition.json> \
+    [--font <PostScript d'After>=<PostScript>]... [--font-dir <dossier>]...
+```
+
+Par équivalences, comme l'export : un calque devient un nœud nommé comme
+lui (ancre → `transformOrigin`, position − ancre → `translateX`/`Y`,
+échelle, rotation, opacité), un parent une boîte autour de lui sans son
+opacité, un calque qui ne couvre pas la composition une `sequence`. Les
+clés gardent leurs instants et, par segment, la `cubic-bezier` que tracent
+les vitesses et influences d'After ; un maintien devient `step-end`. Un
+texte garde sa face (son nom PostScript résolu en famille, graisse et
+pente), son corps, son interlignage en pixels et son approche, posé sur sa
+ligne de base ; un rectangle seulement rempli devient une boîte, une autre
+forme un `path` ; l'effet Remplir devient la couleur ; un cache de piste
+alpha fait d'un seul rectangle devient un `clipPath`.
+
+Ce qu'After calcule et que le format ne dit pas (expression, trajectoire
+courbe, cache) est lu image par image : une clé où la valeur change, et la
+propriété n'est plus vivante. Ce qui n'a pas d'équivalent n'est pas traduit
+(précompositions, métrages, masques, animateurs de texte, autres effets,
+modes de fusion, 3D). Les deux sont dans `notes`, calque par calque, comme
+le crénage d'After, que le moteur ne fait pas, et une police absente (le
+rendu la refuse, `FontMissing`) ou remplacée (`fonts`). Sur un cartouche de
+titre fait à la main (14 novembre 2026) : la boîte et sa découpe aux mêmes
+pixels qu'`aerender` à chaque image, l'écart du texte (0,64 niveau au plus)
+dû à une paire crénée par After.
 
 ## Humaniser (MA6)
 

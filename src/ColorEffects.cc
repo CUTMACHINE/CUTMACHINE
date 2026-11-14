@@ -221,7 +221,8 @@ bool ValidateResolvePrimaries(const ClipEffect& effect, std::string& error) {
             high = 100;
         } else if (name == "lum_mix" || name == "pivot") {
             high = 1;
-        } else if (name == "color_space_aware" || name == "contrast_s_curve") {
+        } else if (name == "color_space_aware" || name == "contrast_s_curve" ||
+                   name == "acescct") {
             if (value.den <= 0 || (value.num != 0 && value.num != value.den)) {
                 error = "color.resolve_primaries parameter '" + name + "' (" +
                         FractionText(value) + ") is 0 or 1";
@@ -249,7 +250,7 @@ bool ValidateResolvePrimaries(const ClipEffect& effect, std::string& error) {
                     "' (expected lift_, gamma_ or gain_ followed by r, g, b "
                     "or master, offset_ followed by r, g or b, saturation, "
                     "lum_mix, contrast, pivot, color_space_aware, "
-                    "contrast_s_curve, temperature or tint)";
+                    "contrast_s_curve, temperature, tint or acescct)";
             return false;
         }
         if (!WithinUnit(value, low, high)) {
@@ -273,6 +274,18 @@ bool ValidateResolvePrimaries(const ClipEffect& effect, std::string& error) {
         error =
             "color.resolve_primaries: a straight contrast of 2 has no "
             "slope (contrast_s_curve 0)";
+        return false;
+    }
+    // GR16 -- in ACEScct the contrast was measured with the colour-space-
+    // aware tools off, as every ACEScct project of the library has them
+    // (14 November 2026); on, it moves by 40 to 150 codes from that, and
+    // from the aware contrast of DaVinci YRGB.
+    if (ParamOr(effect, "acescct", {0, 1}).num != 0 &&
+        ParamOr(effect, "color_space_aware", {0, 1}).num != 0 &&
+        contrast.num != contrast.den) {
+        error = "color.resolve_primaries contrast " + FractionText(contrast) +
+                " is not measured in ACEScct with the colour-space-aware "
+                "tools (acescct 1, color_space_aware 1)";
         return false;
     }
     // 1 - L + L G is what the law divides by: zero or below, black would sit
@@ -847,13 +860,17 @@ Matrix3 RgbToXyzFromPrimaries(const std::array<double, 8>& c) {
 const std::array<double, 8> kDaVinciWideGamut = {
     0.8000, 0.3130, 0.1682, 0.9877, 0.0790, -0.1155, 0.3127, 0.3290};
 
-// Linear light of a grading space to linear DaVinci Wide Gamut: through XYZ,
-// adapted by Bradford from the space's white to D65, which only AP1's
-// differs from. A grey stays a grey.
-Matrix3 ToDaVinciWideGamut(ColorGradeSpace space) {
+// Linear light of a grading space to the linear light a Resolve node grades
+// in: DaVinci Wide Gamut, or AP1 for a node graded in ACEScct (GR16, 14
+// November 2026). Through XYZ, adapted by Bradford from the space's white to
+// the node's (D65, or AP1's own): a grey stays a grey, and AP1 to AP1 is the
+// identity.
+Matrix3 ToResolveNodeGamut(ColorGradeSpace space, bool acescct) {
     const Matrix3& bradford = kBradford;
     const Matrix3 toXyz = RgbToXyz(space);
-    const Matrix3 wideToXyz = RgbToXyzFromPrimaries(kDaVinciWideGamut);
+    const Matrix3 wideToXyz = acescct
+                                  ? RgbToXyz(ColorGradeSpace::AcesCct)
+                                  : RgbToXyzFromPrimaries(kDaVinciWideGamut);
     std::array<double, 3> source{};
     std::array<double, 3> target{};
     for (int row = 0; row < 3; ++row) {
@@ -958,7 +975,9 @@ bool ResolveResolvePrimaries(const ClipEffect& effect, ColorGradeSpace space,
                              std::vector<float>& data) {
     data.assign(kResolvePrimariesDataSize, 0.0f);
     data[0] = static_cast<float>(space);
-    const Matrix3 to = ToDaVinciWideGamut(space);
+    // GR16 -- a node graded in ACEScct grades ACEScct codes in AP1.
+    const bool acescct = ParamOrDefault(effect, "acescct", 0.0) != 0.0;
+    const Matrix3 to = ToResolveNodeGamut(space, acescct);
     const Matrix3 from = Inverse(to);
     for (int row = 0; row < 3; ++row) {
         for (int column = 0; column < 3; ++column) {
@@ -1000,6 +1019,13 @@ bool ResolveResolvePrimaries(const ClipEffect& effect, ColorGradeSpace space,
     data[34] = static_cast<float>(offsetLuma);
     data[35] = static_cast<float>(ParamOrDefault(effect, "lum_mix", 1.0));
     data[36] = static_cast<float>(saturation);
+    // GR16 -- the luma the saturation turns about: DaVinci YRGB's weights,
+    // or Rec.709's in a project in ACEScct (measured on 7 November 2026).
+    const std::array<float, 3> saturationLuma =
+        acescct ? std::array<float, 3>{0.2126f, 0.7152f, 0.0722f}
+                : std::array<float, 3>{0.21f, 0.70f, 0.09f};
+    std::copy(saturationLuma.begin(), saturationLuma.end(), data.begin() + 37);
+    data[40] = acescct ? 1.0f : 0.0f;
     // GR16 -- the contrast, when it moves: where it acts, then its curve
     // (ResolveContrastTable.h).
     std::array<float, kResolveContrastSamples> curve{};
@@ -1012,12 +1038,13 @@ bool ResolveResolvePrimaries(const ClipEffect& effect, ColorGradeSpace space,
         end);
     if (contrasted) {
         data.resize(kResolvePrimariesContrastDataSize);
-        data[37] = aware ? 2.0f : 1.0f;
-        data[38] = end;
-        std::copy(curve.begin(), curve.end(), data.begin() + 39);
+        data[41] = aware ? 2.0f : 1.0f;
+        data[42] = end;
+        std::copy(curve.begin(), curve.end(), data.begin() + 43);
     }
     // GR16 -- the temperature and the tint, last in the block, first in the
-    // law: their matrix on the node's values.
+    // law: their matrix on the node's values (on AP0 light to the power
+    // 1/2.4 in ACEScct, ApplyResolvePrimaries).
     const double temperature = ParamOrDefault(effect, "temperature", 0.0);
     const double tint = ParamOrDefault(effect, "tint", 0.0);
     const bool balanced = temperature != 0.0 || tint != 0.0;
@@ -1336,54 +1363,90 @@ float SignedPower(float value, float exponent) {
                         : std::pow(value, exponent);
 }
 
+// GR16 -- a Resolve gamma: a negative value keeps its sign in DaVinci YRGB
+// and Color Managed v2, and goes through unchanged in ACEScct (measured on
+// 14 November 2026, where the mirrored power missed full nodes by 4 codes).
+float ResolveGammaPower(float value, float exponent, bool acescct) {
+    return acescct && value < 0.0f ? value : SignedPower(value, exponent);
+}
+
+std::array<float, 3> MultiplyRows(const float* matrix,
+                                  const std::array<float, 3>& value) {
+    std::array<float, 3> out{};
+    for (size_t row = 0; row < 3; ++row) {
+        out[row] = (matrix[row * 3] * value[0]) +
+                   (matrix[(row * 3) + 1] * value[1]) +
+                   (matrix[(row * 3) + 2] * value[2]);
+    }
+    return out;
+}
+
 // GR16 -- color.resolve_primaries, as shader.metal's applyResolvePrimaries,
-// step for step: to DaVinci Intermediate under colour management, Resolve's
-// law (ColorEffects.h), and back. `count` is the block's size: with a
-// contrast from kResolvePrimariesContrastDataSize on, with a temperature
-// and tint when ResolveBlockBalanced says so.
+// step for step: to the node's values under colour management (DaVinci
+// Intermediate in DaVinci Wide Gamut, or ACEScct in AP1 for a node graded
+// in ACEScct, block[40]), Resolve's law (ColorEffects.h), and back. `count`
+// is the block's size: with a contrast from
+// kResolvePrimariesContrastDataSize on, with a temperature and tint when
+// ResolveBlockBalanced says so.
 std::array<float, 3> ApplyResolvePrimaries(std::array<float, 3> color,
                                            const float* block, int32_t count) {
     const bool contrasted = count >= kResolvePrimariesContrastDataSize;
     const auto space =
         static_cast<ColorGradeSpace>(static_cast<int32_t>(block[0]));
-    const bool managed = space != ColorGradeSpace::Display;
+    const bool acescct = block[40] != 0.0f;
+    // Under colour management the working value goes to the node's values;
+    // an engine grading in ACEScct already holds a node's in ACEScct.
+    const bool converted = space != ColorGradeSpace::Display &&
+                           !(acescct && space == ColorGradeSpace::AcesCct);
     std::array<float, 3> node = color;
-    if (managed) {
+    if (converted) {
         std::array<float, 3> light = color;
         if (space == ColorGradeSpace::AcesCct) {
             for (float& channel : light)
                 channel = static_cast<float>(DecodeAcesCct(channel));
         }
+        const std::array<float, 3> wide = MultiplyRows(block + 1, light);
         for (size_t row = 0; row < 3; ++row) {
-            const float wide = block[1 + row * 3] * light[0] +
-                               block[2 + row * 3] * light[1] +
-                               block[3 + row * 3] * light[2];
-            node[row] = static_cast<float>(EncodeDaVinciIntermediate(wide));
+            node[row] = static_cast<float>(
+                acescct ? EncodeAcesCct(wide[row])
+                        : EncodeDaVinciIntermediate(wide[row]));
         }
     }
     if (ResolveBlockBalanced(count)) {
-        // The temperature and tint come first, on the node's values.
+        // The temperature and tint come first, on the node's values; in
+        // ACEScct, on AP0 light taken to the power 1/2.4.
         const float* matrix = block + count - kResolveWhiteBalanceDataSize;
-        const std::array<float, 3> in = node;
-        for (size_t row = 0; row < 3; ++row) {
-            node[row] = (matrix[row * 3] * in[0]) +
-                        (matrix[(row * 3) + 1] * in[1]) +
-                        (matrix[(row * 3) + 2] * in[2]);
+        if (acescct) {
+            std::array<float, 3> light{};
+            for (size_t row = 0; row < 3; ++row)
+                light[row] = static_cast<float>(DecodeAcesCct(node[row]));
+            std::array<float, 3> power =
+                MultiplyRows(kResolveAp1ToAp0.data(), light);
+            for (float& channel : power)
+                channel = SignedPower(channel, 1.0f / kResolveAcesBalancePower);
+            power = MultiplyRows(matrix, power);
+            for (float& channel : power)
+                channel = SignedPower(channel, kResolveAcesBalancePower);
+            light = MultiplyRows(kResolveAp0ToAp1.data(), power);
+            for (size_t row = 0; row < 3; ++row)
+                node[row] = static_cast<float>(EncodeAcesCct(light[row]));
+        } else {
+            node = MultiplyRows(matrix, node);
         }
     }
     std::array<float, 3> out{};
     for (size_t channel = 0; channel < 3; ++channel) {
-        out[channel] = SignedPower(block[19 + channel] +
-                                       (block[22 + channel] * node[channel]) +
-                                       block[25 + channel],
-                                   block[28 + channel]);
+        out[channel] = ResolveGammaPower(
+            block[19 + channel] + (block[22 + channel] * node[channel]) +
+                block[25 + channel],
+            block[28 + channel], acescct);
     }
-    const float target = SignedPower(
-        block[31] + (block[32] * Luma(node)) + block[34], block[33]);
+    const float target = ResolveGammaPower(
+        block[31] + (block[32] * Luma(node)) + block[34], block[33], acescct);
     const float lumMix = block[35];
-    const int32_t mode = contrasted ? static_cast<int32_t>(block[37]) : 0;
-    const float* curve = block + 39;
-    const float end = contrasted ? block[38] : 1.0f;
+    const int32_t mode = contrasted ? static_cast<int32_t>(block[41]) : 0;
+    const float* curve = block + 43;
+    const float end = contrasted ? block[42] : 1.0f;
     if (mode == 1) {
         // Without the aware tools the contrast acts on each channel before
         // the luma is taken back, toward the contrast of the masters' luma.
@@ -1410,22 +1473,22 @@ std::array<float, 3> ApplyResolvePrimaries(std::array<float, 3> color,
             out[channel] = ResolveContrastFromHlg(code[channel] + shift);
     }
     if (block[36] != 1.0f) {
+        // DaVinci YRGB's weights, or Rec.709's in ACEScct (block[37..39]).
         const float luma =
-            (0.21f * out[0]) + (0.70f * out[1]) + (0.09f * out[2]);
+            (block[37] * out[0]) + (block[38] * out[1]) + (block[39] * out[2]);
         for (float& channel : out)
             channel = luma + (block[36] * (channel - luma));
     }
-    if (!managed) return out;
+    if (!converted) return out;
     std::array<float, 3> wide{};
     for (size_t channel = 0; channel < 3; ++channel)
-        wide[channel] =
-            static_cast<float>(DecodeDaVinciIntermediate(out[channel]));
-    for (size_t row = 0; row < 3; ++row) {
-        color[row] = block[10 + row * 3] * wide[0] +
-                     block[11 + row * 3] * wide[1] +
-                     block[12 + row * 3] * wide[2];
-        if (space == ColorGradeSpace::AcesCct)
-            color[row] = static_cast<float>(EncodeAcesCct(color[row]));
+        wide[channel] = static_cast<float>(
+            acescct ? DecodeAcesCct(out[channel])
+                    : DecodeDaVinciIntermediate(out[channel]));
+    color = MultiplyRows(block + 10, wide);
+    if (space == ColorGradeSpace::AcesCct) {
+        for (float& channel : color)
+            channel = static_cast<float>(EncodeAcesCct(channel));
     }
     return color;
 }

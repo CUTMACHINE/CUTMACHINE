@@ -336,6 +336,8 @@ bool IsTimelineReadingTool(const std::string& name) {
         // PA1 -- the OTIO and FCPXML files of one timeline.
         "export_otio",
         "export_fcpxml",
+        // PA16 -- sends one timeline to Resolve.
+        "send_to_resolve",
         // R1 -- the rectangle of one clip of one timeline.
         "list_clip_framing",
         // IA4 -- a window of one timeline, rendered as its export would be.
@@ -1731,6 +1733,8 @@ const std::vector<std::pair<std::string, McpToolClass>>& ToolClassTable() {
         {"remove_motion_composition", C::JournaledEdit},
         {"edit_motion_composition", C::JournaledEdit},
         {"humanize_motion_composition", C::JournaledEdit},
+        // MB7 -- reads After, adds the composition as add_motion_composition.
+        {"import_after_comp", C::JournaledEdit},
         {"insert_motion_clip", C::JournaledEdit},
         {"place_motion_clip", C::JournaledEdit},
         {"set_clip_motion_props", C::JournaledEdit},
@@ -1786,6 +1790,10 @@ const std::vector<std::pair<std::string, McpToolClass>>& ToolClassTable() {
         {"after_duplicate_layer", C::External},
         {"after_save_project", C::External},
         {"export_motion_after", C::External},
+        // MA2 -- After made to render each frame it checks.
+        {"verify_after_export", C::External},
+        // PA16 -- a timeline built in the project open in Resolve.
+        {"send_to_resolve", C::External},
         // GENERATIF-2026-10 GN2 -- a proposal is only this session's; a
         // generation is paid to fal.ai, then ingested and marked.
         {"propose_generation", C::Session},

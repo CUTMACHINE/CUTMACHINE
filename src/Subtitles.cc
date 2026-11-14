@@ -385,15 +385,54 @@ int64_t SrtMilliseconds(RationalTime time, bool* rounded) {
 
 bool WriteSrt(const std::vector<SubtitleCue>& cues, const std::string& path,
               std::string& error, size_t* roundedTimestamps) {
+    // Everything is formatted before the file is opened: a cue refused
+    // halfway used to leave a truncated SRT behind, the cues before it
+    // written and the rest missing, next to an error nobody reads twice.
+    std::string text;
+    size_t rounded = 0;
+    if (!FormatSrt(cues, text, error, &rounded)) {
+        if (roundedTimestamps != nullptr) *roundedTimestamps = 0;
+        return false;
+    }
+    std::ofstream output(path, std::ios::binary | std::ios::trunc);
+    if (!output) {
+        error = "unable to create SRT file";
+        return false;
+    }
+    output << text;
+    if (!output) {
+        error = "unable to write SRT file";
+        return false;
+    }
+    if (roundedTimestamps != nullptr) *roundedTimestamps = rounded;
+    return true;
+}
+
+std::vector<SubtitleCue> CaptionTrackCues(const Document& document,
+                                          const DocumentTrack& track) {
+    std::vector<const DocumentClip*> ordered;
+    for (const DocumentClip& clip : track.clips)
+        // A disabled carton is not delivered (ClipEnabled.h).
+        if (ClipIsSeen(document.sequence, clip)) ordered.push_back(&clip);
+    std::stable_sort(ordered.begin(), ordered.end(),
+                     [](const DocumentClip* left, const DocumentClip* right) {
+                         return left->timeline_in < right->timeline_in;
+                     });
+    std::vector<SubtitleCue> cues;
+    cues.reserve(ordered.size());
+    for (const DocumentClip* clip : ordered)
+        cues.push_back({clip->timeline_in, clip->duration, clip->caption_text});
+    return cues;
+}
+
+bool FormatSrt(const std::vector<SubtitleCue>& cues, std::string& formatted,
+               std::string& error, size_t* roundedTimestamps) {
     error.clear();
     if (roundedTimestamps != nullptr) *roundedTimestamps = 0;
     if (cues.empty()) {
         error = "timeline contains no visible subtitles";
         return false;
     }
-    // Everything is formatted before the file is opened: a cue refused
-    // halfway used to leave a truncated SRT behind, the cues before it
-    // written and the rest missing, next to an error nobody reads twice.
     std::ostringstream text;
     size_t rounded = 0;
     try {
@@ -423,16 +462,7 @@ bool WriteSrt(const std::vector<SubtitleCue>& cues, const std::string& path,
                 exception.what();
         return false;
     }
-    std::ofstream output(path, std::ios::binary | std::ios::trunc);
-    if (!output) {
-        error = "unable to create SRT file";
-        return false;
-    }
-    output << text.str();
-    if (!output) {
-        error = "unable to write SRT file";
-        return false;
-    }
+    formatted = text.str();
     if (roundedTimestamps != nullptr) *roundedTimestamps = rounded;
     return true;
 }

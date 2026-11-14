@@ -113,6 +113,7 @@ std::optional<AfterBridgeMethod> MethodFromName(const std::string& name) {
     if (name == "add_layer") return AfterBridgeMethod::AddLayer;
     if (name == "duplicate_layer") return AfterBridgeMethod::DuplicateLayer;
     if (name == "save_project") return AfterBridgeMethod::SaveProject;
+    if (name == "read_comp") return AfterBridgeMethod::ReadComp;
     if (name == "build_motion_project") {
         return AfterBridgeMethod::BuildMotionProject;
     }
@@ -177,6 +178,8 @@ std::string ScriptName(AfterBridgeMethod method) {
         // the description it is pointed at.
         case AfterBridgeMethod::BuildMotionProject:
             return "motion_import.jsx";
+        case AfterBridgeMethod::ReadComp:
+            return "read_comp.jsx";
     }
     return {};
 }
@@ -306,6 +309,11 @@ bool ValidateAfterArguments(AfterBridgeMethod method, const Value& arguments,
         case AfterBridgeMethod::DescribeProject:
         case AfterBridgeMethod::ListComps:
         case AfterBridgeMethod::ListFootage:
+            break;
+        case AfterBridgeMethod::ReadComp:
+            allowed = {"comp_id"};
+            if (!RequiredArgumentString(arguments, "comp_id", error))
+                return false;
             break;
         case AfterBridgeMethod::DescribeComp:
             allowed = {"comp_id", "layer_id"};
@@ -913,6 +921,8 @@ const char* AfterBridgeMethodName(AfterBridgeMethod method) {
             return "save_project";
         case AfterBridgeMethod::BuildMotionProject:
             return "build_motion_project";
+        case AfterBridgeMethod::ReadComp:
+            return "read_comp";
     }
     return "";
 }

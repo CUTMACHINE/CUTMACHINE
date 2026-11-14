@@ -12,14 +12,17 @@
 #include <cstdio>
 #include <filesystem>
 #include <functional>
+#include <limits>
 #include <map>
 #include <memory>
-#include <set>
+#include <stdexcept>
 #include <unordered_map>
 
 namespace {
 
 using mcp_json::Value;
+
+constexpr double kPi = 3.14159265358979323846;
 
 Value Num(double value) {
     if (!std::isfinite(value)) {
@@ -68,7 +71,10 @@ const MotionAnimation* Animation(const MotionNode& node,
     return nullptr;
 }
 
-// After's names for the CSS blend modes that have one.
+// After's names for the CSS blend modes that have one. MA7 -- only modes
+// the parser accepts (MotionComposition.cc, mixBlendMode): hue, saturation,
+// color and luminosity, which it refuses, were listed here too. The mattes
+// (mask-in, mask-out, atop) have no layer mode: the report says so.
 std::string AfterBlend(const std::string& mode) {
     static const std::map<std::string, std::string> table = {
         {"multiply", "MULTIPLY"},     {"screen", "SCREEN"},
@@ -76,9 +82,7 @@ std::string AfterBlend(const std::string& mode) {
         {"lighten", "LIGHTEN"},       {"color-dodge", "COLOR_DODGE"},
         {"color-burn", "COLOR_BURN"}, {"hard-light", "HARD_LIGHT"},
         {"soft-light", "SOFT_LIGHT"}, {"difference", "DIFFERENCE"},
-        {"exclusion", "EXCLUSION"},   {"hue", "HUE"},
-        {"saturation", "SATURATION"}, {"color", "COLOR"},
-        {"luminosity", "LUMINOSITY"}, {"plus-lighter", "ADD"},
+        {"exclusion", "EXCLUSION"},   {"plus-lighter", "ADD"},
     };
     const auto found = table.find(mode);
     return found == table.end() ? std::string() : found->second;
@@ -210,6 +214,63 @@ struct Pivot {
     double CenterY() const { return y + height / 2.0; }
 };
 
+// MOTION-WEB-2026-10 MW2 -- ROADMAP.md. Where a key sits, in frames of the
+// composition: an exact fraction, reduced, its denominator positive. A key
+// the format writes between two frames (MW1) keeps its instant in After,
+// which keeps a key set by script between frames (setValuesAtTimes, checked
+// in After 26 on 14 November 2026): the description spells it "n/d", as the
+// format does, and an integer stays an integer, so a composition on whole
+// frames is described byte for byte as before.
+struct KeyAt {
+    int64_t num = 0;
+    int64_t den = 1;
+
+    static KeyAt Whole(int64_t frame) { return KeyAt{frame, 1}; }
+
+    bool IsWhole() const { return den == 1; }
+
+    KeyAt Plus(int64_t frames) const {
+        return KeyAt{Checked(static_cast<__int128>(frames) * den + num), den};
+    }
+
+    // The whole frames around it: the one at or before, the one at or after.
+    int64_t Floor() const {
+        int64_t quotient = num / den;
+        if (num % den != 0 && num < 0) {
+            --quotient;
+        }
+        return quotient;
+    }
+    int64_t Ceil() const { return IsWhole() ? num : Floor() + 1; }
+
+    // b - a, in frames.
+    static double Between(const KeyAt& a, const KeyAt& b) {
+        const __int128 numerator = static_cast<__int128>(b.num) * a.den -
+                                   static_cast<__int128>(a.num) * b.den;
+        const __int128 denominator = static_cast<__int128>(a.den) * b.den;
+        return static_cast<double>(static_cast<long double>(numerator) /
+                                   static_cast<long double>(denominator));
+    }
+
+    Value Spelled() const {
+        if (IsWhole()) {
+            return Value::MakeInt(num);
+        }
+        return Value::MakeString(std::to_string(num) + "/" +
+                                 std::to_string(den));
+    }
+
+    // RationalTime's own rule: a value that leaves int64 is refused by an
+    // exception, never wrapped.
+    static int64_t Checked(__int128 value) {
+        if (value > std::numeric_limits<int64_t>::max() ||
+            value < std::numeric_limits<int64_t>::min()) {
+            throw std::overflow_error("key frame overflows int64_t");
+        }
+        return static_cast<int64_t>(value);
+    }
+};
+
 // One After composition being written.
 struct Comp {
     std::string id;
@@ -281,6 +342,12 @@ public:
                           main.origin_x, main.origin_y, 0)) {
             return false;
         }
+        // MA7 -- a frame read for the layout (SampleAt) that did not
+        // evaluate counted as a frame where the node is not shown, and the
+        // export went on, its error kept but its result true: refused.
+        if (!error_.code.empty()) {
+            return false;
+        }
         for (const std::string& id : options_.boil) {
             if (boiled_.count(id) == 0) {
                 error_ = {"ValidationFailed", "boil",
@@ -309,12 +376,6 @@ public:
                 "composition: courbes GSAP approchées par une Bézier, écart "
                 "maximal en part du mouvement : " +
                 list);
-        }
-        if (!between_frames_.empty()) {
-            report_.notes.push_back(
-                "composition: " + std::to_string(between_frames_.size()) +
-                " instant(s) de clé entre deux images, posé(s) sur l'image "
-                "d'avant (écart de moins d'une image)");
         }
         const std::string mainId = main.id;
         Finish(main);
@@ -369,31 +430,102 @@ private:
         return found == slot->by_path.end() ? nullptr : found->second;
     }
 
-    // MOTION-WEB-2026-10 MW1 -- a key between two frames is written on the
-    // frame before it, and the report says so: whether After keeps a key
-    // between frames is not verified yet.
-    int64_t FrameOf(const RationalTime& time) const {
-        const int64_t frame = time.to_frames(composition_.fps_numerator,
-                                             composition_.fps_denominator);
-        if (MotionFrameTime(composition_, frame).compare(time) != 0) {
-            between_frames_.insert({time.value, time.rate});
+    // MOTION-WEB-2026-10 MW1, MW2 -- a key's instant in frames, exactly: a
+    // key between two frames (MW1) goes to After where it is, no longer on
+    // the frame before it (MW2).
+    KeyAt FrameOf(const RationalTime& time) const {
+        const __int128 numerator =
+            static_cast<__int128>(time.value) * composition_.fps_numerator;
+        const __int128 denominator =
+            static_cast<__int128>(time.rate) * composition_.fps_denominator;
+        __int128 a = numerator < 0 ? -numerator : numerator;
+        __int128 b = denominator;
+        while (b != 0) {
+            const __int128 r = a % b;
+            a = b;
+            b = r;
         }
-        return frame;
+        const __int128 divisor = a == 0 ? 1 : a;
+        return KeyAt{KeyAt::Checked(numerator / divisor),
+                     KeyAt::Checked(denominator / divisor)};
     }
 
-    double Seconds(int64_t frames) const {
-        return static_cast<double>(frames) * composition_.fps_denominator /
+    // The length of a stretch between two keys, in seconds.
+    double Seconds(const KeyAt& from, const KeyAt& to) const {
+        return KeyAt::Between(from, to) * composition_.fps_denominator /
                composition_.fps_numerator;
     }
 
     std::string NextComp() { return "C" + std::to_string(++comp_count_); }
     std::string NextLayer() { return "L" + std::to_string(++layer_count_); }
 
+    // MA2 -- each note keeps the node it is about (MotionAfterNoteScope).
     void Note(const std::string& path, const std::string& what) {
+        report_.scopes.push_back({report_.notes.size(), path, false});
         report_.notes.push_back(path + ": " + what);
     }
 
+    // MA3 -- a flow's terms name the layers of the same composition; a flow
+    // one of whose texts has no layer here keeps its fixed place (exact).
+    static void ResolveFlows(Value& layers) {
+        if (std::none_of(layers.AsArray().begin(), layers.AsArray().end(),
+                         [](const Value& layer) {
+                             return layer.Find("flow") != nullptr;
+                         })) {
+            return;
+        }
+        std::map<std::string, std::string> texts;
+        for (const Value& layer : layers.AsArray()) {
+            if (layer.Find("kind")->AsString() == "text") {
+                texts[layer.Find("path")->AsString()] =
+                    layer.Find("id")->AsString();
+            }
+        }
+        Value resolved = Value::MakeArray();
+        for (const Value& layer : layers.AsArray()) {
+            const Value* flow = layer.Find("flow");
+            if (flow == nullptr) {
+                resolved.Push(layer);
+                continue;
+            }
+            Value terms = Value::MakeArray();
+            bool whole = true;
+            for (const Value& term : flow->Find("terms")->AsArray()) {
+                const auto found = texts.find(term.Find("path")->AsString());
+                if (found == texts.end()) {
+                    whole = false;
+                    break;
+                }
+                Value named = Value::MakeObject();
+                named.Set("layer", Value::MakeString(found->second));
+                named.Set("k", *term.Find("k"));
+                terms.Push(std::move(named));
+            }
+            Value kept = Value::MakeObject();
+            kept.Set("terms", terms);
+            if (const Value* anchor = flow->Find("anchor")) {
+                const auto self = texts.find(flow->Find("self")->AsString());
+                whole = whole && self != texts.end();
+                if (whole) {
+                    kept.Set("anchor", *anchor);
+                    kept.Set("self", Value::MakeString(self->second));
+                }
+            }
+            Value copy = Value::MakeObject();
+            for (const auto& [key, value] : layer.AsObject()) {
+                if (key != "flow") {
+                    copy.Set(key, value);
+                } else if (whole) {
+                    copy.Set(key, kept);
+                }
+            }
+            resolved.Push(std::move(copy));
+        }
+        layers = std::move(resolved);
+    }
+
     void Finish(Comp& comp) {
+        ResolveFlows(comp.layers);
         Value out = Value::MakeObject();
         out.Set("id", Value::MakeString(comp.id));
         out.Set("name", Value::MakeString(comp.name));
@@ -429,7 +561,7 @@ private:
             const Keyframe& key = frames[index];
             const std::vector<double> value = map(key.value);
             Value out = Value::MakeObject();
-            out.Set("f", Value::MakeInt(FrameOf(key.time) + key_offset_));
+            out.Set("f", FrameOf(key.time).Plus(key_offset_).Spelled());
             out.Set("v", Array(value));
             const auto type = [](KeyframeInterpolation interpolation) {
                 switch (interpolation) {
@@ -456,7 +588,7 @@ private:
                 const std::vector<double> va = map(a.value);
                 const std::vector<double> vb = map(b.value);
                 const double seconds =
-                    Seconds(FrameOf(b.time) - FrameOf(a.time));
+                    Seconds(FrameOf(a.time), FrameOf(b.time));
                 for (size_t d = 0; d < va.size(); ++d) {
                     MotionAfterEase easeOut;
                     MotionAfterEase easeIn;
@@ -503,14 +635,22 @@ private:
         if (frames.size() < 2) {
             return false;
         }
-        const int64_t step = FrameOf(frames[1].time) - FrameOf(frames[0].time);
+        // MW2 -- the jumps of a texture are whole frames; a key between two
+        // frames leaves the track to its keys, which After keeps there.
+        for (const Keyframe& key : frames) {
+            if (!FrameOf(key.time).IsWhole()) {
+                return false;
+            }
+        }
+        const int64_t step =
+            FrameOf(frames[1].time).num - FrameOf(frames[0].time).num;
         double low = frames[0].value;
         double high = frames[0].value;
         for (size_t index = 0; index < frames.size(); ++index) {
             if (index + 1 < frames.size() &&
                 (frames[index].interpolation != KeyframeInterpolation::Hold ||
-                 FrameOf(frames[index + 1].time) -
-                         FrameOf(frames[index].time) !=
+                 FrameOf(frames[index + 1].time).num -
+                         FrameOf(frames[index].time).num !=
                      step)) {
                 return false;
             }
@@ -546,7 +686,8 @@ private:
     // --- MA11: keys After reads otherwise ----------------------------------
     // A segment of a track, in absolute frames: what may move a property
     // between `from` and `to`, and the curve it moves along. `curve` false:
-    // a spring, which no After ease draws.
+    // a spring, which no After ease draws, or a segment whose ends fall
+    // between two frames (MW2).
     struct Segment {
         int64_t from = 0;
         int64_t to = 0;
@@ -560,7 +701,7 @@ private:
     // vertices and tangents of a mask), and the segment leaving it -- one
     // easing per dimension, or one for the whole value.
     struct KeyOut {
-        int64_t frame = 0;
+        KeyAt frame;
         std::vector<double> value;
         KeyframeInterpolation out = KeyframeInterpolation::Linear;
         std::vector<KeyframeEasing> easing;
@@ -585,7 +726,7 @@ private:
         const auto eases = [&](size_t index, bool outgoing) {
             const KeyOut& a = keys[index];
             const KeyOut& b = keys[index + 1];
-            const double seconds = Seconds(b.frame - a.frame);
+            const double seconds = Seconds(a.frame, b.frame);
             Value list = Value::MakeArray();
             const auto push = [&](const KeyframeEasing& e, double v0, double v1,
                                   double span) {
@@ -622,7 +763,7 @@ private:
         for (size_t index = 0; index < keys.size(); ++index) {
             const KeyOut& key = keys[index];
             Value item = Value::MakeObject();
-            item.Set("f", Value::MakeInt(key.frame));
+            item.Set("f", key.frame.Spelled());
             item.Set("v", spell ? spell(key.value) : Array(key.value));
             item.Set("out", Value::MakeString(type(key.out)));
             item.Set("in",
@@ -669,10 +810,16 @@ private:
             if (same) {
                 continue;
             }
-            out.push_back({origin + FrameOf(frames[index].time),
-                           origin + FrameOf(frames[index + 1].time),
+            // MW2 -- a segment that starts or ends between two frames moves
+            // the frames from the one before its start to the one after its
+            // end. Its curve, cut to those whole frames, is not its own: the
+            // frames read from the engine are then drawn by a straight line
+            // or a key each (DerivedKeys).
+            const KeyAt from = FrameOf(frames[index].time);
+            const KeyAt to = FrameOf(frames[index + 1].time);
+            out.push_back({origin + from.Floor(), origin + to.Ceil(),
                            frames[index].interpolation, frames[index].easing,
-                           true});
+                           from.IsWhole() && to.IsWhole()});
         }
     }
 
@@ -1190,7 +1337,7 @@ private:
         std::vector<KeyOut> keys;
         for (const Stretch& stretch : stretches) {
             KeyOut key;
-            key.frame = at[stretch.from] - comp.t0;
+            key.frame = KeyAt::Whole(at[stretch.from] - comp.t0);
             key.value = values[stretch.from];
             key.out = stretch.flat || stretch.dense
                           ? KeyframeInterpolation::Linear
@@ -1203,14 +1350,14 @@ private:
                 for (auto it = frames.upper_bound(at[stretch.from]);
                      it != frames.end() && it->first < at[stretch.to]; ++it) {
                     KeyOut inside;
-                    inside.frame = it->first - comp.t0;
+                    inside.frame = KeyAt::Whole(it->first - comp.t0);
                     inside.value = it->second;
                     keys.push_back(inside);
                 }
             }
         }
         KeyOut closing;
-        closing.frame = at[stretches.back().to] - comp.t0;
+        closing.frame = KeyAt::Whole(at[stretches.back().to] - comp.t0);
         closing.value = values[stretches.back().to];
         keys.push_back(closing);
         if (dense) {
@@ -1473,7 +1620,7 @@ private:
         std::vector<KeyOut> opacity;
         for (size_t index = 0; index < frames.size(); ++index) {
             KeyOut key;
-            key.frame = origin + FrameOf(frames[index].time);
+            key.frame = FrameOf(frames[index].time).Plus(origin);
             key.out = frames[index].interpolation;
             if (key.out == KeyframeInterpolation::CubicBezier) {
                 key.easing = {frames[index].easing};
@@ -1533,7 +1680,7 @@ private:
     // it: nothing shows, and After draws the streak. An opacity gains
     // nothing by it: After's blur never averages a fade (measured on 9
     // October).
-    double Shown(double percent) const {
+    double Unculled(double percent) const {
         constexpr double kUnculled = 0.001;
         if (blur_ && std::abs(percent) < kUnculled) {
             return kUnculled;
@@ -1553,9 +1700,9 @@ private:
         return text == "-0" ? "0" : text;
     }
 
-    // --- transforms
-    // ------------------------------------------------------------ Transform of
-    // a layer turning about `pivot` (composition pixels), its anchor at
+    // --- transforms ---------------------------------------------------------
+    // Transform of a layer turning about `pivot` (composition pixels), its
+    // anchor at
     // `anchor_x`, `anchor_y` in the layer's own space, placed in a space whose
     // origin is `local_x`, `local_y`. `source` gives the animations and `ev`
     // the static values. `base_x`, `base_y`: a scale the layer needs before any
@@ -1566,8 +1713,30 @@ private:
                     double local_y, double base_x, double base_y, int64_t ref) {
         Value transform = Value::MakeObject();
         Value keys = Value::MakeObject();
-        const double centerX = pivot.CenterX() - local_x;
-        const double centerY = pivot.CenterY() - local_y;
+        // MOTION-WEB-2026-10 MW5 -- transformOrigin is After's anchor point:
+        // the anchor moves from the box's centre to the origin, and the
+        // position, the place the anchor lands, with it. A box the layout
+        // resizes, or whose width After draws as a scale from its edge,
+        // keeps its anchor where those need it: said.
+        double shiftX = 0.0;
+        double shiftY = 0.0;
+        if (!ev.origin.IsCentre()) {
+            if (layout_keys_ ||
+                (source.children.empty() && HasAnimation(source, "width"))) {
+                Note(path,
+                     "transformOrigin sur une boîte que la mise en page "
+                     "redimensionne : l'ancre reste au centre dans After");
+            } else {
+                shiftX = pivot.width * (ev.origin.x_fraction - 0.5) +
+                         ev.origin.x_pixels;
+                shiftY = pivot.height * (ev.origin.y_fraction - 0.5) +
+                         ev.origin.y_pixels;
+                anchor_x += shiftX / (base_x != 0.0 ? base_x : 1.0);
+                anchor_y += shiftY / (base_y != 0.0 ? base_y : 1.0);
+            }
+        }
+        const double centerX = pivot.CenterX() + shiftX - local_x;
+        const double centerY = pivot.CenterY() + shiftY - local_y;
         transform.Set("anchor", Array({anchor_x, anchor_y}));
         transform.Set("position", Array({centerX + ev.translate_x,
                                          centerY + ev.translate_y}));
@@ -1618,7 +1787,7 @@ private:
         if (left != nullptr) {
             const double contentX = pivot.x - value_at(*left);
             const double tx = ev.translate_x;
-            const double toAnchor = fromEdge ? 0.0 : pivot.width / 2.0;
+            const double toAnchor = fromEdge ? 0.0 : pivot.width / 2.0 + shiftX;
             keys.Set("position.x",
                      Keys(*left, [&](double v) -> std::vector<double> {
                          return {contentX + v + toAnchor - local_x + tx};
@@ -1645,10 +1814,11 @@ private:
         if (top != nullptr) {
             const double contentY = pivot.y - value_at(*top);
             const double ty = ev.translate_y;
-            keys.Set(
-                "position.y", Keys(*top, [&](double v) -> std::vector<double> {
-                    return {contentY + v + pivot.height / 2.0 - local_y + ty};
-                }));
+            keys.Set("position.y",
+                     Keys(*top, [&](double v) -> std::vector<double> {
+                         return {contentY + v + pivot.height / 2.0 + shiftY -
+                                 local_y + ty};
+                     }));
             if (translateY != nullptr) {
                 Note(path,
                      "top et translateY animés ensemble : translateY "
@@ -1706,8 +1876,8 @@ private:
                 source_path_.empty() ? path : source_path_, "échelle",
                 EaseModel::PerDimension, 1e-3,
                 [&](const Sample& sample, std::vector<double>& out) {
-                    out = {Shown(sample.scale_x * base_x * 100.0),
-                           Shown(sample.scale_y * base_y * 100.0)};
+                    out = {Unculled(sample.scale_x * base_x * 100.0),
+                           Unculled(sample.scale_y * base_y * 100.0)};
                     return true;
                 });
             if (derived.IsArray()) {
@@ -1716,20 +1886,20 @@ private:
         } else if (scale != nullptr) {
             keys.Set("scale",
                      Keys(*scale, [&](double v) -> std::vector<double> {
-                         return {Shown(v * base_x * 100.0),
-                                 Shown(v * base_y * 100.0)};
+                         return {Unculled(v * base_x * 100.0),
+                                 Unculled(v * base_y * 100.0)};
                      }));
         } else if (scaleX != nullptr) {
             const double sy = ev.scale_y * base_y * 100.0;
             keys.Set("scale",
                      Keys(*scaleX, [&](double v) -> std::vector<double> {
-                         return {Shown(v * base_x * 100.0), sy};
+                         return {Unculled(v * base_x * 100.0), sy};
                      }));
         } else if (scaleY != nullptr) {
             const double sx = ev.scale_x * base_x * 100.0;
             keys.Set("scale",
                      Keys(*scaleY, [&](double v) -> std::vector<double> {
-                         return {sx, Shown(v * base_y * 100.0)};
+                         return {sx, Unculled(v * base_y * 100.0)};
                      }));
         } else if (width != nullptr) {
             // A width that grows from the left edge: the layer scales from
@@ -1756,11 +1926,12 @@ private:
                          return {std::clamp(v, 0.0, 1.0) * 100.0};
                      }));
         }
+        Skew(source, ev, path, base_x, base_y, track, transform);
         for (const auto& entry : source.animate) {
             static const char* known[] = {
                 "left", "top", "translateX", "translateY", "scale", "scaleX",
                 "scaleY", "width", "rotate", "opacity", "filter", "trimStart",
-                "trimEnd", "letterSpacing",
+                "trimEnd", "letterSpacing", "skewX", "skewY",
                 // MA11 -- written by the layer itself: masks, colour keys
                 // (a colour no text inherits changes nothing), the volume.
                 "clipPath", "backgroundColor", "color", "volume"};
@@ -1778,8 +1949,84 @@ private:
         return transform;
     }
 
-    // --- effects
-    // ---------------------------------------------------------------
+    // MOTION-WEB-2026-10 MW5 -- After has no skew on a layer; the
+    // Transform effect has one, last in the stack (a filter comes before
+    // the transform, as in CSS), about the layer's anchor. Measured in
+    // After 26 on 14 November 2026: its skew s on axis 0 moves y by
+    // tan(s) * x, on axis 90 moves x by -tan(s) * y, and a larger axis
+    // turns that shear against a layer's rotation. So skewX(a) is s = -a on
+    // axis 90, skewY(a) s = a on axis 0. Where the effect acts depends on the
+    // layer: a shape or a text layer is rasterized after its transform, so its
+    // effect works in the composition's space -- motion_import.jsx then keeps
+    // the pivot on the anchor and turns the axis with the layer by expressions,
+    // which gives the engine's order exactly, whatever the scale. A footage or
+    // a precomposition layer gets its effect in its own space, before its
+    // scale: under a scale that is not uniform its angle is set so that the
+    // two agree (`raster_angle`: tan s' = tan s * sy / sx for skewX), exact
+    // while the scale holds. Both axes at once are no single skew.
+    void Skew(
+        const MotionNode& source, const MotionEvaluatedNode& ev,
+        const std::string& path, double base_x, double base_y,
+        const std::function<const MotionAnimation*(const std::string&)>& track,
+        Value& transform) {
+        const MotionAnimation* skewX = track("skewX");
+        const MotionAnimation* skewY = track("skewY");
+        const bool alongX = skewX != nullptr || ev.skew_x != 0.0;
+        const bool alongY = skewY != nullptr || ev.skew_y != 0.0;
+        if (!alongX && !alongY) {
+            return;
+        }
+        if (alongX && alongY) {
+            Note(path,
+                 "skewX et skewY ensemble : seule l'inclinaison horizontale "
+                 "est traduite (l'effet Transformer n'en a qu'une)");
+        }
+        const double sx = ev.scale_x * base_x;
+        const double sy = ev.scale_y * base_y;
+        const double ratio =
+            alongX ? (sx != 0.0 ? sy / sx : 1.0) : (sy != 0.0 ? sx / sy : 1.0);
+        const double sign = alongX ? -1.0 : 1.0;
+        const auto raster = [ratio, sign](double degrees) {
+            return sign * std::atan(std::tan(degrees * kPi / 180.0) * ratio) *
+                   180.0 / kPi;
+        };
+        const MotionAnimation* animated = alongX ? skewX : skewY;
+        const double still = alongX ? ev.skew_x : ev.skew_y;
+        Value skew = Value::MakeObject();
+        skew.Set("axis", Num(alongX ? 90.0 : 0.0));
+        skew.Set("angle", Num(sign * still));
+        if (animated != nullptr) {
+            skew.Set("keys",
+                     Keys(*animated, [&](double v) -> std::vector<double> {
+                         return {sign * v};
+                     }));
+        }
+        if (ratio != 1.0) {
+            skew.Set("raster_angle", Num(raster(still)));
+            if (animated != nullptr) {
+                skew.Set("raster_keys",
+                         Keys(*animated, [&](double v) -> std::vector<double> {
+                             return {raster(v)};
+                         }));
+            }
+        }
+        transform.Set("skew", skew);
+        const bool scaled = Animation(source, "scale") != nullptr ||
+                            Animation(source, "scaleX") != nullptr ||
+                            Animation(source, "scaleY") != nullptr;
+        if (ratio != 1.0 && (animated != nullptr || scaled)) {
+            Note(path, std::string(alongX ? "skewX" : "skewY") +
+                           " sous une échelle non uniforme : approché sur "
+                           "une image ou une précomposition");
+        }
+        if (blur_ && animated != nullptr) {
+            Note(path, std::string(alongX ? "skewX" : "skewY") +
+                           " animé : l'effet Transformer n'a pas le flou de "
+                           "mouvement du calque");
+        }
+    }
+
+    // --- effects ------------------------------------------------------------
     Value Effects(const MotionNode& source, const MotionEvaluatedNode& ev,
                   const std::string& path) {
         Value effects = Value::MakeArray();
@@ -1815,29 +2062,37 @@ private:
                     }));
             }
             effects.Push(std::move(effect));
+            // One note says it for every slice(); MA2 keeps each node it
+            // is about, shown only while its slice cuts.
             if (!slice_noted_) {
-                Note(path,
-                     "slice() → Wave Warp carré (approché) ; les autres "
-                     "slice() aussi");
+                slice_note_ = report_.notes.size();
+                report_.notes.push_back(path +
+                                        ": slice() → Wave Warp carré "
+                                        "(approché) ; les autres slice() "
+                                        "aussi");
                 slice_noted_ = true;
             }
+            report_.scopes.push_back({slice_note_, path, true});
         }
         return effects;
     }
 
-    // --- nodes
-    // -----------------------------------------------------------------
+    // --- nodes --------------------------------------------------------------
     // What in a node's own values makes it a group After can only render as
     // one, its filter aside.
+    // MW5 -- a skew is an effect in After, which a null does not pass on
+    // to its children: a skewed group is a precomposition.
     static bool GroupedByValues(const MotionEvaluatedNode& ev) {
         const bool blend = !ev.blend_mode.empty() && ev.blend_mode != "normal";
         return ev.opacity < 0.999 || blend || ev.overflow_hidden ||
-               ev.isolate || ev.has_mask || ev.has_clip;
+               ev.isolate || ev.has_mask || ev.has_clip || ev.skew_x != 0.0 ||
+               ev.skew_y != 0.0;
     }
 
     static bool NeedsGroupBesidesFilter(const MotionNode& node,
                                         const MotionEvaluatedNode& ev) {
-        return HasAnimation(node, "opacity") || GroupedByValues(ev);
+        return HasAnimation(node, "opacity") || HasAnimation(node, "skewX") ||
+               HasAnimation(node, "skewY") || GroupedByValues(ev);
     }
 
     static bool HasFilter(const MotionNode& node,
@@ -1878,7 +2133,8 @@ private:
 
     static bool IsIdentity(const MotionEvaluatedNode& ev) {
         return ev.translate_x == 0.0 && ev.translate_y == 0.0 &&
-               ev.scale_x == 1.0 && ev.scale_y == 1.0 && ev.rotate == 0.0;
+               ev.scale_x == 1.0 && ev.scale_y == 1.0 && ev.rotate == 0.0 &&
+               ev.skew_x == 0.0 && ev.skew_y == 0.0;
     }
 
     Value BaseLayer(const std::string& kind, const std::string& name,
@@ -1912,6 +2168,7 @@ private:
         if (ev.has_background) {
             EmitRect(node, ev, path, comp, parent, local_x, local_y, ref, true);
         }
+        PlanFlow(node, path, comp.t0 + ref);
         // Its animations run in the time of the composition its children
         // are emitted into (a sequence's own, from its start).
         ancestors_.push_back({&node, comp.t0});
@@ -1925,6 +2182,202 @@ private:
         }
         ancestors_.pop_back();
         return true;
+    }
+
+    // MA3 -- docs/roadmap/MOTION-AFTER-2026-09.md. The node at a structural
+    // path of `root` ("root", "root.children[2].children[0]"), or null when
+    // the path does not name a child by its index all the way down.
+    static const MotionNode* NodeAt(const MotionNode& root,
+                                    const std::string& path) {
+        static const std::string kChild = ".children[";
+        if (path.compare(0, 4, "root") != 0) {
+            return nullptr;
+        }
+        const MotionNode* node = &root;
+        size_t at = 4;
+        while (at < path.size()) {
+            if (path.compare(at, kChild.size(), kChild) != 0) {
+                return nullptr;
+            }
+            at += kChild.size();
+            const size_t close = path.find(']', at);
+            if (close == std::string::npos || close == at || close - at > 9 ||
+                path.find_first_not_of("0123456789", at) != close) {
+                return nullptr;
+            }
+            const size_t index = std::stoul(path.substr(at, close - at));
+            if (index >= node->children.size()) {
+                return nullptr;
+            }
+            node = &node->children[index];
+            at = close + 1;
+        }
+        return node;
+    }
+
+    static bool HasStyle(const MotionNode& node, const std::string& property) {
+        return std::any_of(
+            node.style.begin(), node.style.end(),
+            [&](const auto& entry) { return entry.first == property; });
+    }
+
+    // MA3 -- a row of words stays a row in After. CSS pushes a word along
+    // when the word before it grows; After places each text layer where it
+    // was put. A row of single-line texts (a box laid out in a row, not
+    // wrapping, every child a text the flow places) gets, on each text, an
+    // expression that moves it by the change of width of the texts whose
+    // width moves it, measured by After itself (sourceRectAtTime) against
+    // the width it measured when it built the project: untouched, every
+    // change is 0 and the pixels are the engine's; a word replaced in After
+    // pushes the others as the engine would.
+    //
+    // How much a word moves when another grows is the engine's to say, not
+    // a guess at flexbox: each text the row sizes by its content is widened
+    // by 64 px in a copy of the composition, the frame is laid out again,
+    // and every text's move over 64 is its coefficient (1 for a word after
+    // it in a row packed to the start, 0.5 and -0.5 around a centred one).
+    // A row the widening changes otherwise -- a text that shrinks instead,
+    // a line that wraps, a word that moves vertically -- keeps its fixed
+    // positions, which are exact.
+    void PlanFlow(const MotionNode& row, const std::string& path, int64_t at) {
+        constexpr double kWiden = 64.0;
+        if (row.children.size() < 2 || (row.type != MotionNodeType::Box &&
+                                        row.type != MotionNodeType::Fill)) {
+            return;
+        }
+        const std::string direction = StyleString(row, "flexDirection");
+        const std::string wrap = StyleString(row, "flexWrap");
+        if ((row.type == MotionNodeType::Fill
+                 ? direction != "row"
+                 : !direction.empty() && direction != "row") ||
+            (!wrap.empty() && wrap != "nowrap")) {
+            return;
+        }
+        std::vector<std::string> paths;
+        std::vector<const MotionEvaluatedNode*> placed;
+        std::vector<bool> sized;
+        for (size_t index = 0; index < row.children.size(); ++index) {
+            const MotionNode& child = row.children[index];
+            const std::string childPath =
+                path + ".children[" + std::to_string(index) + "]";
+            const MotionEvaluatedNode* ev = At(at, childPath);
+            const bool boils =
+                std::find(options_.boil.begin(), options_.boil.end(),
+                          child.id) != options_.boil.end();
+            if (child.type != MotionNodeType::Text || ev == nullptr ||
+                StyleString(child, "position") == "absolute" ||
+                child.units != MotionTextUnit::None ||
+                !child.highlights.empty() ||
+                HasAnimation(child, "letterSpacing") || boils ||
+                (child.content.has_value() &&
+                 child.content->kind == MotionBindingKind::Timecode) ||
+                ev->text_layout.lines.size() != 1 ||
+                (!ev->text_style.text_align.empty() &&
+                 ev->text_style.text_align != "left") ||
+                NodeAt(composition_.root, childPath) != &child) {
+                return;
+            }
+            paths.push_back(childPath);
+            placed.push_back(ev);
+            // A text whose box is not its content's width does not push
+            // anything when its words change.
+            sized.push_back(
+                !HasStyle(child, "width") && !HasStyle(child, "minWidth") &&
+                !HasStyle(child, "maxWidth") && !HasStyle(child, "flexBasis") &&
+                !HasStyle(child, "flexGrow") && !HasAnimation(child, "width"));
+        }
+        std::vector<std::vector<std::pair<std::string, double>>> terms(
+            paths.size());
+        for (size_t j = 0; j < paths.size(); ++j) {
+            if (!sized[j]) {
+                continue;
+            }
+            MotionComposition widened = composition_;
+            auto* target =
+                const_cast<MotionNode*>(NodeAt(widened.root, paths[j]));
+            if (target == nullptr) {
+                return;
+            }
+            MotionValue width;
+            width.literal = Value::MakeDouble(placed[j]->box.width + kWiden);
+            target->style.emplace_back("width", width);
+            FrameIndex index;
+            MotionError ignored;
+            if (!EvaluateMotionFrame(widened, props_, at, measurer_, context_,
+                                     index.frame, ignored)) {
+                return;
+            }
+            IndexNodes(index.frame.root, index);
+            for (size_t i = 0; i < paths.size(); ++i) {
+                const auto found = index.by_path.find(paths[i]);
+                if (found == index.by_path.end()) {
+                    return;
+                }
+                const MotionBox& now = found->second->box;
+                const MotionBox& before = placed[i]->box;
+                const double grown = i == j ? kWiden : 0.0;
+                if (std::abs(now.y - before.y) > kLayoutEpsilon ||
+                    std::abs(now.width - before.width - grown) >
+                        kLayoutEpsilon ||
+                    found->second->text_layout.lines.size() != 1) {
+                    return;
+                }
+                // Yoga is single precision: a coefficient is read to the
+                // ten-thousandth.
+                const double k =
+                    std::round((now.x - before.x) / kWiden * 10000.0) / 10000.0;
+                if (k != 0.0) {
+                    terms[i].emplace_back(paths[j], k);
+                }
+            }
+        }
+        for (size_t i = 0; i < paths.size(); ++i) {
+            flows_[paths[i]] = Flow{terms[i], sized[i]};
+        }
+    }
+
+    // MA3 -- the flow of a text layer, its terms naming layers by the path
+    // of their node until Finish knows every layer of the composition. A
+    // text that scales, turns or skews turns about a point of its box (its
+    // centre, or its transformOrigin): when its own word changes, that point
+    // moves by the same fraction of the change, and so must its anchor
+    // (`anchor`, the fraction), or a scale would grow from the old centre.
+    void SetFlow(Value& layer, const std::string& path, const MotionNode& node,
+                 const MotionEvaluatedNode& ev) {
+        const auto found = flows_.find(path);
+        if (found == flows_.end()) {
+            return;
+        }
+        const bool turns =
+            found->second.sized && ev.origin.x_fraction != 0.0 &&
+            (ev.scale_x != 1.0 || ev.scale_y != 1.0 || ev.rotate != 0.0 ||
+             ev.skew_x != 0.0 || ev.skew_y != 0.0 ||
+             std::any_of(node.animate.begin(), node.animate.end(),
+                         [](const auto& entry) {
+                             return entry.first == "scale" ||
+                                    entry.first == "scaleX" ||
+                                    entry.first == "scaleY" ||
+                                    entry.first == "rotate" ||
+                                    entry.first == "skewX" ||
+                                    entry.first == "skewY";
+                         }));
+        if (found->second.terms.empty() && !turns) {
+            return;
+        }
+        Value terms = Value::MakeArray();
+        for (const auto& [source, k] : found->second.terms) {
+            Value term = Value::MakeObject();
+            term.Set("path", Value::MakeString(source));
+            term.Set("k", Num(k));
+            terms.Push(std::move(term));
+        }
+        Value flow = Value::MakeObject();
+        flow.Set("terms", terms);
+        if (turns) {
+            flow.Set("anchor", Num(ev.origin.x_fraction));
+            flow.Set("self", Value::MakeString(path));
+        }
+        layer.Set("flow", flow);
     }
 
     // A leaf carrying the animations of the box around it: the box is its
@@ -2013,6 +2466,8 @@ private:
             flat.translate_x = flat.translate_y = 0.0;
             flat.scale_x = flat.scale_y = 1.0;
             flat.rotate = 0.0;
+            flat.skew_x = flat.skew_y = 0.0;
+            flat.origin = MotionTransformOrigin{};
             flat.opacity = 1.0;
             transform = Transform(still, flat, path, pivot, anchorX, anchorY,
                                   local_x, local_y, 1.0, 1.0, ref);
@@ -2412,6 +2867,14 @@ private:
                     }
                 }
             }
+            // MA7 -- a box that clips was given its own frame whatever its
+            // size, and After refuses a composition over 30 000 px: the
+            // build stopped there.
+            if (LimitToAfter(comp, bounds)) {
+                Note(path,
+                     "groupe plus grand que ce qu'After accepte : cadre "
+                     "limité à 30 000 px, le reste est rogné");
+            }
             inner.origin_x = std::floor(bounds.x);
             inner.origin_y = std::floor(bounds.y);
             inner.width = static_cast<int32_t>(
@@ -2487,6 +2950,29 @@ private:
         return true;
     }
 
+    // After's largest composition, 30 000 px a side, centred on `comp`:
+    // `bounds` cut to it, true when that cut something.
+    static bool LimitToAfter(const Comp& comp, MotionBox& bounds) {
+        constexpr double kAfterLargest = 30000.0;
+        const double spareX = (kAfterLargest - comp.width) / 2.0;
+        const double spareY = (kAfterLargest - comp.height) / 2.0;
+        double left = bounds.x;
+        double top = bounds.y;
+        double right = bounds.x + bounds.width;
+        double bottom = bounds.y + bounds.height;
+        const bool cut = left < comp.origin_x - spareX ||
+                         right > comp.origin_x + comp.width + spareX ||
+                         top < comp.origin_y - spareY ||
+                         bottom > comp.origin_y + comp.height + spareY;
+        left = std::max(left, comp.origin_x - spareX);
+        right = std::min(right, comp.origin_x + comp.width + spareX);
+        top = std::max(top, comp.origin_y - spareY);
+        bottom = std::min(bottom, comp.origin_y + comp.height + spareY);
+        bounds = {left, top, std::max(0.0, right - left),
+                  std::max(0.0, bottom - top)};
+        return cut;
+    }
+
     // A frame grown over the boxes a group holds, down to those that hide
     // their overflow, within After's largest composition around `comp`;
     // true when that limit cut it.
@@ -2512,19 +2998,8 @@ private:
                 }
             };
         grow(ev);
-        constexpr double kAfterLargest = 30000.0;
-        const double spareX = (kAfterLargest - comp.width) / 2.0;
-        const double spareY = (kAfterLargest - comp.height) / 2.0;
-        const bool cut = left < comp.origin_x - spareX ||
-                         right > comp.origin_x + comp.width + spareX ||
-                         top < comp.origin_y - spareY ||
-                         bottom > comp.origin_y + comp.height + spareY;
-        left = std::max(left, comp.origin_x - spareX);
-        right = std::min(right, comp.origin_x + comp.width + spareX);
-        top = std::max(top, comp.origin_y - spareY);
-        bottom = std::min(bottom, comp.origin_y + comp.height + spareY);
         bounds = {left, top, right - left, bottom - top};
-        return cut;
+        return LimitToAfter(comp, bounds);
     }
 
     // A group is named by its biggest text: the word the scene is about.
@@ -2556,12 +3031,19 @@ private:
             number = MotionSceneNumber(++scene_count_);
         }
         inner.name = number + GroupName(node, ev);
-        inner.origin_x = std::floor(ev.box.x);
-        inner.origin_y = std::floor(ev.box.y);
-        inner.width = static_cast<int32_t>(std::ceil(ev.box.x + ev.box.width) -
+        // MA7 -- within After's largest composition, as a group's.
+        MotionBox frame = ev.box;
+        if (LimitToAfter(comp, frame)) {
+            Note(path,
+                 "séquence plus grande que ce qu'After accepte : cadre "
+                 "limité à 30 000 px, le reste est rogné");
+        }
+        inner.origin_x = std::floor(frame.x);
+        inner.origin_y = std::floor(frame.y);
+        inner.width = static_cast<int32_t>(std::ceil(frame.x + frame.width) -
                                            inner.origin_x);
-        inner.height = static_cast<int32_t>(
-            std::ceil(ev.box.y + ev.box.height) - inner.origin_y);
+        inner.height = static_cast<int32_t>(std::ceil(frame.y + frame.height) -
+                                            inner.origin_y);
         inner.duration = duration;
         inner.t0 = comp.t0 + node.from;
         const std::string followPath = follow_path_;
@@ -2612,7 +3094,13 @@ private:
     }
 
     // The expression that writes a timecode on After's source text, frames
-    // counted like the engine's (MotionComposition.h, Timecode).
+    // counted like the engine's (MotionComposition.h, Timecode). MA7 -- the
+    // rounding to the nearest frame was suspected (19 October) of reading
+    // the next frame's timecode at the late instants of After's motion blur,
+    // where the engine keeps the frame's. After takes a text's source at the
+    // frame's instant, as it does a fade: a timecode moving under a 360°
+    // shutter showed its own frame's digits on all twenty frames compared,
+    // no ghost of the next (After 26, 14 November 2026).
     std::string TimecodeExpression(int64_t offset) const {
         const int64_t nominal =
             (composition_.fps_numerator + composition_.fps_denominator - 1) /
@@ -2639,29 +3127,17 @@ private:
         if (!measurer_.FontPostScriptName(ev.text_style, font, fontError)) {
             Note(path, "police sans nom PostScript : " + fontError.message);
         }
-        // MOTION-WEB-2026-10 MW7 -- ROADMAP.md. A text layer is set by a
-        // PostScript name alone: the bridge sets no variation axis. An
-        // instance a variable font names may be found by that name -- not
-        // checked in After yet -- and a weight between its named instances
-        // has only the name Core Text makes up for it.
+        // MOTION-WEB-2026-10 MW7 -- ROADMAP.md. A text in an instance of a
+        // variable font also gives its family, its weight on the wght axis
+        // and its slope: motion_import.jsx asks After for the instance at
+        // that weight (FontObject.postScriptNameForDesignVector, measured in
+        // After 26 on 14 November 2026), named or not. The PostScript name
+        // Core Text gives stays for a family After does not list.
         int variableWeight = 0;
         bool namedInstance = false;
-        if (!font.empty() &&
-            measurer_.FontVariableWeight(ev.text_style, variableWeight,
-                                         namedInstance)) {
-            const std::string weight = std::to_string(variableWeight);
-            Note(path,
-                 namedInstance
-                     ? "fontWeight : instance nommée « " + font +
-                           " » d'une police variable (wght " + weight +
-                           ") ; After la reçoit par ce nom, non vérifié "
-                           "dans After"
-                     : "fontWeight : police variable réglée à wght " + weight +
-                           ", entre ses instances nommées ; After ne reçoit "
-                           "que le nom « " +
-                           font +
-                           " » que Core Text compose, sans axe : non traduit");
-        }
+        const bool variable =
+            !font.empty() && measurer_.FontVariableWeight(
+                                 ev.text_style, variableWeight, namedInstance);
         // MM2 -- After applies no OpenType feature to a text layer (its
         // scripting has no figure style, After 26): figures the variant
         // changes would show in the font's default ones there.
@@ -2678,9 +3154,17 @@ private:
         }
         const bool wrapped = &animated != &node;
         Value layer = BaseLayer("text", ev.text, parent, placed, path);
+        SetFlow(layer, path, node, placed);
         Value text = Value::MakeObject();
         text.Set("content", Value::MakeString(content));
         text.Set("font", Value::MakeString(font));
+        if (variable) {
+            Value axes = Value::MakeObject();
+            axes.Set("family", Value::MakeString(ev.text_style.font_family));
+            axes.Set("wght", Value::MakeInt(variableWeight));
+            axes.Set("italic", Value::MakeBool(ev.text_style.italic));
+            text.Set("variable", axes);
+        }
         text.Set("size", Num(ev.text_style.font_size));
         text.Set("color", Rgb(ev.text_style.color));
         const double em = std::max(1e-6, ev.text_style.font_size);
@@ -3833,8 +4317,6 @@ private:
     Value footage_ = Value::MakeArray();
     std::map<std::string, std::string> footage_ids_;
     int64_t comp_count_ = 0;
-    // MW1 -- key instants FrameOf put on the frame before them.
-    mutable std::set<std::pair<int64_t, int32_t>> between_frames_;
     // MW3 -- GSAP curves written as their closest cubic-bezier, by name.
     mutable std::map<std::string, double> approximated_curves_;
     int64_t scene_count_ = 0;
@@ -3847,7 +4329,7 @@ private:
     // are its keys (left, top and size leave the tracks), the composition
     // the layer lives in, and the node whose animations a wrapped leaf
     // carries, read from the engine where two tracks meet.
-    // MA12 -- the composition has a shutter (Shown).
+    // MA12 -- the composition has a shutter (Unculled).
     bool blur_ = false;
     bool layout_keys_ = false;
     const Comp* layer_comp_ = nullptr;
@@ -3857,6 +4339,15 @@ private:
     std::string follow_path_;
     MotionBox follow_ref_;
     bool slice_noted_ = false;
+    size_t slice_note_ = 0;
+    // MA3 -- for each text of a row, the texts whose change of width moves
+    // it, by their node's path, and how much (PlanFlow); and whether its own
+    // box is its words' width.
+    struct Flow {
+        std::vector<std::pair<std::string, double>> terms;
+        bool sized = false;
+    };
+    std::map<std::string, Flow> flows_;
     bool extend_used_ = false;
     // MA4 -- the named nodes that did boil, and the seed of the next track.
     std::map<std::string, bool> boiled_;

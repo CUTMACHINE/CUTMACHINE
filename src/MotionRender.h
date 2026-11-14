@@ -28,6 +28,13 @@ bool RegisterMotionFontDirectory(const std::string& directory,
 bool ListMotionFontFamilies(std::vector<std::string>& families,
                             MotionError& error);
 
+// MB7 -- docs/roadmap/MOTION-BIBLIOTHEQUE-2026-10.md. The family, CSS
+// weight (OS/2 class) and slant of the face whose PostScript name is `name`,
+// registered directories included; false when no face carries that name
+// (Core Text's substitute is not taken for it).
+bool MotionFontForPostScriptName(const std::string& name, std::string& family,
+                                 int& weight, bool& italic);
+
 class MotionCoreTextMeasurer final : public MotionMeasurer {
 public:
     // Relative image sources resolve against `media_directory`.

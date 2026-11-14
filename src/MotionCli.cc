@@ -6,6 +6,7 @@
 #include "FontCatalog.h"
 #include "Json.h"
 #include "MotionAfterExport.h"
+#include "MotionAfterImport.h"
 #include "MotionClip.h"
 #include "MotionComposition.h"
 #include "MotionDocument.h"
@@ -822,6 +823,100 @@ int ListFontsCommand(const std::vector<std::string>& arguments,
     return 0;
 }
 
+// MB7 -- docs/roadmap/MOTION-BIBLIOTHEQUE-2026-10.md. The importer of
+// import_after_comp and --import-after-comp: Core Text measures each text to
+// set it on its baseline, and resolves After's PostScript names.
+bool ImportAfterWithCoreText(const MotionAfterImportRequest& request,
+                             mcp_json::Value& definition,
+                             MotionAfterImportReport& report,
+                             MotionError& error) {
+    if (request.comp == nullptr) {
+        error = {"InvalidValue", "comp", "no reading to import"};
+        return false;
+    }
+    if (!RegisterFonts(request.font_directories, error)) {
+        return false;
+    }
+    MotionCoreTextMeasurer measurer;
+    const MotionAfterFontResolver fonts = [](const std::string& name,
+                                             MotionAfterFont& face) {
+        return MotionFontForPostScriptName(name, face.family, face.weight,
+                                           face.italic);
+    };
+    return ImportAfterComposition(*request.comp, request.options, fonts,
+                                  measurer, definition, report, error);
+}
+
+// MB7 -- a reading of the bridge's read_comp, saved to a file, as a
+// composition file: without After and without a project, so the import of
+// a composition read once can be replayed and compared.
+int ImportAfterCompCommand(const std::vector<std::string>& arguments,
+                           std::string& output) {
+    const CliCommand& command = MotionCliCommand("--import-after-comp");
+    if (arguments.size() < 2) {
+        return FailUsage(CliArgumentsMismatch(command, arguments), output);
+    }
+    MotionAfterImportRequest request;
+    for (size_t index = 2; index < arguments.size(); ++index) {
+        const bool known =
+            arguments[index] == "--font-dir" || arguments[index] == "--font";
+        if (!known || index + 1 >= arguments.size()) {
+            return FailUsage(CliOptionRefusal(command, arguments, index),
+                             output);
+        }
+        const std::string& value = arguments[index + 1];
+        if (arguments[index] == "--font-dir") {
+            request.font_directories.push_back(value);
+        } else {
+            const size_t equals = value.find('=');
+            if (equals == std::string::npos || equals == 0 ||
+                equals + 1 == value.size()) {
+                return FailUsage(
+                    "--font takes <After PostScript name>=<PostScript name>",
+                    output);
+            }
+            request.options.fonts[value.substr(0, equals)] =
+                value.substr(equals + 1);
+        }
+        ++index;
+    }
+    if (RefuseOutputOverSource(arguments[0], arguments[1], output)) {
+        return 1;
+    }
+    std::ifstream input(arguments[0], std::ios::binary);
+    std::stringstream text;
+    text << input.rdbuf();
+    mcp_json::Value reading;
+    std::string parseError;
+    if (!input || !mcp_json::Value::Parse(text.str(), reading, parseError)) {
+        return FailCliCommand("ParseError",
+                              "cannot read '" + arguments[0] + "'" +
+                                  (parseError.empty() ? "" : ": " + parseError),
+                              output, 1);
+    }
+    request.comp = &reading;
+    mcp_json::Value definition;
+    MotionAfterImportReport report;
+    MotionError error;
+    if (!ImportAfterWithCoreText(request, definition, report, error)) {
+        return Fail(error, output);
+    }
+    std::ofstream file(arguments[1], std::ios::binary | std::ios::trunc);
+    file << definition.Dump();
+    file.close();
+    if (!file) {
+        return FailCliCommand("IoError", "cannot write '" + arguments[1] + "'",
+                              output, 1);
+    }
+    mcp_json::Value result = mcp_json::Value::MakeObject();
+    result.Set("ok", mcp_json::Value::MakeBool(true));
+    result.Set("path", mcp_json::Value::MakeString(
+                           std::filesystem::absolute(arguments[1]).string()));
+    MotionAfterImportReportFields(report, result);
+    output = result.Dump() + "\n";
+    return 0;
+}
+
 // MM3 -- docs/roadmap/MOTION-MARQUE-2026-10.md. Every frame of a composition
 // rendered alone, in a version and a format, against a safe zone: what
 // check_motion_safe_area does for a composition_id. As --check-timeline,
@@ -981,6 +1076,9 @@ int MotionCommand(const std::string& name,
     if (name == "--list-fonts") {
         return ListFontsCommand(arguments, output);
     }
+    if (name == "--import-after-comp") {
+        return ImportAfterCompCommand(arguments, output);
+    }
     return DescribeCompositionsCommand(arguments, output);
 }
 
@@ -990,6 +1088,8 @@ void InstallMotionFrameRenderer() {
     SetMotionVideoRenderer(&RenderMotionVideos);
     // MA1 -- and the describer of export_motion_after.
     SetMotionAfterDescriber(&DescribeMotionForAfter);
+    // MB7 -- and the importer of import_after_comp.
+    SetMotionAfterImporter(&ImportAfterWithCoreText);
     // MA6 -- and the humanize pass, which measures as they do.
     SetMotionHumanizer(&HumanizeWithCoreText);
     // AX6 -- and the families list_fonts names.

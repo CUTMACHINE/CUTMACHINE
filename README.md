@@ -1,5 +1,7 @@
 # CUTMACHINE
 
+[![CTest](https://github.com/CUTMACHINE/CUTMACHINE/actions/workflows/ctest.yml/badge.svg)](https://github.com/CUTMACHINE/CUTMACHINE/actions/workflows/ctest.yml)
+
 An addressable video editing engine, built to be driven by an AI agent.
 
 CUTMACHINE is a document model, an algebra of operations that transforms it,
@@ -63,6 +65,44 @@ work and published as it is. It has no binary release.
   locally.
 - The project format is versioned and older projects are migrated when they
   are read, but nothing here is a stable API yet.
+- It was developed in a private repository; the public history starts with
+  its first publication, so earlier changes are not visible here.
+
+## Before you build or run it
+
+Building and running this code executes it on your machine. What it does,
+so you can check it before you trust it:
+
+- **What the build downloads.** Seven source archives, each at a pinned
+  commit and checked against its SHA-256 before use (`FetchContent_Declare`
+  in [`CMakeLists.txt`](CMakeLists.txt)): whisper.cpp, OpenColorIO, Yoga,
+  SQLite and zstd from GitHub, Strudel from Codeberg, Fraction.js from
+  GitHub. One exception: while it builds, OpenColorIO clones six small
+  libraries of its own with git, at tags, without a checksum. Every
+  third-party component is listed in
+  [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). The build downloads no
+  model and no binary.
+- **What the tests run.** The engine's own test binaries, plus Python and
+  Node scripts from [`tests/`](tests/) and [`scripts/`](scripts/), on
+  throwaway files. They need no network and no account.
+- **What talks to the network at run time.** Nothing by default. Paid
+  generation goes to fal.ai, only with a key you provide and after an
+  explicit yes for each request. The editor's agent panel talks to the model
+  you configure: the Anthropic API with your key, a local model, or a coding
+  agent you choose to run. Whisper, the aligner and the local voice-over run
+  on your machine, with models you install yourself.
+- **What opening this folder in Claude Code does.** [`.mcp.json`](.mcp.json)
+  declares one local MCP server, the binary you built
+  (`build/cutmachine --mcp-serve --stdio`); nothing remote.
+  [`CLAUDE.md`](CLAUDE.md) and the procedures under
+  [`.claude/skills/`](.claude/skills/) are plain Markdown instructions for
+  the agent: read them like you would read any prompt you hand to a model.
+- **Safer ways to try it.** The Linux build without a window runs in a
+  container ([`headless/README.md`](headless/README.md)); on macOS, a
+  separate user account keeps it away from your files and keychain.
+- **Reporting a security issue.** Please use GitHub's private vulnerability
+  reporting (the repository's Security tab, then "Report a vulnerability")
+  rather than a public issue.
 
 ## Building
 

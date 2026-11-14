@@ -5397,6 +5397,8 @@ int main() {
             "render_motion_frame",
             // M6 -- renders a composition to files, not a timeline.
             "render_motion_video",
+            // MA2 -- a composition against the project After built from it.
+            "verify_after_export",
             // M5 -- the templates the binary ships, before any project.
             "list_motion_templates",
             // AX6 -- the machine's font families, before any project.

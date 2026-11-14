@@ -3,6 +3,7 @@
 ## Sommaire
 
 - [Avant de commencer](#avant-de-commencer)
+- [Renvoyer un montage : send_to_resolve](#renvoyer-un-montage--send_to_resolve)
 - [Construire une timeline : les sous-titres d'abord](#construire-une-timeline--les-sous-titres-dabord)
 - [La voix va sur une piste mono](#la-voix-va-sur-une-piste-mono)
 - [Les bornes que Resolve rapporte](#les-bornes-que-resolve-rapporte)
@@ -28,7 +29,39 @@
   (`/Library/Application Support/Blackmagic Design/DaVinci Resolve/Developer/Scripting/README.txt`) :
   il correspond à la version installée, la documentation publique non.
 
+## Renvoyer un montage : send_to_resolve
+
+**« Pousse dans Resolve », « remonte la timeline » : un seul appel,
+`send_to_resolve`**, sur la timeline active (`set_active_timeline` d'abord).
+Il pose dans le projet Resolve ouvert une timeline neuve qui porte le
+montage entier : plans image et son reliés, voix sur piste mono, vitesses et
+arrêts sur image, fondus enchaînés et croisés, ouvertures au noir, cadrages,
+opacités, plans désactivés, gains et fondus du son, pistes coupées,
+marqueurs, cartons en sous-titres ; l'étalonnage en CDL avec
+`grade: "cdl"`. Puis il relit tout (voir `docs/reference/resolve.md`).
+
+- **Lis `not_sent` et dis-le au monteur avant qu'il ne compte dessus** :
+  images clés (le plan garde son cadrage de départ), recadrages, flous,
+  masques, rampes (envoyées à leur vitesse moyenne), plans de motion (leur
+  place reste vide : rends-les en plaque transparente, voir le skill
+  motion-design, et pose la plaque), seconde piste de légendes, style des
+  cartons, look.
+- **`verified: false`** : chaque écart est dans `mismatches`. Rien n'est
+  défait ; ne renvoie pas par-dessus, regarde l'écart d'abord.
+- **Révision** : sans `name`, la timeline prend le nom de la séquence ou le
+  suivant libre (« Film 2 ») ; un `name` donné et déjà pris est refusé
+  (jamais de « : »). Dans la fenêtre, le même geste est **Fichier ▸
+  Envoyer dans Resolve**.
+- **Le style des cartons** ne voyage pas : greffe-le ensuite par le `.drt`
+  (plus bas, « Reporter le style des sous-titres »).
+- **Les gestes à la main ci-dessous** restent pour ce que le renvoi ne fait
+  pas : compléter une timeline déjà retouchée, changer une illustration sur
+  une timeline étalonnée, greffer un style.
+
 ## Construire une timeline : les sous-titres d'abord
+
+C'est l'ordre que `send_to_resolve` suit ; il reste à connaître pour
+reconstruire à la main.
 
 `AppendToTimeline` pose l'élément de sous-titres **à la fin de ce que la timeline
 contient déjà**, pas au début de sa piste. Sur une timeline remplie, les cues
@@ -115,7 +148,7 @@ précédente. Ça ne se voit pas dans le retour de l'API, et pas toujours dans l
 durée : sur huit montages renvoyés, sept portaient l'ancien sous-titrage, et
 seuls trois avaient une durée aberrante.
 
-`resolve_bridge.py --send … --srt` s'en charge depuis le 18 septembre 2026 :
+`send_to_resolve` (et `resolve_bridge.py --send … --srt`) s'en charge :
 
 - il importe une **copie nommée d'après le contenu** du SRT
   (`<nom>-<empreinte>.srt`, dans
@@ -138,10 +171,12 @@ Stockshots et films tiers arrivent en 23,976 ou 24 i/s pour un montage à 25.
 durée qui tombe sur une image source entière, et aucune durée n'est entière à la
 fois à 25 et à 23,976 (il faudrait 1001 images de séquence, 40 s).
 
-Ne les fais pas porter par CUTMACHINE : monte la parole dans le moteur, exporte,
-puis **écris la couche d'illustration directement dans le fichier d'échange**
-avec `video_layer: 1` et `with_audio: false`. `path` doit être celui de l'élément
-du Media Pool ; `send_timeline` ajoute la piste vidéo qu'il faut.
+Ne les fais pas porter par CUTMACHINE : monte la parole dans le moteur,
+renvoie-la (`send_to_resolve`), puis **pose la couche d'illustration dans
+Resolve** (`AppendToTimeline` avec `mediaType: 1`, `trackIndex`, `recordFrame`),
+ou écris-la dans le descripteur (`--export-resolve-timeline`, un plan
+`"kind": "video"` sur `"track": 2`) avant `resolve_bridge.py --send`. `path`
+doit être celui de l'élément du Media Pool.
 
 - **Resolve conforme par la durée** : N images source occupent
   `N × 25 / cadence_source` images de séquence (vérifié sur 137 plans).

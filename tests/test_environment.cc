@@ -29,6 +29,13 @@ struct TestEnvironment {
         unlessSet("CUTMACHINE_MOTION_LIBRARY",
                   CUTMACHINE_TEST_BINARY_DIR "/test-motion-library");
         unlessSet("CUTMACHINE_MODELS", "off");
+        // PA16 -- found on 13 November 2026: a suite that calls every tool
+        // ran the Resolve bridge for real, and wrote its descriptors in the
+        // user's data folder. The bridge named here does not exist.
+        unlessSet("CUTMACHINE_RESOLVE_BRIDGE",
+                  CUTMACHINE_TEST_BINARY_DIR "/test-no-resolve-bridge.py");
+        unlessSet("CUTMACHINE_RESOLVE_SEND_DIR",
+                  CUTMACHINE_TEST_BINARY_DIR "/test-resolve-send");
     }
 };
 

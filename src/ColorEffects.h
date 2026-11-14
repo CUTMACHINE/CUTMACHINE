@@ -376,6 +376,8 @@ size_t CanonicalColorStageIndex(const std::vector<ClipEffect>& effects,
 //   color_space_aware               0 or 1, the project's setting; 0 absent
 //                                   (measured at HDR 1000 working luminance)
 //   contrast_s_curve                0 or 1, the project's setting; 1 absent
+//   acescct                         0 or 1: the node was graded in a project
+//                                   in ACEScct; 0 absent
 //
 // The law was measured on 25 October 2026 with grades written into .drx
 // files and Resolve's own ExportLUT cubes, to 0.05 of a 10-bit code on every
@@ -395,11 +397,23 @@ size_t CanonicalColorStageIndex(const std::vector<ClipEffect>& effects,
 // weights DaVinci YRGB uses (0.21, 0.70, 0.09, GR12): Y + s (out - Y).
 //
 // Resolve grades on its timeline's values, DaVinci Intermediate in DaVinci
-// Wide Gamut for the projects measured. The stage does the same: under
-// colour management it takes the working value to linear light, to DaVinci
-// Wide Gamut (Bradford from AP1's white), to DaVinci Intermediate, applies
-// the law, and goes back; without colour management it applies the law to
-// the display signal, as an unmanaged Resolve project does.
+// Wide Gamut for the projects measured in DaVinci YRGB and Color Managed
+// v2. The stage does the same: under colour management it takes the working
+// value to linear light, to DaVinci Wide Gamut (Bradford from AP1's white),
+// to DaVinci Intermediate, applies the law, and goes back; without colour
+// management it applies the law to the display signal, as an unmanaged
+// Resolve project does.
+//
+// In a project in ACEScct (`acescct` 1, measured on 14 November 2026), the
+// node's values are ACEScct codes in AP1: the stage takes the working value
+// there instead (as it is, when the engine grades in ACEScct), and the law
+// changes in three places. A negative v goes through the gamma unchanged
+// (c = v), the masters' target too; the saturation turns about Rec.709's
+// weights (0.2126, 0.7152, 0.0722); the temperature and tint act in
+// ACES2065-1 (AP0) light taken to a 2.4 power (below). The contrast is the
+// one without the colour-space-aware tools, on the node's values, and the
+// working luminance changes nothing; with the tools on, it follows another
+// law, never measured, which the stage refuses by name.
 //
 // The contrast comes after the primaries' Y part and before the saturation,
 // as the curve ResolveContrastTable.h describes, and its own Y part follows
@@ -417,7 +431,12 @@ size_t CanonicalColorStageIndex(const std::vector<ClipEffect>& effects,
 // GR16, measured on 6 November 2026: temperature and tint act first, on the
 // node's values, before the lift, gamma and gain, as a 3x3 matrix that
 // ResolveWhiteBalanceMatrix gives. The rest of the law then reads the
-// balanced values, its Y part included.
+// balanced values, its Y part included. In ACEScct (14 November 2026) the
+// same matrix acts on p = AP0(light)^(1/2.4), a negative keeping its sign:
+// the node's codes to linear AP1, to AP0 (kResolveAp1ToAp0), to that power,
+// the matrix, back to the power 2.4, to AP1 and to ACEScct codes. A grey
+// moves by a constant in log: its AP0 light is multiplied, channel by
+// channel, by the matrix's row sums to the power 2.4.
 //
 // A wheel stage whose knobs are all neutral, a curve stage without a point
 // and a neutral color.resolve_primaries resolve to nothing, so such a clip
@@ -438,20 +457,36 @@ inline constexpr float kHueCurveLumaFade = 0.1f;
 // (0.1832 +- 0.0001), and the floats one color.resolve_primaries resolves
 // to: the space, the matrices to and from DaVinci Wide Gamut, then per
 // channel a, b, the scaled offset and the exponent, the master's a, b and
-// exponent, the offsets' luma, lum_mix and the saturation.
+// exponent, the offsets' luma, lum_mix, the saturation and the three luma
+// weights it turns about (DaVinci YRGB's, or Rec.709's in ACEScct), then 1
+// for a node graded in ACEScct, 0 otherwise: under colour management the
+// matrices then go to and from AP1, and the node's values are ACEScct codes
+// rather than DaVinci Intermediate.
 inline constexpr float kResolveOffsetScale = 0.1832f;
-inline constexpr int32_t kResolvePrimariesDataSize = 37;
+inline constexpr int32_t kResolvePrimariesDataSize = 41;
 // GR16 -- with a contrast, the block goes on: where it acts (1 the node's
 // values, without the colour-space-aware tools; 2 HLG codes, with them),
 // the end of the domain its curve spans, and the curve's 65 values
 // (ResolveContrastTable.h). Resolve's pivot is 0.435 when none is stored.
-inline constexpr int32_t kResolvePrimariesContrastDataSize = 104;
+inline constexpr int32_t kResolvePrimariesContrastDataSize = 108;
 inline constexpr float kResolvePivot = 0.435f;
 // GR16 -- with a temperature or a tint, the block ends with the nine floats
-// of their matrix, row-major, after the contrast when there is one (46 or
-// 113 floats): a node without them resolves to exactly the block it always
+// of their matrix, row-major, after the contrast when there is one (50 or
+// 117 floats): a node without them resolves to exactly the block it always
 // did.
 inline constexpr int32_t kResolveWhiteBalanceDataSize = 9;
+// GR16 -- in ACEScct, where the temperature and tint act: linear AP1 to
+// ACES2065-1 and back (ACES reference matrices, the ones shader.metal
+// carries), and the power AP0 light is taken to (measured on 14 November
+// 2026: 2.35 and 2.45 miss a grey by 0.01 stop, 2.4 by 0.0002).
+inline constexpr std::array<float, 9> kResolveAp1ToAp0 = {
+    0.6954522414f, 0.1406786965f,  0.1638690622f, 0.0447945634f, 0.8596711185f,
+    0.0955343182f, -0.0055258826f, 0.0040252103f, 1.0015006723f};
+inline constexpr std::array<float, 9> kResolveAp0ToAp1 = {
+    1.4514393161f,  -0.2365107469f, -0.2149285693f,
+    -0.0765537734f, 1.1762296998f,  -0.0996759264f,
+    0.0083161484f,  -0.0060324498f, 0.9977163014f};
+inline constexpr float kResolveAcesBalancePower = 2.4f;
 
 // GR16 -- the 3x3 matrix, row-major, that a Resolve node's stored
 // temperature and tint make on the node's values; the identity at 0 and 0.

@@ -18,6 +18,7 @@ import json
 import re
 import os
 import sys
+import time
 import unicodedata
 import xml.etree.ElementTree as ElementTree
 from fractions import Fraction
@@ -135,7 +136,7 @@ def build_manifest(resolve: Any) -> dict[str, Any]:
     return manifest
 
 
-TIMELINE_SCHEMA = "cutmachine.resolve-timeline.v2"
+TIMELINE_SCHEMA = "cutmachine.resolve-timeline.v3"
 
 
 def normalized(path: str) -> str:
@@ -174,8 +175,11 @@ def index_media_pool(root: Any) -> dict[str, Any]:
 def count_srt_cues(srt_path: str) -> int:
     """Cues in an SRT, counted the way Resolve counts subtitle items."""
     with open(srt_path, encoding="utf-8-sig") as handle:
-        blocks = [b for b in re.split(r"\r?\n\r?\n", handle.read().strip())
-                  if b.strip()]
+        return count_srt_text_cues(handle.read())
+
+
+def count_srt_text_cues(text: str) -> int:
+    blocks = [b for b in re.split(r"\r?\n\r?\n", text.strip()) if b.strip()]
     return len(blocks)
 
 
@@ -201,8 +205,16 @@ def content_named_srt(srt_path: str, directory: str | None = None) -> str:
     """
     with open(srt_path, "rb") as handle:
         data = handle.read()
-    digest = hashlib.sha256(data).hexdigest()[:16]
     stem = os.path.splitext(os.path.basename(srt_path))[0] or "sous-titres"
+    return content_named_srt_bytes(data, stem, directory)
+
+
+def content_named_srt_bytes(data: bytes, stem: str,
+                            directory: str | None = None) -> str:
+    """content_named_srt for cues already in memory (PA16: the descriptor
+    carries the cartons). Same name rule, same durable directory."""
+    digest = hashlib.sha256(data).hexdigest()[:16]
+    stem = re.sub(r"[/\\:]", "-", stem).strip() or "sous-titres"
     target_directory = directory or SRT_IMPORT_DIRECTORY
     target = os.path.join(target_directory, f"{stem}-{digest}.srt")
     try:
@@ -237,70 +249,198 @@ def count_subtitle_items(timeline: Any) -> int:
     return total
 
 
+# PA16 -- docs/roadmap/PARITE-2026-11.md. Le placement d'une image dont la
+# taille n'est pas celle de la timeline, réglé dans le projet (ou dans la
+# timeline) : le descripteur porte le cadrage pour les deux réglages qui
+# mettent une image à l'échelle, et le pont prend celui du projet.
+SCALING_BY_SETTING = {"scaleToFit": "fit", "scaleToCrop": "fill"}
+
+
+def frame_rate_value(text: Any) -> float:
+    try:
+        return float(str(text).strip())
+    except ValueError:
+        return 0.0
+
+
+def is_identity(transform: dict[str, Any]) -> bool:
+    return (abs(float(transform.get("zoom", 1)) - 1) < 1e-9
+            and abs(float(transform.get("pan", 0))) < 1e-9
+            and abs(float(transform.get("tilt", 0))) < 1e-9)
+
+
+def timeline_setting(project: Any, timeline: Any, key: str) -> str:
+    """A setting as the timeline applies it: its own when it has custom
+    settings, the project's otherwise."""
+    if timeline is not None:
+        value = timeline.GetSetting(key)
+        if value not in (None, ""):
+            return str(value)
+    return str(project.GetSetting(key) or "")
+
+
+def build_audio_tracks(timeline: Any, tracks: list[dict[str, Any]]) -> None:
+    """Gives the timeline one audio track per entry, mono or stereo.
+
+    Mesuré sur 21.1 (14 octobre, 3 et 13 novembre) : CreateEmptyTimeline crée
+    A1 en stéréo, aucune méthode ne change le format d'une piste existante,
+    et DeleteTrack refuse la seule piste son. Une A1 mono se fait donc en
+    ajoutant une piste mono puis en supprimant l'A1 d'origine.
+    """
+    if not tracks:
+        return
+    if tracks[0].get("mono"):
+        if not timeline.AddTrack("audio", "mono") or \
+                not timeline.DeleteTrack("audio", 1):
+            raise ResolveBridgeError(
+                "Resolve a refusé de mettre la piste A1 en mono.")
+    for track in tracks[1:]:
+        if not timeline.AddTrack("audio",
+                                 "mono" if track.get("mono") else "stereo"):
+            raise ResolveBridgeError(
+                "Resolve a refusé d'ajouter une piste son.")
+
+
+def match_placed(clips: list[dict[str, Any]], placed: list[Any],
+                 origin: int, name: str) -> list[Any]:
+    """Each placed item, in the order of the descriptor's clips.
+
+    AppendToTimeline answers the items it placed, and the API does not say
+    in which order: each is matched to its clip by kind, track and position
+    (GetTrackTypeAndIndex, 21.1), before any speed moves what it reads.
+    """
+    keyed: dict[tuple[str, int, int], list[Any]] = {}
+    for item in placed:
+        kind, index = item.GetTrackTypeAndIndex()
+        keyed.setdefault((str(kind), int(index), int(item.GetStart()) - origin),
+                         []).append(item)
+    matched = []
+    for clip in clips:
+        kind = "audio" if clip.get("kind") == "audio" else "video"
+        key = (kind, int(clip["track"]), int(clip["record_frame"]))
+        bucket = keyed.get(key)
+        if not bucket:
+            raise ResolveBridgeError(
+                f"{clip.get('filename')} n'est pas sur la piste "
+                f"{kind[0].upper()}{clip['track']} à l'image "
+                f"{clip['record_frame']} de la timeline « {name} » après "
+                "AppendToTimeline : supprime-la avant de renvoyer.")
+        matched.append(bucket.pop(0))
+    return matched
+
+
+def free_timeline_name(project: Any, wanted: str) -> str:
+    """`wanted`, or the first of « wanted 2 », « wanted 3 »... that no
+    timeline of the project holds.
+
+    PA16 -- un renvoi sans nom donné (le bouton de la fenêtre, un agent qui
+    ne le précise pas) ne bute pas sur une révision déjà envoyée : Resolve
+    refuse un nom pris. Un nom donné explicitement n'est jamais changé.
+    """
+    taken = set()
+    for index in range(1, int(project.GetTimelineCount() or 0) + 1):
+        existing = project.GetTimelineByIndex(index)
+        if existing is not None:
+            taken.add(existing.GetName())
+    if wanted not in taken:
+        return wanted
+    number = 2
+    while f"{wanted} {number}" in taken:
+        number += 1
+    return f"{wanted} {number}"
+
+
+class Stopwatch:
+    """Le temps de chaque étape du renvoi, en millisecondes."""
+
+    def __init__(self) -> None:
+        self.laps: dict[str, int] = {}
+        self.last = time.monotonic()
+
+    def lap(self, step: str) -> None:
+        now = time.monotonic()
+        self.laps[step] = self.laps.get(step, 0) + round(
+            (now - self.last) * 1000)
+        self.last = now
+
+
 def send_timeline(resolve: Any, timeline: dict[str, Any],
                   name: str | None = None,
                   srt_path: str | None = None,
-                  srt_directory: str | None = None) -> str:
-    """Rebuilds a CUTMACHINE cut as a new Resolve timeline.
+                  srt_directory: str | None = None) -> dict[str, Any]:
+    """Rebuilds a CUTMACHINE montage as a new Resolve timeline, whole.
 
-    `name` overrides the montage's own name. Resolve refuses a duplicate
-    timeline name, so without an override a cut can only ever be sent once:
-    every later revision of the same montage would be rejected. This is where
-    the operator says where it lands, not what it contains.
+    PA16 -- docs/roadmap/PARITE-2026-11.md. Le descripteur v3
+    (`cutmachine --export-resolve-timeline`, ou `send_to_resolve`) porte le
+    montage dans les termes de l'API de Resolve 21.1, mesurés le 13 novembre
+    (voir l'en-tête de src/ResolveExport.h). L'ordre est celui qui marche :
 
-    `srt_path` adds a subtitle track. It is appended *first*, while the
-    timeline is still empty: AppendToTimeline puts a subtitle element after
-    whatever the timeline already holds, not at the start of its own track, so
-    subtitling a filled timeline lands every cue past the last clip and
-    doubles the timeline's length without raising. `recordFrame` does not
-    work around it -- it is ignored on a subtitle element -- so the order
-    below is the only way. The clipInfo carries nothing but the item and the
-    track: adding startFrame, endFrame, recordFrame or mediaType crashes the
-    bridge.
+    1. tout ce qui peut échouer avant de toucher Resolve : le schéma, chaque
+       rush dans le Media Pool, la cadence et la taille du projet, le
+       placement des images, le SRT ;
+    2. la timeline, puis les sous-titres d'abord, tant qu'elle est vide
+       (AppendToTimeline pose un élément de sous-titres après ce que la
+       timeline contient déjà) ;
+    3. les pistes, puis tous les plans en un seul AppendToTimeline, image
+       seule ou son seul, à leur position absolue ;
+    4. plan par plan : la vitesse (SetSpeed garde la position et la durée),
+       l'activation, le cadrage et l'opacité, la CDL, le gain et les fondus ;
+       puis les liens, les transitions, les marqueurs, les pistes coupées ;
+    5. la relecture : chaque plan à sa position, sa durée, sa vitesse ;
+       chaque transition à ses bornes ; les marqueurs, les sous-titres, la
+       longueur de la timeline. Un écart ne défait rien : il est rapporté
+       dans `mismatches`, et `verified` est faux.
 
-    The subtitles are imported from a copy named after their content (see
-    content_named_srt, written under `srt_directory`), and the items placed
-    on the subtitle tracks are then counted against the cues of the file: a
-    difference raises, naming both counts, before any clip is added.
+    `name` names the timeline, and is refused by Resolve when taken. Without
+    it, the montage's own name, or the first « name 2 », « name 3 »... that
+    the project does not hold yet, so a montage can be sent again without
+    choosing a name. `srt_path` replaces the cartons the descriptor carries.
+    The report's `timings_ms` says how long each step took.
     """
+    watch = Stopwatch()
     if timeline.get("schema") != TIMELINE_SCHEMA:
         raise ResolveBridgeError(
             f"schéma inattendu : {timeline.get('schema')} "
-            f"(attendu {TIMELINE_SCHEMA})")
+            f"(attendu {TIMELINE_SCHEMA} ; un descripteur v2 vient d'un "
+            "moteur antérieur au 13 novembre 2026 : recompile CUTMACHINE)")
     project = resolve.GetProjectManager().GetCurrentProject()
     if project is None:
         raise ResolveBridgeError("Aucun projet ouvert dans Resolve.")
     media_pool = project.GetMediaPool()
     index = index_media_pool(media_pool.GetRootFolder())
 
-    pending = []
+    clips = timeline.get("clips", [])
+    if not clips:
+        raise ResolveBridgeError("Aucun plan à envoyer.")
+    items_of_pool = []
     missing = []
-    layers = 1
-    for clip in timeline.get("clips", []):
+    for clip in clips:
         item = index["by_path"].get(normalized(clip["path"]))
         if item is None:
             item = index["by_name"].get(normalized(clip.get("filename", "")))
         if item is None:
             missing.append(clip.get("filename") or clip["path"])
-            continue
-        layer = int(clip.get("video_layer", 0))
-        layers = max(layers, layer + 1)
-        info = {
-            "mediaPoolItem": item,
-            "startFrame": int(clip["start_frame"]),
-            "endFrame": int(clip["end_frame"]),
-            "trackIndex": layer + 1,
-        }
-        if not clip.get("with_audio", False):
-            # mediaType 1 = image seule. Sans ça, Resolve rapporte le son du
-            # plan de coupe et le pose sous l'interview qu'il recouvre.
-            info["mediaType"] = 1
-        pending.append((info, int(clip.get("record_frame", 0))))
+        items_of_pool.append(item)
     if missing:
         raise ResolveBridgeError(
-            "Rushes absents du Media Pool : " + ", ".join(sorted(set(missing))))
-    if not pending:
-        raise ResolveBridgeError("Aucun plan à envoyer.")
+            "Rushes absents du Media Pool : " + ", ".join(sorted(set(missing)))
+            + ". Importe-les dans le projet Resolve ouvert ("
+            + str(project.GetName()) + "), puis renvoie.")
+
+    rate = timeline.get("frame_rate") or {"num": 25, "den": 1}
+    wanted_rate = rate["num"] / rate["den"]
+    project_rate = frame_rate_value(project.GetSetting("timelineFrameRate"))
+    if abs(project_rate - wanted_rate) > 0.001:
+        raise ResolveBridgeError(
+            f"Le projet Resolve « {project.GetName()} » est à "
+            f"{project.GetSetting('timelineFrameRate')} i/s et le montage à "
+            f"{wanted_rate:g} : chaque position serait fausse. Règle la "
+            "cadence de la timeline dans les réglages du projet (elle ne se "
+            "change plus une fois une timeline créée), puis renvoie.")
+    width, height = int(timeline.get("width", 0)), int(timeline.get("height", 0))
+    project_size = (int(project.GetSetting("timelineResolutionWidth") or 0),
+                    int(project.GetSetting("timelineResolutionHeight") or 0))
+    custom_size = bool(width and height and project_size != (width, height))
 
     cues = 0
     import_path = None
@@ -313,26 +453,64 @@ def send_timeline(resolve: Any, timeline: dict[str, Any],
             raise ResolveBridgeError(
                 f"SRT illisible : {srt_path} ({error})") from error
         import_path = content_named_srt(srt_path, srt_directory)
+    elif timeline.get("subtitles"):
+        text = timeline["subtitles"].get("srt", "")
+        cues = count_srt_text_cues(text)
+        import_path = content_named_srt_bytes(
+            text.encode("utf-8"), name or timeline.get("name") or "CUTMACHINE",
+            srt_directory)
 
-    name = name or timeline.get("name") or "CUTMACHINE"
+    if not name:
+        name = free_timeline_name(project, timeline.get("name") or "CUTMACHINE")
+    watch.lap("preflight")
     created = media_pool.CreateEmptyTimeline(name)
     if not created:
         raise ResolveBridgeError(
             f"Resolve a refusé de créer la timeline « {name} » "
-            "(un nom identique existe peut-être déjà).")
+            "(un nom identique existe peut-être déjà ; Resolve refuse aussi "
+            "un nom qui contient « : »).")
+    if custom_size:
+        for key, value in (("useCustomSettings", "1"),
+                           ("timelineResolutionWidth", str(width)),
+                           ("timelineResolutionHeight", str(height))):
+            created.SetSetting(key, value)
+        got = (int(created.GetSetting("timelineResolutionWidth") or 0),
+               int(created.GetSetting("timelineResolutionHeight") or 0))
+        if got != (width, height):
+            raise ResolveBridgeError(
+                f"La timeline « {name} » est restée en {got[0]}×{got[1]} "
+                f"au lieu de {width}×{height} (le projet est en "
+                f"{project_size[0]}×{project_size[1]}) : supprime-la, règle "
+                "la résolution du projet sur celle du montage, puis renvoie.")
+    scaling_setting = timeline_setting(project, created,
+                                       "timelineInputResMismatchBehavior")
+    scaling = SCALING_BY_SETTING.get(scaling_setting)
+    if scaling is None:
+        framed = [c.get("filename") for c in clips
+                  if c.get("transform") and
+                  not is_identity(c["transform"].get("fit", {}))]
+        if framed:
+            raise ResolveBridgeError(
+                f"Le projet place une image d'une autre taille en "
+                f"« {scaling_setting} » : seuls « Scale entire image to fit » "
+                "et « Scale full frame with crop » ont un cadrage mesuré. "
+                f"Plans cadrés : {', '.join(sorted(set(framed)))}. La "
+                f"timeline « {name} » est créée vide : supprime-la, change "
+                "le réglage (Image Scaling), puis renvoie.")
+        scaling = "fit"
+
     if import_path:
         if not created.AddTrack("subtitle"):
             raise ResolveBridgeError(
                 "Resolve a refusé d'ajouter une piste de sous-titres.")
-        # Resolve caches imported media by path, so a rewritten .srt would
-        # come back as the previous version: the copy imported here is named
-        # after its content, and the count below checks what was placed.
         before = count_subtitle_items(created)
         imported = media_pool.ImportMedia([import_path]) or []
         if not imported:
             raise ResolveBridgeError(
                 f"Resolve n'a pas importé le fichier de sous-titres : "
-                f"{import_path} (copie de {srt_path})")
+                f"{import_path}")
+        # Rien d'autre que l'élément et la piste : startFrame, endFrame,
+        # recordFrame ou mediaType font planter le pont.
         if not media_pool.AppendToTimeline(
                 [{"mediaPoolItem": imported[0], "trackIndex": 1}]):
             raise ResolveBridgeError(
@@ -341,34 +519,228 @@ def send_timeline(resolve: Any, timeline: dict[str, Any],
         if placed != cues:
             raise ResolveBridgeError(
                 f"Resolve a posé {placed} sous-titre(s) sur la timeline "
-                f"« {name} », alors que {srt_path} compte {cues} cue(s) : "
-                "ce ne sont pas les sous-titres du fichier (un ancien SRT "
-                "repris du Media Pool, ou des cues fusionnées à l'import). "
-                f"Aucun plan n'a été posé ; supprime la timeline « {name} » "
-                "dans Resolve avant de renvoyer.")
-    # Une timeline neuve n'a qu'une piste vidéo : chaque couche de recouvrement
-    # a besoin de la sienne avant qu'AppendToTimeline puisse l'adresser.
-    while int(created.GetTrackCount("video")) < layers:
+                f"« {name} », alors que le montage en compte {cues} : ce ne "
+                "sont pas ses sous-titres (un ancien SRT repris du Media "
+                "Pool, ou des cues fusionnées à l'import). Aucun plan n'a "
+                f"été posé ; supprime la timeline « {name} » dans Resolve "
+                "avant de renvoyer.")
+
+    watch.lap("timeline_and_subtitles")
+    tracks = timeline.get("tracks", [])
+    video_tracks = sorted((t for t in tracks if t.get("kind") == "video"),
+                          key=lambda t: t["index"])
+    audio_tracks = sorted((t for t in tracks if t.get("kind") == "audio"),
+                          key=lambda t: t["index"])
+    wanted_video = max([len(video_tracks)] +
+                       [int(c["track"]) for c in clips
+                        if c.get("kind") == "video"])
+    while int(created.GetTrackCount("video")) < wanted_video:
         if not created.AddTrack("video"):
             raise ResolveBridgeError(
                 "Resolve a refusé d'ajouter une piste vidéo.")
+    build_audio_tracks(created, audio_tracks)
+    while int(created.GetTrackCount("audio")) < max(
+            [0] + [int(c["track"]) for c in clips if c.get("kind") == "audio"]):
+        if not created.AddTrack("audio", "stereo"):
+            raise ResolveBridgeError(
+                "Resolve a refusé d'ajouter une piste son.")
+
     # Resolve compte les images depuis le timecode de départ de la séquence
-    # (90000 pour 01:00:00:00 à 25 i/s) ; CUTMACHINE compte depuis zéro. Sans
-    # ce décalage, les plans repartiraient bout à bout au lieu de se poser où
-    # le montage les place.
-    start = int(created.GetStartFrame())
+    # (90000 pour 01:00:00:00 à 25 i/s) ; CUTMACHINE compte depuis zéro.
+    origin = int(created.GetStartFrame())
     infos = []
-    for info, record_frame in pending:
-        info["recordFrame"] = start + record_frame
-        infos.append(info)
-    if not media_pool.AppendToTimeline(infos):
-        raise ResolveBridgeError("AppendToTimeline a échoué.")
-    couches = "" if layers == 1 else f", sur {layers} pistes vidéo"
-    titres = ("" if not import_path else
-              f", {cues} sous-titre(s) importés depuis "
-              f"{os.path.basename(import_path)}")
-    return (f"{len(infos)} plan(s) → timeline « {name} » dans Resolve"
-            f"{couches}{titres}")
+    for clip, item in zip(clips, items_of_pool):
+        infos.append({
+            "mediaPoolItem": item,
+            "startFrame": int(clip["start_frame"]),
+            "endFrame": int(clip["end_frame"]),
+            "recordFrame": origin + int(clip["record_frame"]),
+            "trackIndex": int(clip["track"]),
+            # 1 : image seule ; 2 : son seul. Chaque plan part pour ce qu'il
+            # est, et les paires du document sont reliées plus bas.
+            "mediaType": 2 if clip.get("kind") == "audio" else 1,
+        })
+    placed_items = media_pool.AppendToTimeline(infos) or []
+    if not isinstance(placed_items, list) or len(placed_items) != len(infos):
+        count = len(placed_items) if isinstance(placed_items, list) else 0
+        raise ResolveBridgeError(
+            f"AppendToTimeline a posé {count} plan(s) sur {len(infos)} dans "
+            f"la timeline « {name} » : supprime-la avant de renvoyer.")
+
+    placed_items = match_placed(clips, placed_items, origin, name)
+    watch.lap("tracks_and_append")
+
+    report: dict[str, Any] = {
+        "ok": True, "timeline": name, "project": str(project.GetName()),
+        "scaling": scaling, "clips": len(clips),
+        "video_clips": sum(1 for c in clips if c.get("kind") != "audio"),
+        "audio_clips": sum(1 for c in clips if c.get("kind") == "audio"),
+        "speeds": 0, "held_frames": 0, "disabled": 0, "framed": 0,
+        "opacities": 0, "cdls": 0, "gains": 0, "fades": 0,
+        "linked_groups": 0, "transitions": 0, "markers": 0,
+        "subtitles": cues, "mismatches": [],
+    }
+    mismatches: list[str] = report["mismatches"]
+
+    def label(clip: dict[str, Any]) -> str:
+        kind = "A" if clip.get("kind") == "audio" else "V"
+        return (f"{clip.get('filename')} ({kind}{clip.get('track')} à "
+                f"{clip.get('record_frame')})")
+
+    for clip, item in zip(clips, placed_items):
+        if "speed_percent" in clip:
+            percent = float(clip["speed_percent"])
+            if item.SetSpeed({"Percentage": percent}):
+                report["speeds"] += 1
+                if percent == 0:
+                    report["held_frames"] += 1
+            else:
+                mismatches.append(f"{label(clip)} : SetSpeed({percent:g}) "
+                                  "refusé")
+        if clip.get("enabled") is False:
+            if item.SetClipEnabled(False):
+                report["disabled"] += 1
+            else:
+                mismatches.append(f"{label(clip)} : désactivation refusée")
+        properties: dict[str, Any] = {}
+        transform = (clip.get("transform") or {}).get(scaling)
+        if transform and not is_identity(transform):
+            zoom = float(transform["zoom"])
+            properties.update({"ZoomX": zoom, "ZoomY": zoom,
+                               "Pan": float(transform["pan"]),
+                               "Tilt": float(transform["tilt"])})
+        if "opacity" in clip:
+            properties["Opacity"] = float(clip["opacity"])
+        if clip.get("kind") == "audio" and "volume_db" in clip:
+            properties.update({"AudioVolumeEnabled": True,
+                               "AudioVolume": float(clip["volume_db"])})
+        if properties:
+            if item.SetProperties(properties):
+                report["framed"] += int("ZoomX" in properties)
+                report["opacities"] += int("Opacity" in properties)
+                report["gains"] += int("AudioVolume" in properties)
+            else:
+                mismatches.append(f"{label(clip)} : SetProperties refusé "
+                                  f"({', '.join(sorted(properties))})")
+        if "cdl" in clip:
+            if item.SetCDL(clip["cdl"]):
+                report["cdls"] += 1
+            else:
+                mismatches.append(f"{label(clip)} : SetCDL refusé")
+        fades = {key: int(clip[source]) for key, source in
+                 (("FadeIn", "fade_in"), ("FadeOut", "fade_out"))
+                 if clip.get(source)}
+        if fades:
+            if item.SetFades(fades):
+                report["fades"] += 1
+            else:
+                mismatches.append(f"{label(clip)} : SetFades refusé")
+
+    watch.lap("clip_settings")
+    groups: dict[int, list[Any]] = {}
+    for clip, item in zip(clips, placed_items):
+        if "link_group" in clip:
+            groups.setdefault(int(clip["link_group"]), []).append(item)
+    for group, members in sorted(groups.items()):
+        if len(members) > 1:
+            if created.SetClipsLinked(members, True):
+                report["linked_groups"] += 1
+            else:
+                mismatches.append(f"liaison du groupe {group} refusée")
+
+    added_transitions = []
+    for transition in timeline.get("transitions", []):
+        clip = clips[int(transition["clip"])]
+        added = placed_items[int(transition["clip"])].AddTransition({
+            "type": transition["type"], "category": transition["category"],
+            "position": "end", "alignment": transition["alignment"],
+            "duration": int(transition["duration"])})
+        if added is None:
+            mismatches.append(
+                f"{transition['type']} après {label(clip)} refusé : il faut "
+                "des poignées des deux côtés de la coupe")
+            continue
+        report["transitions"] += 1
+        added_transitions.append((transition, added))
+
+    for marker in timeline.get("markers", []):
+        custom = "cutmachine:" + ",".join(marker.get("marker_ids", []))
+        if created.AddMarker(int(marker["frame"]), marker["color"],
+                             marker.get("name", ""), marker.get("note", ""),
+                             max(1, int(marker.get("duration", 1))), custom):
+            report["markers"] += 1
+        else:
+            mismatches.append(
+                f"marqueur « {marker.get('name', '')} » à l'image "
+                f"{marker['frame']} refusé")
+
+    for track in tracks:
+        if track.get("enabled", True) is False:
+            if not created.SetTrackEnable(track["kind"], int(track["index"]),
+                                          False):
+                mismatches.append(
+                    f"piste {track['kind']} {track['index']} : désactivation "
+                    "refusée")
+
+    watch.lap("links_transitions_markers")
+    # Relecture. GetSourceStartFrame se trompe d'une image sur la moitié des
+    # plans (mesuré) : seules la position, la durée et la vitesse sont lues.
+    for clip, item in zip(clips, placed_items):
+        start = int(item.GetStart()) - origin
+        duration = int(item.GetDuration())
+        if start != int(clip["record_frame"]) or \
+                duration != int(clip["duration"]):
+            mismatches.append(
+                f"{label(clip)} : posé à {start} pour {duration} image(s), "
+                f"attendu à {clip['record_frame']} pour {clip['duration']}")
+        if "speed_percent" in clip:
+            speed = (item.GetSpeed() or {}).get("Percentage")
+            if speed is None or abs(float(speed) -
+                                    float(clip["speed_percent"])) > 1e-3:
+                mismatches.append(f"{label(clip)} : vitesse relue {speed}, "
+                                  f"attendue {clip['speed_percent']}")
+        if clip.get("enabled") is False and item.GetClipEnabled():
+            mismatches.append(f"{label(clip)} : toujours actif")
+    for transition, added in added_transitions:
+        start = int(added.GetStart()) - origin
+        end = int(added.GetEnd()) - origin
+        if (start, end) != (int(transition["record_start"]),
+                            int(transition["record_end"])):
+            mismatches.append(
+                f"{transition['type']} posé de {start} à {end}, attendu de "
+                f"{transition['record_start']} à {transition['record_end']}")
+    if import_path and count_subtitle_items(created) != cues:
+        mismatches.append(f"{count_subtitle_items(created)} sous-titre(s) "
+                          f"relus, {cues} attendus")
+    markers = created.GetMarkers() or {}
+    if len(markers) != report["markers"]:
+        mismatches.append(f"{len(markers)} marqueur(s) relus, "
+                          f"{report['markers']} posés")
+    length = int(created.GetEndFrame()) - origin
+    if "duration" in timeline and length != int(timeline["duration"]):
+        mismatches.append(f"timeline de {length} image(s), attendue de "
+                          f"{timeline['duration']}")
+    report["verified"] = not mismatches
+    watch.lap("read_back")
+    report["timings_ms"] = watch.laps
+    return report
+
+
+def send_summary(report: dict[str, Any]) -> str:
+    """Une phrase pour la sortie d'erreur, à côté du rapport JSON."""
+    parts = [f"{report['video_clips']} plan(s) image",
+             f"{report['audio_clips']} plan(s) son"]
+    for key, word in (("speeds", "vitesse(s)"),
+                      ("transitions", "transition(s)"),
+                      ("framed", "cadrage(s)"), ("cdls", "CDL"),
+                      ("markers", "marqueur(s)"),
+                      ("subtitles", "sous-titre(s)")):
+        if report.get(key):
+            parts.append(f"{report[key]} {word}")
+    verdict = ("relu sans écart" if report["verified"] else
+               f"{len(report['mismatches'])} écart(s) à la relecture")
+    return (f"timeline « {report['timeline']} » dans « {report['project']} » : "
+            + ", ".join(parts) + f" ; {verdict}")
 
 
 # R9 -- docs/roadmap/REEL-2026-09.md. L'autre renvoi : une timeline importée
@@ -1389,16 +1761,22 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", "-o", default="-",
                         help="Fichier de sortie ('-' pour la sortie standard)")
     parser.add_argument("--send", metavar="TIMELINE.json",
-                        help="Renvoie dans Resolve une timeline exportée par "
-                             "`cutmachine --export-resolve-timeline`")
+                        help="Renvoie dans Resolve le montage entier décrit "
+                             "par `cutmachine --export-resolve-timeline` "
+                             "(ou par l'outil send_to_resolve) : plans image "
+                             "et son, vitesses, transitions, cadrages, "
+                             "opacités, gains, fondus, marqueurs, "
+                             "sous-titres. Écrit un rapport JSON sur la "
+                             "sortie standard.")
     parser.add_argument("--name", metavar="NOM",
                         help="Nom de la timeline créée dans Resolve "
                              "(par défaut celui du montage). Resolve refuse "
                              "un nom déjà pris : sans ça, on ne peut pas "
                              "renvoyer une révision du même montage.")
     parser.add_argument("--srt", metavar="SOUS-TITRES.srt",
-                        help="Pose ce SRT sur une piste de sous-titres de la "
-                             "timeline renvoyée par --send. Resolve met en "
+                        help="Pose ce SRT, à la place des cartons du montage, "
+                             "sur la piste de sous-titres de la timeline "
+                             "renvoyée par --send. Resolve met en "
                              "cache le média importé par son chemin : le pont "
                              "importe une copie nommée d'après son contenu "
                              "(~/Library/Application Support/CUTMACHINE/"
@@ -1512,8 +1890,9 @@ def main(argv: list[str] | None = None) -> int:
                   "de piste de sous-titres (mesuré : l'export FCP7 de "
                   "Resolve n'en écrit aucune trace) et une timeline importée "
                   "arrive pleine, si bien qu'AppendToTimeline décale chaque "
-                  "cue de la longueur du montage. Passe par --send pour un "
-                  "montage sans vitesse ni fondu.", file=sys.stderr)
+                  "cue de la longueur du montage. Passe par --send, qui "
+                  "porte aussi vitesses et fondus depuis Resolve 21.1.",
+                  file=sys.stderr)
             return 1
         try:
             print(send_timeline_xml(connect(), arguments.send_xml,
@@ -1529,12 +1908,21 @@ def main(argv: list[str] | None = None) -> int:
         try:
             with open(arguments.send, encoding="utf-8") as handle:
                 timeline = json.load(handle)
-            print(send_timeline(connect(), timeline, arguments.name,
-                                arguments.srt),
-                  file=sys.stderr)
-        except ResolveBridgeError as error:
+            began = time.monotonic()
+            resolve = connect()
+            connected_ms = round((time.monotonic() - began) * 1000)
+            report = send_timeline(resolve, timeline, arguments.name,
+                                   arguments.srt)
+            report["timings_ms"] = {"connect": connected_ms,
+                                    **report.get("timings_ms", {})}
+        except (ResolveBridgeError, OSError, ValueError) as error:
             print(str(error), file=sys.stderr)
             return 1
+        # PA16 -- le rapport sur la sortie standard, pour le moteur
+        # (send_to_resolve) ; la phrase sur la sortie d'erreur, pour qui lit.
+        sys.stdout.write(json.dumps(report, ensure_ascii=False,
+                                    sort_keys=True) + "\n")
+        print(send_summary(report), file=sys.stderr)
         return 0
 
     try:

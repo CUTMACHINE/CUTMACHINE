@@ -2681,6 +2681,14 @@ private:
                 out.scale_y = Number(value);
             } else if (property == "rotate") {
                 out.rotate = Number(value);
+            } else if (property == "skewX") {
+                out.skew_x = Number(value);
+            } else if (property == "skewY") {
+                out.skew_y = Number(value);
+            } else if (property == "transformOrigin") {
+                if (value.IsString()) {
+                    ParseMotionTransformOrigin(value.AsString(), out.origin);
+                }
             } else if (property == "rotateX") {
                 out.rotate_x = Number(value);
             } else if (property == "rotateY") {
@@ -3343,21 +3351,35 @@ std::string Box(double x, double y, double width, double height) {
 
 std::string Transform(double translateX, double translateY, double scaleX,
                       double scaleY, double rotate, double rotateX = 0.0,
-                      double rotateY = 0.0) {
+                      double rotateY = 0.0, double skewX = 0.0,
+                      double skewY = 0.0,
+                      const MotionTransformOrigin& origin = {}) {
     if (translateX == 0.0 && translateY == 0.0 && scaleX == 1.0 &&
-        scaleY == 1.0 && rotate == 0.0 && rotateX == 0.0 && rotateY == 0.0) {
+        scaleY == 1.0 && rotate == 0.0 && rotateX == 0.0 && rotateY == 0.0 &&
+        skewX == 0.0 && skewY == 0.0) {
         return "";
     }
     // REM4 -- the turns in depth only when there are some, so that a flat
-    // node's descriptor keeps the bytes it had.
+    // node's descriptor keeps the bytes it had. MW5 -- the same for the
+    // skew and the origin.
     const std::string depth = rotateX == 0.0 && rotateY == 0.0
                                   ? std::string()
                                   : ",\"rotateX\":" + Number(rotateX) +
                                         ",\"rotateY\":" + Number(rotateY);
+    const std::string skew =
+        skewX == 0.0 && skewY == 0.0
+            ? std::string()
+            : ",\"skewX\":" + Number(skewX) + ",\"skewY\":" + Number(skewY);
+    const std::string about =
+        origin.IsCentre()
+            ? std::string()
+            : ",\"origin\":[" + Number(origin.x_fraction) + "," +
+                  Number(origin.x_pixels) + "," + Number(origin.y_fraction) +
+                  "," + Number(origin.y_pixels) + "]";
     return ",\"transform\":{\"translateX\":" + Number(translateX) +
            ",\"translateY\":" + Number(translateY) +
            ",\"scaleX\":" + Number(scaleX) + ",\"scaleY\":" + Number(scaleY) +
-           ",\"rotate\":" + Number(rotate) + depth + "}";
+           ",\"rotate\":" + Number(rotate) + depth + skew + about + "}";
 }
 
 const char* UnitName(MotionTextUnit unit) {
@@ -3689,7 +3711,8 @@ void DumpNode(const MotionEvaluatedNode& node, std::string& out) {
         out += ",\"opacity\":" + Number(node.opacity);
     }
     out += Transform(node.translate_x, node.translate_y, node.scale_x,
-                     node.scale_y, node.rotate, node.rotate_x, node.rotate_y);
+                     node.scale_y, node.rotate, node.rotate_x, node.rotate_y,
+                     node.skew_x, node.skew_y, node.origin);
     if (node.perspective > 0.0) {
         out += ",\"perspective\":" + Number(node.perspective);
     }

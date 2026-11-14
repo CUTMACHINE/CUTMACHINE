@@ -143,6 +143,7 @@ constexpr ToolTitle kToolTitles[] = {
     {"export_timelines", "exporter des timelines"},
     {"render_motion_video", "rendre une vidéo motion"},
     {"export_resolve_xml", "exporter un XML pour Resolve"},
+    {"send_to_resolve", "renvoyer le montage dans Resolve"},
     {"export_edl", "exporter des EDL"},
     {"export_edl_markers", "exporter les marqueurs en EDL"},
     {"export_otio", "exporter un fichier OTIO"},
@@ -178,6 +179,8 @@ constexpr ToolTitle kToolTitles[] = {
     {"after_duplicate_layer", "dupliquer un calque dans After Effects"},
     {"after_save_project", "enregistrer le projet After Effects"},
     {"export_motion_after", "exporter une composition vers After Effects"},
+    {"verify_after_export", "comparer un projet After Effects au moteur"},
+    {"import_after_comp", "importer une composition d'After Effects"},
     // GENERATIF-2026-10 GN2 -- what the journal says of a paid generation.
     {"propose_generation", "proposer une génération payante"},
     {"generate_media", "générer un média payant avec fal.ai"},

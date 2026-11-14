@@ -1,9 +1,9 @@
 """GR16 -- docs/roadmap/GRADE-RESOLVE-2026-10.md. Writes resolve_cubes.txt,
 the reference color_effects_tests holds color.resolve_primaries to.
 
-The source is the measurement of 25 October 2026 (GR15, point 2), and the
-temperature and tint measured on 6 November 2026 (GR16), outside the
-repository: grades written into .drx files, posed on a clip of the probe
+The source is the measurement of 25 October 2026 (GR15, point 2), the
+temperature and tint measured on 6 November 2026 (GR16), and the project in
+ACEScct measured on 14 November 2026 (GR16), outside the repository: grades written into .drx files, posed on a clip of the probe
 project in DaVinci Resolve Studio 21.1.0.17, and the 33-point cube
 Resolve's ExportLUT gave for each. No client picture is involved: a cube
 depends on the grade only. Each case keeps the stored values it was
@@ -43,6 +43,27 @@ FOLDERS = {
     "grille": ("gr16-temp-teinte/grid", AWARE),
     "chaine": ("gr16-temp-teinte/chain", AWARE),
     "hasard": ("gr16-temp-teinte/hasard", AWARE),
+    # GR16 -- the same .drx as rcm2-aware and serie2, posed on 6 November
+    # 2026 in a project in ACEScct: the primaries as in DaVinci YRGB, the
+    # saturation about Rec.709's luma.
+    "acescct": ("gr16-temp-teinte/acescct-primaires", {"acescct": 1}),
+    # GR16 -- 14 November 2026, the probe project in ACEScct (colour-space-
+    # aware tools off, S-curve on, as every ACEScct project of the library):
+    # the .drx of the temperature and tint above, posed there, and those of
+    # gr15-facteurs/contraste-dwg and contraste-lin; then 24 nodes drawn at
+    # random for this measurement, never used to look for the laws.
+    "acescct-temperature": ("gr16-acescct/temp", {"acescct": 1}),
+    "acescct-teinte": ("gr16-acescct/tint", {"acescct": 1}),
+    "acescct-grille": ("gr16-acescct/grid", {"acescct": 1}),
+    "acescct-chaine": ("gr16-acescct/chain", {"acescct": 1}),
+    "acescct-hasard": ("gr16-acescct/hasard", {"acescct": 1}),
+    "acescct-contraste": ("gr16-acescct/contraste",
+                          {"acescct": 1, "color_space_aware": 0,
+                           "contrast_s_curve": 1}),
+    "acescct-contraste-lin": ("gr16-acescct/contraste-lin",
+                              {"acescct": 1, "color_space_aware": 0,
+                               "contrast_s_curve": 0}),
+    "acescct-temoin": ("gr16-acescct/hasard2", {"acescct": 1}),
 }
 # GR16 -- a matrix needs few settings to be held: every other temperature
 # of the sweep (500 apart, and the smallest), every other tint, a grid of
@@ -57,6 +78,12 @@ KEEP = {
     "grille": lambda v: (v["temp"] in (-4000, -2500, -1000, 400, 1000, 4000)
                          and v["tint"] in (-100, -20, 50, 100)),
 }
+# GR16 -- the same choice in ACEScct; of the straight contrast, which gives
+# the cubes of DaVinci YRGB to the last digit, the default pivot alone.
+KEEP["acescct-temperature"] = KEEP["temperature"]
+KEEP["acescct-teinte"] = KEEP["teinte"]
+KEEP["acescct-grille"] = KEEP["grille"]
+KEEP["acescct-contraste-lin"] = lambda v: "pivot" not in v
 for knob in ("lift", "gamma", "gain", "offset"):
     for channel, suffix in (("r", "r"), ("g", "g"), ("b", "b"),
                             ("m", "master")):

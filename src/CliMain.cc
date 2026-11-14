@@ -25,6 +25,7 @@
 #include "ProjectStorage.h"
 #include "ResolveExport.h"
 #include "ResolveImport.h"
+#include "ResolveSend.h"
 #include "ResolveXmlExport.h"
 #include "TimelineSheets.h"
 #include "Ulid.h"
@@ -1476,17 +1477,49 @@ std::optional<int> RunCliCommand(int argc, char* argv[], const CliHost& host) {
         std::fwrite(output.data(), 1, output.size(), stdout);
         return result;
     }
-    if ((argc == 3 || argc == 5) &&
-        std::string(argv[1]) == "--export-resolve-timeline") {
-        if (argc == 5 && std::string(argv[3]) != "--timeline") {
-            return failCli("ValidationFailed",
-                           "unknown --export-resolve-timeline option '" +
-                               std::string(argv[3]) + "'",
-                           2);
+    // PA16 -- docs/roadmap/PARITE-2026-11.md. The descriptor of the one
+    // send (ResolveExport.h), and the send itself (ResolveSend.h).
+    if (argc >= 3 && (std::string(argv[1]) == "--export-resolve-timeline" ||
+                      std::string(argv[1]) == "--send-resolve")) {
+        const bool send = std::string(argv[1]) == "--send-resolve";
+        std::string timelineId;
+        ResolveSendRequest request;
+        bool gradeGiven = false;
+        bool nodeGiven = false;
+        for (int index = 3; index < argc; ++index) {
+            const std::string option(argv[index]);
+            if (send && option == "--dry-run" && !request.dry_run) {
+                request.dry_run = true;
+                continue;
+            }
+            if (index + 1 >= argc) return refuseOption(index);
+            const std::string value(argv[index + 1]);
+            if (option == "--timeline" && timelineId.empty()) {
+                timelineId = value;
+            } else if (option == "--grade" && !gradeGiven &&
+                       (value == "cdl" || value == "none")) {
+                request.options.grade_cdl = value == "cdl";
+                gradeGiven = true;
+            } else if (option == "--cdl-node" && !nodeGiven && !value.empty() &&
+                       value.size() < 4 &&
+                       value.find_first_not_of("0123456789") ==
+                           std::string::npos &&
+                       std::stoi(value) >= 1) {
+                request.options.cdl_node = std::stoi(value);
+                nodeGiven = true;
+            } else if (send && option == "--name" && request.name.empty() &&
+                       !value.empty()) {
+                request.name = value;
+            } else {
+                return refuseOption(index);
+            }
+            ++index;
         }
         std::string output;
-        const int result = ExportResolveTimelineCommand(
-            argv[2], output, argc == 5 ? argv[4] : "");
+        const int result =
+            send ? SendResolveCommand(argv[2], timelineId, request, output)
+                 : ExportResolveTimelineCommand(argv[2], output, timelineId,
+                                                request.options);
         std::fwrite(output.data(), 1, output.size(), stdout);
         return result;
     }

@@ -128,6 +128,8 @@ curl -sS http://127.0.0.1:8765/mcp -H 'Content-Type: application/json' \
   ./Film.cutmachine-project/project.cutmachine.json ./marqueurs-resolve.edl
 ./build/cutmachine --export-resolve-timeline \
   ./Film.cutmachine-project/project.cutmachine.json --timeline '<timeline-id>'
+./build/cutmachine --send-resolve ./Film.cutmachine-project/project.cutmachine.json \
+  --timeline '<timeline-id>' --name 'Film v3' --grade cdl
 ./build/cutmachine --add-multicam-group \
   ./Film.cutmachine-project/project.cutmachine.json '<plan-large>,<plan-serré>' \
   --name Interview --angle-name Large --angle-name Serré --active '<plan-large>'

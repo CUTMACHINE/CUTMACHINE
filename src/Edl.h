@@ -163,6 +163,13 @@ struct EdlMarkerColor {
 const std::vector<EdlMarkerColor>& EdlLocMarkerColors();
 const std::vector<EdlMarkerColor>& EdlResolveMarkerColors();
 
+// PA16 -- docs/roadmap/PARITE-2026-11.md. Resolve's word for a document
+// colour `#rrggbb`: the exact one of the table above, or the nearest
+// (`exact` false), by the rule the "resolve" style writes with. Fails on a
+// colour that is not `#rrggbb`.
+bool EdlResolveMarkerColorWord(const std::string& hex, std::string& word,
+                               bool& exact, std::string& error);
+
 struct EdlMarkerExport {
     std::string text;
     int32_t markers = 0;

@@ -1501,7 +1501,8 @@ int main() {
         const auto bodies = resolve_fixture::LoadBodies(
             std::filesystem::path(RESOLVE_GRADE_FIXTURES_DIR) / "bodies.txt");
         const auto relire = [&](const std::string& tag, bool withConfig,
-                                std::string& answer, int science = -1) {
+                                std::string& answer, int science = -1,
+                                bool aware = true) {
             std::string packagePath;
             Check(CreatePortableProject(
                       (root / (tag + ".cutmachine-project")).string(),
@@ -1529,11 +1530,11 @@ int main() {
             timeline.items = {graded};
             const std::filesystem::path database = root / (tag + ".db");
             Check(resolve_fixture::Write(database, {timeline}, error) &&
-                      (!withConfig ||
-                       resolve_fixture::WriteConfig(
-                           database,
-                           resolve_fixture::ConfigBlob(true, true, -1, science),
-                           error)),
+                      (!withConfig || resolve_fixture::WriteConfig(
+                                          database,
+                                          resolve_fixture::ConfigBlob(
+                                              aware, true, -1, science),
+                                          error)),
                   "la base " + tag + " s'écrit : " + error);
             Check(ImportResolveTimelineCommand(packagePath, manifest.string(),
                                                answer, "",
@@ -1572,17 +1573,32 @@ int main() {
               "le contraste, son pivot et les réglages du projet entrent sur "
               "le plan, et la réponse dit les réglages lus : " +
                   answer);
-        // GR16 -- the same grade in a project in ACEScct (field 7 at 8): the
-        // contrast was never measured there, and the answer names the
-        // colour science.
-        const std::vector<ClipEffect> aces = relire("ACEScct", true, answer, 8);
-        Check(aces.empty() &&
-                  answer.find("\"written\":0") != std::string::npos &&
-                  answer.find("pas en ACEScct") != std::string::npos &&
+        // GR16 -- the same grade in a project in ACEScct (field 7 at 8), with
+        // the aware tools off as every ACEScct project of the library: the
+        // contrast enters, the stage marked acescct (14 November 2026).
+        const std::vector<ClipEffect> aces =
+            relire("ACEScct", true, answer, 8, false);
+        const auto acesParam = [&](const char* name, int32_t num) {
+            if (aces.empty()) return false;
+            const auto found = aces[0].params.find(name);
+            return found != aces[0].params.end() && found->second.num == num &&
+                   found->second.den == 1;
+        };
+        Check(aces.size() == 1 && acesParam("acescct", 1) &&
+                  acesParam("color_space_aware", 0) &&
                   answer.find("\"color_science\":\"ACEScct\"") !=
                       std::string::npos,
-              "en ACEScct, le contraste ne s'écrit pas, et la réponse nomme la "
-              "science couleur : " +
+              "en ACEScct, le contraste s'écrit, l'étape marquée acescct, et "
+              "la réponse nomme la science couleur : " +
+                  answer);
+        // With the aware tools on, never measured in ACEScct: not written.
+        const std::vector<ClipEffect> acesAware =
+            relire("ACEScctAware", true, answer, 8);
+        Check(acesAware.empty() &&
+                  answer.find("\"written\":0") != std::string::npos &&
+                  answer.find("mesuré en ACEScct outils") != std::string::npos,
+              "en ACEScct outils « color space aware » allumés, le contraste "
+              "ne s'écrit pas, et la réponse dit pourquoi : " +
                   answer);
         const std::vector<ClipEffect> without =
             relire("SansReglages", false, answer);

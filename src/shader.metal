@@ -507,9 +507,9 @@ float3 applyHueCurves(float3 color, constant float* block) {
 // GR16 -- docs/roadmap/GRADE-RESOLVE-2026-10.md. color.resolve_primaries: a
 // DaVinci Resolve node's primaries as Resolve 21.1 renders them, the law and
 // the block ColorEffects.h describes. Under colour management the value goes
-// to DaVinci Intermediate in DaVinci Wide Gamut, where Resolve grades, and
-// back. ColorEffects.cc's ApplyResolvePrimaries is the same arithmetic, step
-// for step.
+// to DaVinci Intermediate in DaVinci Wide Gamut, where Resolve grades, or to
+// ACEScct in AP1 for a node graded in ACEScct, and back. ColorEffects.cc's
+// ApplyResolvePrimaries is the same arithmetic, step for step.
 float3 encodeDaVinciIntermediate(float3 value) {
     const float3 high = (log2(value + 0.0075) + 7.0) * 0.07329248;
     return select(value * 10.44426855, high, value > 0.00262409);
@@ -522,6 +522,32 @@ float3 decodeDaVinciIntermediate(float3 value) {
 
 float signedPower(float value, float exponent) {
     return value < 0.0 ? -pow(-value, exponent) : pow(value, exponent);
+}
+
+// A Resolve gamma: a negative value goes through unchanged in ACEScct.
+float resolveGammaPower(float value, float exponent, bool acescct) {
+    return acescct && value < 0.0 ? value : signedPower(value, exponent);
+}
+
+// In ACEScct, the temperature and tint's matrix on AP0 light to the power
+// 1/2.4 (ColorEffects.h, kResolveAp1ToAp0 and kResolveAp0ToAp1).
+float3 resolveAcesBalance(float3 node, constant float* m) {
+    const float3 ap0 = mulRows(acesCctToLinearAP1(node),
+                               float3(0.6954522414, 0.1406786965, 0.1638690622),
+                               float3(0.0447945634, 0.8596711185, 0.0955343182),
+                               float3(-0.0055258826, 0.0040252103, 1.0015006723));
+    const float3 p = float3(signedPower(ap0.r, 1.0 / 2.4),
+                            signedPower(ap0.g, 1.0 / 2.4),
+                            signedPower(ap0.b, 1.0 / 2.4));
+    const float3 q = float3(m[0] * p.r + m[1] * p.g + m[2] * p.b,
+                            m[3] * p.r + m[4] * p.g + m[5] * p.b,
+                            m[6] * p.r + m[7] * p.g + m[8] * p.b);
+    const float3 light = float3(signedPower(q.r, 2.4), signedPower(q.g, 2.4),
+                                signedPower(q.b, 2.4));
+    return linearAP1ToACEScct(
+        mulRows(light, float3(1.4514393161, -0.2365107469, -0.2149285693),
+                float3(-0.0765537734, 1.1762296998, -0.0996759264),
+                float3(0.0083161484, -0.0060324498, 0.9977163014)));
 }
 
 // GR16 -- the contrast of a Resolve node (ResolveContrastTable.h): its curve
@@ -568,38 +594,47 @@ float resolveFromHlg(float code) {
 }
 
 float3 applyResolvePrimaries(float3 color, constant float* block, int count) {
-    const bool contrasted = count >= 104;
+    // Sizes from ColorEffects.h: 41 floats, 108 with a contrast, 9 more with
+    // a temperature and tint.
+    const bool contrasted = count >= 108;
     const int space = int(block[0]);
-    const bool managed = space != 0;
+    const bool acescct = block[40] != 0.0;
+    // An engine grading in ACEScct already holds an ACEScct node's values.
+    const bool converted = space != 0 && !(acescct && space == 1);
     float3 node = color;
-    if (managed) {
+    if (converted) {
         float3 light = space == 1 ? acesCctToLinearAP1(color) : color;
-        node = encodeDaVinciIntermediate(
+        const float3 wide =
             float3(block[1] * light.r + block[2] * light.g + block[3] * light.b,
                    block[4] * light.r + block[5] * light.g + block[6] * light.b,
                    block[7] * light.r + block[8] * light.g +
-                       block[9] * light.b));
+                       block[9] * light.b);
+        node = acescct ? linearAP1ToACEScct(wide)
+                       : encodeDaVinciIntermediate(wide);
     }
-    if (count == 46 || count == 113) {
+    if (count == 50 || count == 117) {
         // The temperature and tint, last in the block, first on the node's
         // values.
         constant float* m = block + count - 9;
-        node = float3(m[0] * node.r + m[1] * node.g + m[2] * node.b,
-                      m[3] * node.r + m[4] * node.g + m[5] * node.b,
-                      m[6] * node.r + m[7] * node.g + m[8] * node.b);
+        node = acescct
+                   ? resolveAcesBalance(node, m)
+                   : float3(m[0] * node.r + m[1] * node.g + m[2] * node.b,
+                            m[3] * node.r + m[4] * node.g + m[5] * node.b,
+                            m[6] * node.r + m[7] * node.g + m[8] * node.b);
     }
     float3 out;
     for (int c = 0; c < 3; ++c) {
-        out[c] = signedPower(block[19 + c] + block[22 + c] * node[c] +
-                                 block[25 + c],
-                             block[28 + c]);
+        out[c] = resolveGammaPower(
+            block[19 + c] + block[22 + c] * node[c] + block[25 + c],
+            block[28 + c], acescct);
     }
-    const float target = signedPower(
-        block[31] + block[32] * dot(node, kLumaWeights) + block[34], block[33]);
+    const float target = resolveGammaPower(
+        block[31] + block[32] * dot(node, kLumaWeights) + block[34], block[33],
+        acescct);
     const float lumMix = block[35];
-    const int mode = contrasted ? int(block[37]) : 0;
-    constant float* curve = block + 39;
-    const float end = contrasted ? block[38] : 1.0;
+    const int mode = contrasted ? int(block[41]) : 0;
+    constant float* curve = block + 43;
+    const float end = contrasted ? block[42] : 1.0;
     if (mode == 1) {
         // Without the aware tools: on each channel, then the luma taken back
         // toward the contrast of the masters' luma.
@@ -625,11 +660,13 @@ float3 applyResolvePrimaries(float3 color, constant float* block, int count) {
                      resolveFromHlg(code.b));
     }
     if (block[36] != 1.0) {
-        const float luma = dot(out, float3(0.21, 0.70, 0.09));
+        // DaVinci YRGB's weights, or Rec.709's in ACEScct.
+        const float luma = dot(out, float3(block[37], block[38], block[39]));
         out = luma + block[36] * (out - luma);
     }
-    if (!managed) return out;
-    const float3 wide = decodeDaVinciIntermediate(out);
+    if (!converted) return out;
+    const float3 wide =
+        acescct ? acesCctToLinearAP1(out) : decodeDaVinciIntermediate(out);
     const float3 back =
         float3(block[10] * wide.r + block[11] * wide.g + block[12] * wide.b,
                block[13] * wide.r + block[14] * wide.g + block[15] * wide.b,

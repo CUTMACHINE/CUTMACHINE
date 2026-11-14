@@ -576,10 +576,30 @@ void TestConsumers() {
               cuts.frames.empty(),
           "cut_sheet: a title posed over a shot makes no cut");
 
+    // PA16 -- the send carries the rest of the montage and names the motion
+    // clip it leaves behind: its place stays empty in Resolve.
+    Document sent = document;
+    LibraryMedia interview;
+    interview.id = kSource;
+    interview.filename = "itw.mov";
+    interview.path = "/rushes/itw.mov";
+    interview.width = 1080;
+    interview.height = 1920;
+    interview.rate = {25, 1};
+    interview.duration = {1000, 25};
+    sent.library = {interview};
     ResolveTimelineExport exported;
-    Check(!BuildResolveTimelineExport(document, exported, error) &&
-              error.find("to validate in Resolve") != std::string::npos,
-          "Resolve: a motion clip is refused, not promised: " + error);
+    Check(BuildResolveTimelineExport(sent, exported, error) &&
+              std::none_of(exported.clips.begin(), exported.clips.end(),
+                           [](const ResolveTimelineClip& clip) {
+                               return clip.clip_id == kMotion;
+                           }) &&
+              std::any_of(exported.losses.begin(), exported.losses.end(),
+                          [](const ResolveSendLoss& loss) {
+                              return loss.what == "motion_clips" &&
+                                     loss.ids == std::vector<Ulid>{kMotion};
+                          }),
+          "Resolve: a motion clip is named as left behind, not sent: " + error);
 
     // A source frame of a motion clip is a frame of its composition.
     RationalTime position;

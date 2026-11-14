@@ -140,6 +140,12 @@ planchers : [direction.md](references/direction.md), « Temps de lecture ».
    - pour un motion designer : `export_motion_after`, puis lis ses `notes`
      et compare des images d'After à celles du moteur.
 
+Partir d'un travail fait dans After : `import_after_comp {comp_id}` (le
+projet ouvert dans After, en copie) en fait une composition du projet, un
+nœud par calque. Lis ses `notes` avant tout : une expression y devient des
+valeurs figées, une précomposition, un masque ou un animateur de texte n'y
+sont pas. Puis compare quelques images au rendu d'After (`aerender`).
+
 ## Fichiers
 
 - [references/motifs.md](references/motifs.md) — les pièges du moteur, les

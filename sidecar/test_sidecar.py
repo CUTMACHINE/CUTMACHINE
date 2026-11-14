@@ -659,12 +659,97 @@ class ResolveBridgeTests(unittest.TestCase):
         self.assertIn(f'"{SCHEMA}"', header)
 
 
+class FakePlacedItem:
+    """An item AppendToTimeline placed, with what 21.1 measured of it.
+
+    SetSpeed keeps the position and the length (13 November 2026), so the
+    fake does too; AddTransition answers None without a handle.
+    """
+
+    def __init__(self, timeline: "FakeResolveTimeline",
+                 info: dict[str, Any]) -> None:
+        self.timeline = timeline
+        self.info = info
+        self.start = int(info["recordFrame"])
+        clip = info["mediaPoolItem"]
+        rate = float(clip.GetClipProperty("FPS") or 25)
+        self.duration = int((int(info["endFrame"]) - int(info["startFrame"]))
+                            * 25 / rate)
+        self.speed = 100.0
+        self.enabled = True
+        self.properties: dict[str, Any] = {}
+        self.cdl = None
+        self.fades: dict[str, int] = {}
+        self.transitions: list[dict[str, Any]] = []
+        self.handles = True
+
+    def GetStart(self) -> int:
+        return self.start
+
+    def GetEnd(self) -> int:
+        return self.start + self.duration
+
+    def GetDuration(self) -> int:
+        return self.duration
+
+    def GetTrackTypeAndIndex(self):
+        kind = "audio" if self.info.get("mediaType") == 2 else "video"
+        return [kind, int(self.info["trackIndex"])]
+
+    def SetSpeed(self, options: dict[str, Any]) -> bool:
+        self.speed = float(options["Percentage"])
+        return True
+
+    def GetSpeed(self) -> dict[str, Any]:
+        return {"Percentage": self.speed}
+
+    def SetClipEnabled(self, enabled: bool) -> bool:
+        self.enabled = enabled
+        return True
+
+    def GetClipEnabled(self) -> bool:
+        return self.enabled
+
+    def SetProperties(self, properties: dict[str, Any]) -> bool:
+        self.properties.update(properties)
+        return True
+
+    def SetCDL(self, cdl: dict[str, Any]) -> bool:
+        self.cdl = cdl
+        return True
+
+    def SetFades(self, fades: dict[str, int]) -> bool:
+        self.fades = dict(fades)
+        return True
+
+    def AddTransition(self, options: dict[str, Any]):
+        if not self.handles:
+            return None
+        self.transitions.append(options)
+        duration = int(options["duration"])
+        cut = self.GetEnd()
+        first = {"center": cut - duration // 2, "left": cut - duration,
+                 "right": cut}[options["alignment"]]
+        return FakeTransitionPlaced(first, first + duration)
+
+
+class FakeTransitionPlaced:
+    def __init__(self, start: int, end: int) -> None:
+        self.start, self.end = start, end
+
+    def GetStart(self) -> int:
+        return self.start
+
+    def GetEnd(self) -> int:
+        return self.end
+
+
 class FakeResolveTimeline:
     """Resolve compte les images depuis le timecode de départ de la séquence.
 
     90000 = 01:00:00:00 à 25 i/s, ce que renvoie un vrai projet. Le pont doit
-    décaler chaque `recordFrame` d'autant, sinon les plans repartent à zéro et
-    se réempilent bout à bout -- exactement le défaut que le schéma v2 corrige.
+    décaler chaque `recordFrame` d'autant. Une timeline neuve a V1 et une A1
+    stéréo ; DeleteTrack refuse la seule piste son (mesuré).
     """
 
     def __init__(self, name: str, start_frame: int = 90000,
@@ -672,23 +757,47 @@ class FakeResolveTimeline:
         self.name = name
         self.start_frame = start_frame
         self.video_tracks = 1
+        self.audio_subtypes = ["stereo"]
         self.subtitle_tracks = subtitle_tracks
         # Items per subtitle track, 1-based like Resolve's track indices.
         self.subtitle_items: dict[int, list[str]] = {}
+        self.items: list[FakePlacedItem] = []
+        self.settings: dict[str, str] = {}
+        self.linked: list[list[FakePlacedItem]] = []
+        self.markers: dict[int, dict[str, Any]] = {}
+        self.disabled_tracks: list[tuple[str, int]] = []
+        self.subtitle_end = 0
+
+    def GetName(self) -> str:
+        return self.name
 
     def GetTrackCount(self, kind: str) -> int:
         if kind == "subtitle":
             return self.subtitle_tracks
-        return self.video_tracks if kind == "video" else 1
+        if kind == "audio":
+            return len(self.audio_subtypes)
+        return self.video_tracks
 
-    def AddTrack(self, kind: str) -> bool:
+    def AddTrack(self, kind: str, subtype: str | None = None) -> bool:
         if kind == "subtitle":
             self.subtitle_tracks += 1
+            return True
+        if kind == "audio":
+            self.audio_subtypes.append(subtype or "stereo")
             return True
         if kind != "video":
             return False
         self.video_tracks += 1
         return True
+
+    def DeleteTrack(self, kind: str, index: int) -> bool:
+        if kind != "audio" or len(self.audio_subtypes) < 2:
+            return False
+        del self.audio_subtypes[index - 1]
+        return True
+
+    def GetTrackSubType(self, kind: str, index: int) -> str:
+        return self.audio_subtypes[index - 1]
 
     def GetItemListInTrack(self, kind: str, index: int):
         if kind != "subtitle":
@@ -697,6 +806,38 @@ class FakeResolveTimeline:
 
     def GetStartFrame(self) -> int:
         return self.start_frame
+
+    def GetEndFrame(self) -> int:
+        ends = [item.GetEnd() for item in self.items]
+        ends.append(self.start_frame + self.subtitle_end)
+        return max(ends)
+
+    def GetSetting(self, key: str) -> str:
+        return self.settings.get(key, "")
+
+    def SetSetting(self, key: str, value: str) -> bool:
+        self.settings[key] = value
+        return True
+
+    def SetClipsLinked(self, items, linked: bool) -> bool:
+        self.linked.append(list(items))
+        return True
+
+    def AddMarker(self, frame, color, name, note, duration,
+                  custom=None) -> bool:
+        if frame in self.markers or duration < 1:
+            return False
+        self.markers[frame] = {"color": color, "name": name, "note": note,
+                               "duration": duration, "customData": custom}
+        return True
+
+    def GetMarkers(self):
+        return dict(self.markers)
+
+    def SetTrackEnable(self, kind: str, index: int, enabled: bool) -> bool:
+        if not enabled:
+            self.disabled_tracks.append((kind, index))
+        return True
 
 
 class FakeMediaPool:
@@ -720,25 +861,40 @@ class FakeMediaPool:
         self.subtitle_tracks = subtitle_tracks
         # Cues Resolve merges or drops on import, to make placed != file.
         self.lost_cues = 0
+        self.refuse_names: set[str] = set()
+        self.reverse = False
+        self.timelines: list[FakeResolveTimeline] = []
 
     def GetRootFolder(self):
         return self.root
 
     def CreateEmptyTimeline(self, name):
+        if name in self.refuse_names or \
+                any(t.name == name for t in self.timelines):
+            return None
         self.created = name
         self.timeline = FakeResolveTimeline(
             name, subtitle_tracks=self.subtitle_tracks)
+        self.timelines.append(self.timeline)
         return self.timeline
 
     def AppendToTimeline(self, infos):
-        self.appended = infos
         self.appends.append((self.timeline.video_tracks,
                              self.timeline.subtitle_tracks, infos))
+        placed = []
         for info in infos:
             cues = info["mediaPoolItem"].GetClipProperty("cues")
             if cues:
                 self.timeline.subtitle_items.setdefault(1, []).extend(
                     f"cue {index + 1}" for index in range(cues))
+                continue
+            item = FakePlacedItem(self.timeline, info)
+            self.timeline.items.append(item)
+            placed.append(item)
+        if placed:
+            self.appended = infos
+            # Resolve does not promise the order of what it answers.
+            return list(reversed(placed)) if self.reverse else placed
         return True
 
     def ImportMedia(self, paths):
@@ -752,14 +908,28 @@ class FakeMediaPool:
 
 
 class FakeResolveProject:
-    def __init__(self, pool) -> None:
+    def __init__(self, pool, settings: dict[str, str] | None = None) -> None:
         self.pool = pool
+        self.settings = {"timelineFrameRate": "25",
+                         "timelineResolutionWidth": "1920",
+                         "timelineResolutionHeight": "1080",
+                         "timelineInputResMismatchBehavior": "scaleToFit"}
+        self.settings.update(settings or {})
 
     def GetMediaPool(self):
         return self.pool
 
     def GetName(self):
         return "projet"
+
+    def GetSetting(self, key: str) -> str:
+        return self.settings.get(key, "")
+
+    def GetTimelineCount(self) -> int:
+        return len(self.pool.timelines)
+
+    def GetTimelineByIndex(self, index: int):
+        return self.pool.timelines[index - 1]
 
 
 class FakeResolveApp:
@@ -773,11 +943,14 @@ class FakeResolveApp:
         return self.project
 
     def GetVersionString(self):
-        return "20.3.1.6"
+        return "21.1.0.17"
 
 
 class ResolveSendTests(unittest.TestCase):
-    ACCENTED = "/Volumes/LaCie/Cr\u00e9puscule/C0104.MP4"
+    """PA16 -- le renvoi entier, contre un faux Resolve qui se comporte
+    comme les mesures du 13 novembre 2026 (src/ResolveExport.h)."""
+
+    ACCENTED = "/Volumes/LaCie/Crépuscule/C0104.MP4"
 
     def setUp(self) -> None:
         scratch = tempfile.TemporaryDirectory()
@@ -787,62 +960,177 @@ class ResolveSendTests(unittest.TestCase):
         # ~/Library during a test.
         self.copies = str(self.scratch / "copies")
 
-    def app(self, stored_path: str,
-            subtitle_tracks: int = 0) -> tuple[FakeResolveApp, FakeMediaPool]:
+    def app(self, stored_path: str, subtitle_tracks: int = 0,
+            settings: dict[str, str] | None = None,
+            ) -> tuple[FakeResolveApp, FakeMediaPool]:
         clip = FakeResolveClip(**{
-            "File Path": stored_path, "File Name": "C0104.MP4"})
-        pool = FakeMediaPool(FakeResolveFolder("Master", clips=[clip]),
+            "File Path": stored_path, "File Name": "C0104.MP4", "FPS": 25})
+        music = FakeResolveClip(**{
+            "File Path": "/sons/lit.wav", "File Name": "lit.wav", "FPS": 25})
+        pool = FakeMediaPool(FakeResolveFolder("Master", clips=[clip, music]),
                              subtitle_tracks=subtitle_tracks)
-        return FakeResolveApp(FakeResolveProject(pool)), pool
+        return FakeResolveApp(FakeResolveProject(pool, settings)), pool
 
-    def timeline(self, path: str) -> dict[str, Any]:
-        return {"schema": TIMELINE_SCHEMA, "name": "MONTAGE",
-                "clips": [{"path": path, "filename": "C0104.MP4",
-                           "start_frame": 0, "end_frame": 100,
-                           "video_layer": 0, "record_frame": 0,
-                           "with_audio": True}]}
+    def clip(self, path: str, **fields: Any) -> dict[str, Any]:
+        entry = {"clip_id": "01K3000000000000000000000" + str(len(fields)),
+                 "kind": "video", "track": 1, "path": path,
+                 "filename": Path(path).name, "start_frame": 0,
+                 "end_frame": 100, "record_frame": 0, "duration": 100}
+        entry.update(fields)
+        return entry
 
-    def overlay(self, path: str) -> dict[str, Any]:
-        """Un plan de coupe posé par-dessus le plan parlant."""
-        timeline = self.timeline(path)
-        timeline["clips"].append({
-            "path": path, "filename": "C0104.MP4",
-            "start_frame": 300, "end_frame": 350,
-            "video_layer": 1, "record_frame": 40, "with_audio": False})
-        return timeline
+    def timeline(self, path: str, **fields: Any) -> dict[str, Any]:
+        descriptor = {
+            "schema": TIMELINE_SCHEMA, "name": "MONTAGE",
+            "frame_rate": {"num": 25, "den": 1}, "width": 1920,
+            "height": 1080, "duration": 100,
+            "tracks": [{"kind": "video", "index": 1, "enabled": True},
+                       {"kind": "audio", "index": 1, "enabled": True,
+                        "mono": True}],
+            "clips": [self.clip(path)], "transitions": [], "markers": [],
+            "losses": []}
+        descriptor.update(fields)
+        return descriptor
 
-    def test_rebuilds_the_cut_in_resolve(self) -> None:
+    def montage(self, path: str) -> dict[str, Any]:
+        """Un plan parlant et son son, un plan de coupe par-dessus, une
+        musique, un fondu, un marqueur."""
+        clips = [
+            self.clip(path, link_group=0),
+            self.clip(path, start_frame=300, end_frame=350, record_frame=100,
+                      duration=50, speed_percent=50),
+            self.clip(path, track=2, start_frame=500, end_frame=540,
+                      record_frame=40, duration=40,
+                      transform={"fit": {"zoom": 1.5, "pan": 216,
+                                         "tilt": -192},
+                                 "fill": {"zoom": 1, "pan": 0, "tilt": 0}},
+                      opacity=50, enabled=False,
+                      cdl={"NodeIndex": "1", "Slope": "1 1 1",
+                           "Offset": "0 0 0", "Power": "1 1 1",
+                           "Saturation": "1"}),
+            self.clip(path, kind="audio", link_group=0, volume_db=-6.5,
+                      fade_in=2),
+            self.clip("/sons/lit.wav", kind="audio", track=2,
+                      start_frame=50, end_frame=200, duration=150),
+        ]
+        return self.timeline(
+            path, duration=150, clips=clips,
+            tracks=[{"kind": "video", "index": 1, "enabled": True},
+                    {"kind": "video", "index": 2, "enabled": True},
+                    {"kind": "audio", "index": 1, "enabled": True,
+                     "mono": True},
+                    {"kind": "audio", "index": 2, "enabled": False,
+                     "mono": False}],
+            transitions=[{"transition_id": "t", "kind": "video", "clip": 0,
+                          "type": "Cross Dissolve", "category": "simple",
+                          "alignment": "center", "duration": 10,
+                          "record_start": 95, "record_end": 105}],
+            markers=[{"marker_ids": ["m1", "m2"], "frame": 10,
+                      "duration": 1, "color": "Blue",
+                      "name": "reprendre / son", "note": "note"}])
+
+    def test_rebuilds_the_whole_montage(self) -> None:
         app, pool = self.app(self.ACCENTED)
-        message = send_timeline(app, self.timeline(self.ACCENTED))
-        self.assertEqual(pool.created, "MONTAGE")
-        self.assertEqual(len(pool.appended), 1)
-        self.assertEqual(pool.appended[0]["startFrame"], 0)
-        self.assertEqual(pool.appended[0]["endFrame"], 100)
-        self.assertIn("1 plan", message)
+        report = send_timeline(app, self.montage(self.ACCENTED))
+        timeline = pool.timeline
+        self.assertTrue(report["verified"], report["mismatches"])
+        self.assertEqual((report["video_clips"], report["audio_clips"]),
+                         (3, 2))
+        self.assertEqual(len(pool.appends), 1,
+                         "tous les plans en un seul AppendToTimeline")
+        infos = pool.appended
+        self.assertEqual([i["mediaType"] for i in infos], [1, 1, 1, 2, 2])
+        self.assertEqual([i["trackIndex"] for i in infos], [1, 1, 2, 1, 2])
+        self.assertEqual(infos[1]["recordFrame"], 90100)
+        self.assertEqual(timeline.video_tracks, 2)
+        self.assertEqual(timeline.audio_subtypes, ["mono", "stereo"])
+        slow, overlay, voice = (timeline.items[1], timeline.items[2],
+                                timeline.items[3])
+        self.assertEqual(slow.speed, 50.0)
+        self.assertFalse(overlay.enabled)
+        self.assertEqual(overlay.properties,
+                         {"ZoomX": 1.5, "ZoomY": 1.5, "Pan": 216.0,
+                          "Tilt": -192.0, "Opacity": 50.0})
+        self.assertIsNotNone(overlay.cdl)
+        self.assertEqual(voice.properties, {"AudioVolumeEnabled": True,
+                                            "AudioVolume": -6.5})
+        self.assertEqual(voice.fades, {"FadeIn": 2})
+        self.assertEqual(len(timeline.linked), 1)
+        self.assertEqual(timeline.items[0].transitions[0]["position"], "end")
+        self.assertEqual(timeline.markers[10]["customData"],
+                         "cutmachine:m1,m2")
+        self.assertEqual(timeline.disabled_tracks, [("audio", 2)])
+        self.assertEqual(report["transitions"], 1)
+        self.assertEqual(report["speeds"], 1)
 
-    def test_positions_each_plan_from_the_timeline_start(self) -> None:
-        # Sans le décalage, recordFrame vaudrait 0 et Resolve replacerait le
-        # plan au tout début au lieu de l'endroit que le montage lui donne.
+    def test_placed_items_are_matched_by_track_and_position(self) -> None:
         app, pool = self.app(self.ACCENTED)
-        send_timeline(app, self.overlay(self.ACCENTED))
-        self.assertEqual(pool.appended[0]["recordFrame"], 90000)
-        self.assertEqual(pool.appended[1]["recordFrame"], 90040)
+        pool.reverse = True
+        report = send_timeline(app, self.montage(self.ACCENTED))
+        self.assertTrue(report["verified"], report["mismatches"])
+        self.assertEqual(pool.timeline.items[1].speed, 50.0)
+        self.assertEqual(pool.timeline.items[0].speed, 100.0)
 
-    def test_creates_a_track_per_layer_and_addresses_it(self) -> None:
-        app, pool = self.app(self.ACCENTED)
-        message = send_timeline(app, self.overlay(self.ACCENTED))
-        self.assertEqual(pool.timeline.video_tracks, 2)
-        self.assertEqual(pool.appended[0]["trackIndex"], 1)
-        self.assertEqual(pool.appended[1]["trackIndex"], 2)
-        self.assertIn("2 pistes", message)
+    def test_the_fill_transform_when_the_project_fills(self) -> None:
+        app, pool = self.app(self.ACCENTED, settings={
+            "timelineInputResMismatchBehavior": "scaleToCrop"})
+        report = send_timeline(app, self.montage(self.ACCENTED))
+        self.assertEqual(report["scaling"], "fill")
+        # Zoom 1, pan 0 : rien à poser hormis l'opacité.
+        self.assertEqual(pool.timeline.items[2].properties, {"Opacity": 50.0})
 
-    def test_an_overlay_travels_without_its_sound(self) -> None:
-        # Resolve rapporte le son de chaque plan : laisser passer celui d'un
-        # plan de coupe poserait son ambiance sous l'interview recouverte.
+    def test_a_framed_montage_needs_a_project_that_scales(self) -> None:
+        app, pool = self.app(self.ACCENTED, settings={
+            "timelineInputResMismatchBehavior": "stretch"})
+        with self.assertRaises(ResolveBridgeError) as raised:
+            send_timeline(app, self.montage(self.ACCENTED))
+        self.assertIn("stretch", str(raised.exception))
+        self.assertIsNone(pool.appended)
+
+    def test_a_project_at_another_rate_is_refused_first(self) -> None:
+        app, pool = self.app(self.ACCENTED,
+                             settings={"timelineFrameRate": "24"})
+        with self.assertRaises(ResolveBridgeError) as raised:
+            send_timeline(app, self.montage(self.ACCENTED))
+        self.assertIn("24", str(raised.exception))
+        self.assertIsNone(pool.created, "rien n'est créé dans Resolve")
+
+    def test_a_timeline_of_another_size_gets_its_own_settings(self) -> None:
         app, pool = self.app(self.ACCENTED)
-        send_timeline(app, self.overlay(self.ACCENTED))
-        self.assertNotIn("mediaType", pool.appended[0])
-        self.assertEqual(pool.appended[1]["mediaType"], 1)
+        timeline = self.timeline(self.ACCENTED, width=1080, height=1920)
+        send_timeline(app, timeline)
+        self.assertEqual(pool.timeline.settings["useCustomSettings"], "1")
+        self.assertEqual(pool.timeline.settings["timelineResolutionWidth"],
+                         "1080")
+
+    def test_a_refused_transition_is_a_mismatch_not_a_crash(self) -> None:
+        app, pool = self.app(self.ACCENTED)
+        original = FakePlacedItem.AddTransition
+
+        def without_handles(item, options):
+            item.handles = False
+            return original(item, options)
+
+        with mock.patch.object(FakePlacedItem, "AddTransition",
+                               without_handles):
+            report = send_timeline(app, self.montage(self.ACCENTED))
+        self.assertFalse(report["verified"])
+        self.assertTrue(any("poignées" in m for m in report["mismatches"]))
+
+    def test_a_misplaced_item_is_read_back(self) -> None:
+        app, pool = self.app(self.ACCENTED)
+        original = FakePlacedItem.SetSpeed
+
+        def stretching(item, options):
+            item.duration *= 2
+            return original(item, options)
+
+        with mock.patch.object(FakePlacedItem, "SetSpeed", stretching):
+            report = send_timeline(app, self.montage(self.ACCENTED))
+        self.assertFalse(report["verified"])
+        self.assertTrue(any("attendu à 100 pour 50" in m
+                            for m in report["mismatches"]),
+                        report["mismatches"])
 
     def test_an_explicit_name_overrides_the_montage_name(self) -> None:
         # Resolve refuse un nom déjà pris : sans surcharge, une révision du
@@ -851,70 +1139,78 @@ class ResolveSendTests(unittest.TestCase):
         send_timeline(app, self.timeline(self.ACCENTED), "MONTAGE v3")
         self.assertEqual(pool.created, "MONTAGE v3")
 
-    def test_without_an_override_the_montage_name_is_kept(self) -> None:
+    def test_a_taken_name_given_is_refused_by_name(self) -> None:
         app, pool = self.app(self.ACCENTED)
-        send_timeline(app, self.timeline(self.ACCENTED), None)
-        self.assertEqual(pool.created, "MONTAGE")
+        send_timeline(app, self.timeline(self.ACCENTED))
+        with self.assertRaises(ResolveBridgeError) as raised:
+            send_timeline(app, self.timeline(self.ACCENTED), "MONTAGE")
+        self.assertIn("MONTAGE", str(raised.exception))
+
+    def test_without_a_name_the_next_free_one_is_taken(self) -> None:
+        # Le bouton de la fenêtre ne demande pas de nom : un second envoi du
+        # même montage ne doit pas buter sur le premier.
+        app, pool = self.app(self.ACCENTED)
+        first = send_timeline(app, self.timeline(self.ACCENTED))
+        second = send_timeline(app, self.timeline(self.ACCENTED))
+        third = send_timeline(app, self.timeline(self.ACCENTED))
+        self.assertEqual((first["timeline"], second["timeline"],
+                          third["timeline"]),
+                         ("MONTAGE", "MONTAGE 2", "MONTAGE 3"))
+
+    def test_each_step_is_timed(self) -> None:
+        app, pool = self.app(self.ACCENTED)
+        report = send_timeline(app, self.montage(self.ACCENTED))
+        self.assertEqual(
+            list(report["timings_ms"]),
+            ["preflight", "timeline_and_subtitles", "tracks_and_append",
+             "clip_settings", "links_transitions_markers", "read_back"])
+        self.assertTrue(all(isinstance(v, int)
+                            for v in report["timings_ms"].values()))
 
     def srt(self, cues: int = 3, name: str = "cues.srt") -> str:
         path = self.scratch / name
         with open(path, "w", encoding="utf-8") as handle:
-            for index in range(cues):
-                handle.write(
-                    f"{index + 1}\n"
-                    f"00:00:0{index},000 --> 00:00:0{index + 1},000\n"
-                    f"carton {index + 1}\n\n")
+            handle.write(self.srt_text(cues))
         return str(path)
 
-    def test_subtitles_land_before_any_clip(self) -> None:
+    @staticmethod
+    def srt_text(cues: int) -> str:
+        return "".join(f"{index + 1}\n"
+                       f"00:00:0{index},000 --> 00:00:0{index + 1},000\n"
+                       f"carton {index + 1}\n\n" for index in range(cues))
+
+    def test_the_cartons_of_the_descriptor_land_first(self) -> None:
         # AppendToTimeline pose un élément de sous-titres après ce que la
         # timeline contient déjà : sur une timeline remplie, les cartons
         # tombent derrière le dernier plan et la doublent en longueur. Le seul
         # ordre qui marche est piste de sous-titres et cues d'abord, plans
         # ensuite -- c'est cet ordre que ce test tient.
         app, pool = self.app(self.ACCENTED)
-        message = send_timeline(app, self.overlay(self.ACCENTED),
-                                srt_path=self.srt(),
-                                srt_directory=self.copies)
+        timeline = self.montage(self.ACCENTED)
+        timeline["subtitles"] = {"srt": self.srt_text(3), "cues": 3}
+        with mock.patch("sidecar.resolve_bridge.SRT_IMPORT_DIRECTORY",
+                        self.copies):
+            report = send_timeline(app, timeline)
         self.assertEqual(len(pool.appends), 2)
         subtitles, clips = pool.appends
-        # Au premier appel la timeline n'a encore qu'une piste vidéo : les
-        # couches de recouvrement sont ajoutées après, donc rien ne précède.
         self.assertEqual(subtitles[0], 1)
-        self.assertEqual(subtitles[1], 1)
-        self.assertEqual(len(subtitles[2]), 1)
-        self.assertEqual(len(clips[2]), 2)
-        self.assertIn("3 sous-titre(s)", message)
+        self.assertEqual(sorted(subtitles[2][0]),
+                         ["mediaPoolItem", "trackIndex"])
+        self.assertEqual(len(clips[2]), 5)
+        self.assertEqual(report["subtitles"], 3)
+        self.assertTrue(report["verified"], report["mismatches"])
+        copy = Path(pool.imported[0])
+        self.assertTrue(copy.name.startswith("MONTAGE-"))
+        self.assertEqual(Path(copy).parent, Path(self.copies))
 
-    def test_a_subtitle_clipinfo_carries_nothing_else(self) -> None:
-        # Y ajouter startFrame, endFrame, recordFrame ou mediaType fait
-        # planter le pont, et recordFrame est de toute façon ignoré.
+    def test_an_srt_given_replaces_the_cartons(self) -> None:
         app, pool = self.app(self.ACCENTED)
-        send_timeline(app, self.timeline(self.ACCENTED), srt_path=self.srt(),
-                      srt_directory=self.copies)
-        info = pool.appends[0][2][0]
-        self.assertEqual(sorted(info), ["mediaPoolItem", "trackIndex"])
-        self.assertEqual(info["trackIndex"], 1)
-
-    def test_a_cut_without_subtitles_appends_once(self) -> None:
-        app, pool = self.app(self.ACCENTED)
-        message = send_timeline(app, self.timeline(self.ACCENTED))
-        self.assertEqual(len(pool.appends), 1)
-        self.assertEqual(pool.timeline.subtitle_tracks, 0)
-        self.assertNotIn("sous-titre", message)
-
-    def test_a_cue_count_that_can_be_compared_to_resolve(self) -> None:
-        # C'est le seul contrôle qui attrape le cache de Resolve, qui rend
-        # l'ancien .srt quand on réécrit le même chemin.
-        self.assertEqual(count_srt_cues(self.srt(7)), 7)
-
-    def test_placed_subtitles_equal_to_the_cues_pass(self) -> None:
-        app, pool = self.app(self.ACCENTED)
-        message = send_timeline(app, self.timeline(self.ACCENTED),
-                                srt_path=self.srt(4),
-                                srt_directory=self.copies)
+        timeline = self.timeline(self.ACCENTED)
+        timeline["subtitles"] = {"srt": self.srt_text(2), "cues": 2}
+        report = send_timeline(app, timeline, srt_path=self.srt(4),
+                               srt_directory=self.copies)
+        self.assertEqual(report["subtitles"], 4)
         self.assertEqual(count_subtitle_items(pool.timeline), 4)
-        self.assertIn("4 sous-titre(s)", message)
 
     def test_a_placed_count_that_differs_fails_before_any_clip(self) -> None:
         # Resolve a posé autre chose que le fichier : l'échec nomme les deux
@@ -926,14 +1222,13 @@ class ResolveSendTests(unittest.TestCase):
                           srt_path=self.srt(3), srt_directory=self.copies)
         message = str(raised.exception)
         self.assertIn("2 sous-titre(s)", message)
-        self.assertIn("3 cue(s)", message)
+        self.assertIn("en compte 3", message)
         self.assertIn("MONTAGE", message)
         self.assertEqual(len(pool.appends), 1)
 
     def test_a_stale_media_pool_item_is_caught(self) -> None:
         # Le piège réel : un élément du Media Pool importé plus tôt depuis le
-        # même chemin, avec l'ancien sous-titrage. Le pont l'importe ici tel
-        # quel pour prouver que le comptage l'attrape.
+        # même chemin, avec l'ancien sous-titrage.
         app, pool = self.app(self.ACCENTED)
         srt = self.srt(5)
         copy = content_named_srt(srt, self.copies)
@@ -943,23 +1238,19 @@ class ResolveSendTests(unittest.TestCase):
             send_timeline(app, self.timeline(self.ACCENTED), srt_path=srt,
                           srt_directory=self.copies)
         self.assertIn("8 sous-titre(s)", str(raised.exception))
-        self.assertIn("5 cue(s)", str(raised.exception))
+        self.assertIn("en compte 5", str(raised.exception))
 
     def test_a_rewritten_srt_is_imported_afresh(self) -> None:
-        # Réécrire le même .srt puis renvoyer : Resolve rendrait l'élément de
-        # la version précédente si le pont importait ce chemin. La copie
-        # porte l'empreinte du contenu, donc un nom neuf.
         app, pool = self.app(self.ACCENTED)
         srt = self.srt(3)
         send_timeline(app, self.timeline(self.ACCENTED), "v1", srt_path=srt,
                       srt_directory=self.copies)
         self.srt(7)
-        message = send_timeline(app, self.timeline(self.ACCENTED), "v2",
-                                srt_path=srt, srt_directory=self.copies)
+        report = send_timeline(app, self.timeline(self.ACCENTED), "v2",
+                               srt_path=srt, srt_directory=self.copies)
         self.assertEqual(len(set(pool.imported)), 2)
         self.assertNotIn(srt, pool.imported)
-        self.assertEqual(count_subtitle_items(pool.timeline), 7)
-        self.assertIn("7 sous-titre(s)", message)
+        self.assertEqual(report["subtitles"], 7)
 
     def test_the_same_content_keeps_the_same_copy(self) -> None:
         first = content_named_srt(self.srt(3), self.copies)
@@ -973,15 +1264,29 @@ class ResolveSendTests(unittest.TestCase):
 
     def test_every_subtitle_track_is_counted(self) -> None:
         # La timeline a déjà une piste de sous-titres : AddTrack crée S2, mais
-        # AppendToTimeline empile tout sur S1. Compter la seule piste ajoutée
-        # donnerait zéro.
+        # AppendToTimeline empile tout sur S1.
         app, pool = self.app(self.ACCENTED, subtitle_tracks=1)
-        message = send_timeline(app, self.timeline(self.ACCENTED),
-                                srt_path=self.srt(3),
-                                srt_directory=self.copies)
+        report = send_timeline(app, self.timeline(self.ACCENTED),
+                               srt_path=self.srt(3),
+                               srt_directory=self.copies)
         self.assertEqual(pool.timeline.subtitle_tracks, 2)
-        self.assertEqual(pool.timeline.GetItemListInTrack("subtitle", 2), [])
-        self.assertIn("3 sous-titre(s)", message)
+        self.assertEqual(report["subtitles"], 3)
+
+    def test_the_command_writes_its_report_on_standard_output(self) -> None:
+        app, pool = self.app(self.ACCENTED)
+        timeline = self.scratch / "timeline.json"
+        timeline.write_text(json.dumps(self.montage(self.ACCENTED)),
+                            encoding="utf-8")
+        output, errors = io.StringIO(), io.StringIO()
+        with mock.patch("sidecar.resolve_bridge.connect", return_value=app), \
+                contextlib.redirect_stdout(output), \
+                contextlib.redirect_stderr(errors):
+            status = resolve_bridge_main(["--send", str(timeline)])
+        self.assertEqual(status, 0)
+        report = json.loads(output.getvalue().strip().splitlines()[-1])
+        self.assertTrue(report["verified"])
+        self.assertIn("connect", report["timings_ms"])
+        self.assertIn("relu sans écart", errors.getvalue())
 
     def test_the_command_exits_non_zero_on_a_mismatch(self) -> None:
         app, pool = self.app(self.ACCENTED)
@@ -998,7 +1303,7 @@ class ResolveSendTests(unittest.TestCase):
                 ["--send", str(timeline), "--srt", self.srt(3)])
         self.assertEqual(status, 1)
         self.assertIn("1 sous-titre(s)", errors.getvalue())
-        self.assertIn("3 cue(s)", errors.getvalue())
+        self.assertIn("en compte 3", errors.getvalue())
 
     def test_matches_across_unicode_normalizations(self) -> None:
         # CUTMACHINE resolves paths through the filesystem and gets NFD;
@@ -1017,20 +1322,19 @@ class ResolveSendTests(unittest.TestCase):
 
     def test_refuses_a_rush_absent_from_the_media_pool(self) -> None:
         app, pool = self.app(self.ACCENTED)
-        timeline = self.timeline(self.ACCENTED)
-        timeline["clips"][0]["filename"] = "INCONNU.MP4"
-        timeline["clips"][0]["path"] = "/ailleurs/INCONNU.MP4"
+        timeline = self.timeline("/ailleurs/INCONNU.MP4")
         with self.assertRaises(ResolveBridgeError) as raised:
             send_timeline(app, timeline)
         self.assertIn("INCONNU.MP4", str(raised.exception))
-        self.assertIsNone(pool.appended)
+        self.assertIsNone(pool.created)
 
     def test_refuses_an_unexpected_schema(self) -> None:
         app, _ = self.app(self.ACCENTED)
         timeline = self.timeline(self.ACCENTED)
-        timeline["schema"] = "autre.v1"
-        with self.assertRaises(ResolveBridgeError):
+        timeline["schema"] = "cutmachine.resolve-timeline.v2"
+        with self.assertRaises(ResolveBridgeError) as raised:
             send_timeline(app, timeline)
+        self.assertIn("recompile", str(raised.exception))
 
     def test_indexes_every_nested_folder(self) -> None:
         clip = FakeResolveClip(**{"File Path": "/a/B.MP4",
@@ -1041,9 +1345,9 @@ class ResolveSendTests(unittest.TestCase):
         self.assertIn(normalized("/a/B.MP4"), index["by_path"])
 
     def test_timeline_schema_matches_the_exporter(self) -> None:
-        header = (ROOT / "src" / "ResolveExport.cc").read_text(
+        source = (ROOT / "src" / "ResolveExport.cc").read_text(
             encoding="utf-8")
-        self.assertIn(TIMELINE_SCHEMA, header)
+        self.assertIn(TIMELINE_SCHEMA, source)
 
 
 class FakeTimelineItem:

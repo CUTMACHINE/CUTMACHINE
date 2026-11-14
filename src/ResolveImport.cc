@@ -1711,8 +1711,7 @@ std::string NodeText(int64_t node) {
 
 // GR16 -- why a saturation, contrast, temperature or tint does not render
 // with these settings, or "" when it does: the colour science it was
-// measured in is unknown, or not this one (ACEScct moves the saturation by
-// up to 18 codes and makes the temperature and tint another law).
+// measured in is unknown, or not this one (ResolveScienceRendersBalance).
 std::string BalanceUnrendered(const ResolveProjectSettings& settings) {
     if (!settings.read) {
         return settings.unread;
@@ -1720,8 +1719,8 @@ std::string BalanceUnrendered(const ResolveProjectSettings& settings) {
     if (ResolveScienceRendersBalance(settings.color_science)) {
         return {};
     }
-    return "dont le rendu n'est mesuré qu'en DaVinci YRGB et en DaVinci YRGB "
-           "Color Managed, pas en " +
+    return "dont le rendu n'est mesuré qu'en DaVinci YRGB, en DaVinci YRGB "
+           "Color Managed et en ACEScct, pas en " +
            settings.color_science;
 }
 
@@ -1810,6 +1809,19 @@ void ResolveGradeStages(const ResolveGrade& grade,
                             ShortestNumber(setting.value) + ", " + blocked);
                     continue;
                 }
+                // In ACEScct, the contrast was measured with the aware tools
+                // off, as every ACEScct project of the library has them (14
+                // November 2026); on, it follows another law.
+                if (settings.color_science == "ACEScct" &&
+                    settings.color_space_aware) {
+                    if (setting.name == "contrast")
+                        unrendered.push_back(
+                            NodeText(node.number) + " : contrast " +
+                            ShortestNumber(setting.value) +
+                            ", mesuré en ACEScct outils « color space aware » "
+                            "coupés seulement");
+                    continue;
+                }
                 // With the aware tools, the working luminance moves the
                 // contrast (by hundreds of codes), and only HDR 1000 was
                 // measured; without them it changes nothing.
@@ -1849,6 +1861,13 @@ void ResolveGradeStages(const ResolveGrade& grade,
                                  " " + ShortestNumber(setting.value) +
                                  ", que color.resolve_primaries ne rend pas "
                                  "encore");
+        }
+        // GR16 -- a node graded in ACEScct carries it: it grades ACEScct
+        // codes there, its gamma passes a negative value, its saturation
+        // turns about Rec.709's luma and its temperature and tint act on AP0
+        // light (ColorEffects.h).
+        if (settings.read && settings.color_science == "ACEScct") {
+            stage.params["acescct"] = {1, 1};
         }
         std::string error;
         if (!ValidateColorEffect(stage, error)) {

@@ -94,6 +94,8 @@ enum class StyleKind {
     // MA7: SVG stroke-dasharray, "none" or lengths in pixels
     // (ParseMotionDashArray).
     DashArray,
+    // MW5: CSS transform-origin in the plane (ParseMotionTransformOrigin).
+    TransformOrigin,
 };
 
 struct StyleRule {
@@ -168,6 +170,11 @@ const std::vector<StyleRule>& StyleRules() {
         {"scaleX", StyleKind::Number, {}, true},
         {"scaleY", StyleKind::Number, {}, true},
         {"rotate", StyleKind::Number, {}, true},
+        // MOTION-WEB-2026-10 MW5 -- the slant of CSS skewX() and skewY(), in
+        // degrees, and the point the transforms turn about.
+        {"skewX", StyleKind::Number, {}, true},
+        {"skewY", StyleKind::Number, {}, true},
+        {"transformOrigin", StyleKind::TransformOrigin, {}, false},
         {"color", StyleKind::Color, {}, true},
         {"fontFamily", StyleKind::String, {}, false},
         {"fontWeight", StyleKind::FontWeight, {}, false},
@@ -280,13 +287,11 @@ std::string UnknownStyleMessage(const std::string& name) {
         const char* instead;
     };
     static constexpr Hint kHints[] = {
-        {"transformOrigin",
-         "scale and rotate turn around the centre of the box. To grow from "
-         "an edge, animate width or height, or a clipPath inset(), or "
-         "compensate with translateX and translateY"},
         {"transform",
          "transformations are properties of their own: translateX, "
-         "translateY, scale, scaleX, scaleY, rotate, rotateX, rotateY"},
+         "translateY, scale, scaleX, scaleY, rotate, rotateX, rotateY, skewX, "
+         "skewY, about transformOrigin"},
+        {"skew", "write skewX and skewY, in degrees"},
         {"translate", "write translateX and translateY"},
         {"whiteSpace",
          "a text wraps at the width of its box. To keep a line whole, put "
@@ -3197,6 +3202,19 @@ bool ValidateMotionStyleValue(const std::string& property, const Value& value,
             }
             return Fail(error, "InvalidValue", path,
                         property + " must be a non-empty string");
+        case StyleKind::TransformOrigin: {
+            MotionTransformOrigin origin;
+            if (value.IsString() &&
+                ParseMotionTransformOrigin(value.AsString(), origin)) {
+                return true;
+            }
+            return Fail(error, "InvalidValue", path,
+                        property +
+                            " must be one or two of left, center, right, "
+                            "top, bottom, a percentage or pixels (\"left "
+                            "top\", \"50% 100%\", \"0 12px\"); the plane has "
+                            "no depth, so no third value");
+        }
         case StyleKind::DashArray: {
             std::vector<double> lengths;
             if (value.IsString() &&
@@ -3891,6 +3909,84 @@ bool ParseMotionFilters(const std::string& text,
         parsed.push_back(filter);
     }
     filters = std::move(parsed);
+    return true;
+}
+
+bool ParseMotionTransformOrigin(const std::string& text,
+                                MotionTransformOrigin& origin) {
+    // One component: a keyword names its axis (or both, for center), a
+    // length or a percentage reads on the axis its place gives it.
+    enum class Axis { X, Y, Either };
+    struct Component {
+        Axis axis = Axis::Either;
+        double fraction = 0.0;
+        double pixels = 0.0;
+    };
+    const auto read = [](const std::string& word, Component& out) {
+        if (word == "left" || word == "right") {
+            out = {Axis::X, word == "left" ? 0.0 : 1.0, 0.0};
+            return true;
+        }
+        if (word == "top" || word == "bottom") {
+            out = {Axis::Y, word == "top" ? 0.0 : 1.0, 0.0};
+            return true;
+        }
+        if (word == "center") {
+            out = {Axis::Either, 0.5, 0.0};
+            return true;
+        }
+        MotionLength length;
+        if (!ParseLengthText(word, false, length)) {
+            return false;
+        }
+        out = length.unit == MotionLengthUnit::Percent
+                  ? Component{Axis::Either, length.value / 100.0, 0.0}
+                  : Component{Axis::Either, 0.0, length.value};
+        // A length has no axis of its own, but is not a keyword either:
+        // CSS lets only two keywords trade places.
+        out.axis = Axis::Either;
+        return true;
+    };
+    const std::vector<std::string> words = SplitSpaces(text);
+    if (words.empty() || words.size() > 2) {
+        return false;
+    }
+    const auto keyword = [](const std::string& word) {
+        return word == "left" || word == "right" || word == "top" ||
+               word == "bottom" || word == "center";
+    };
+    MotionTransformOrigin parsed;
+    Component first;
+    if (!read(words[0], first)) {
+        return false;
+    }
+    if (words.size() == 1) {
+        if (first.axis == Axis::Y) {
+            parsed.y_fraction = first.fraction;
+        } else {
+            parsed.x_fraction = first.fraction;
+            parsed.x_pixels = first.pixels;
+        }
+        origin = parsed;
+        return true;
+    }
+    Component second;
+    if (!read(words[1], second)) {
+        return false;
+    }
+    // "top left": two keywords, the vertical one first.
+    if (keyword(words[0]) && keyword(words[1]) &&
+        (first.axis == Axis::Y || second.axis == Axis::X)) {
+        std::swap(first, second);
+    }
+    if (first.axis == Axis::Y || second.axis == Axis::X) {
+        return false;
+    }
+    parsed.x_fraction = first.fraction;
+    parsed.x_pixels = first.pixels;
+    parsed.y_fraction = second.fraction;
+    parsed.y_pixels = second.pixels;
+    origin = parsed;
     return true;
 }
 

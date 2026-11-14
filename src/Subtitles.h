@@ -48,6 +48,17 @@ bool SaveSrt(const Document& document, const std::string& path,
 bool WriteSrt(const std::vector<SubtitleCue>& cues, const std::string& path,
               std::string& error, size_t* roundedTimestamps = nullptr);
 
+// PA16 -- docs/roadmap/PARITE-2026-11.md. What WriteSrt writes, as text:
+// the Resolve send carries the cartons inside its descriptor rather than
+// beside it. Same refusals, same rounding.
+bool FormatSrt(const std::vector<SubtitleCue>& cues, std::string& text,
+               std::string& error, size_t* roundedTimestamps = nullptr);
+
+// PA16 -- the cartons of one caption track that are seen (ClipEnabled.h),
+// in timeline order: SaveSrt's cues, for one track instead of all of them.
+std::vector<SubtitleCue> CaptionTrackCues(const Document& document,
+                                          const DocumentTrack& track);
+
 // FC7 -- docs/roadmap/FILMCRAFT-2026-10.md. Adapted from FilmCraft
 // crates/captions/src/vtt.rs (MIT OR Apache-2.0, commit 09aaf9b). WebVTT
 // beside SubRip: the same cues, the same millisecond and the same one

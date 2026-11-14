@@ -986,42 +986,63 @@ int main(int argc, char** argv) {
                       "l'étape du premier nœud : " +
                       joined(unrendered));
         }
-        // GR16 -- ACEScct makes the temperature and tint another law and
-        // moves the saturation; the contrast was never measured there.
+        // GR16 -- in ACEScct (14 November 2026) the same node is written
+        // too, every stage carrying acescct: its laws there are the stage's.
         ResolveProjectSettings aces = yrgb;
         aces.color_science = "ACEScct";
         ResolveGradeStages(grade, stages, unrendered, aces);
+        Check(unrendered.empty() && stages.size() == 2 &&
+                  fraction(stages[0], "temperature", -80, 1) &&
+                  fraction(stages[0], "tint", -13, 2) &&
+                  fraction(stages[0], "contrast", 5, 4) &&
+                  fraction(stages[0], "color_space_aware", 0, 1) &&
+                  fraction(stages[0], "acescct", 1, 1) &&
+                  fraction(stages[1], "acescct", 1, 1),
+              "en ACEScct, le contraste, la température, la teinte et la "
+              "saturation s'écrivent, chaque étape marquée acescct : " +
+                  joined(unrendered));
+        // With the aware tools, never in an ACEScct project of the library,
+        // its contrast follows another law: refused, the reason says why.
+        ResolveProjectSettings acesAware = aces;
+        acesAware.color_space_aware = true;
+        ResolveGradeStages(grade, stages, unrendered, acesAware);
         reasons = joined(unrendered);
-        Check(
-            stages.empty() && unrendered.size() == 4 &&
-                reasons.find("le nœud 1 : temperature -80, dont le rendu "
-                             "n'est mesuré qu'en DaVinci YRGB et en "
-                             "DaVinci YRGB Color Managed, pas en ACEScct") !=
-                    std::string::npos &&
-                reasons.find("le nœud 1 : contrast 1.25") != std::string::npos,
-            "en ACEScct, le contraste, la saturation, la température et la "
-            "teinte ne s'écrivent pas, et la raison nomme la science "
-            "couleur : " +
-                reasons);
+        Check(stages.empty() && unrendered.size() == 1 &&
+                  reasons.find("le nœud 1 : contrast 1.25, mesuré en ACEScct "
+                               "outils « color space aware » coupés "
+                               "seulement") != std::string::npos,
+              "en ACEScct outils allumés, le contraste ne s'écrit pas, et la "
+              "raison le dit : " +
+                  reasons);
         {
-            // The lift, gamma, gain and offset render the same in ACEScct
-            // (the cubes of 6 November 2026), and nothing does in a science
-            // never measured.
+            // The lift, gamma, gain, offset and saturation render in ACEScct
+            // (the cubes of 6 November 2026), the stage carrying acescct;
+            // nothing does in a science never measured.
             ResolveGrade gains;
-            gains.nodes.push_back(
-                {1, "", true, {{"gain.r", 1.25f}, {"lift.master", -0.0625f}}});
+            gains.nodes.push_back({1,
+                                   "",
+                                   true,
+                                   {{"gain.r", 1.25f},
+                                    {"lift.master", -0.0625f},
+                                    {"saturation", 1.5f}}});
             ResolveGradeStages(gains, stages, unrendered, aces);
-            Check(unrendered.empty() && stages.size() == 1,
-                  "en ACEScct, un lift et un gain s'écrivent : " +
+            Check(unrendered.empty() && stages.size() == 1 &&
+                      fraction(stages[0], "acescct", 1, 1) &&
+                      fraction(stages[0], "saturation", 3, 2),
+                  "en ACEScct, un lift, un gain et une saturation s'écrivent, "
+                  "l'étape marquée acescct : " +
                       joined(unrendered));
+            ResolveGradeStages(gains, stages, unrendered, yrgb);
+            Check(stages.size() == 1 && stages[0].params.count("acescct") == 0,
+                  "en DaVinci YRGB, l'étape ne porte pas acescct");
             ResolveProjectSettings acescc = yrgb;
             acescc.color_science = "ACEScc";
             ResolveGradeStages(gains, stages, unrendered, acescc);
-            Check(stages.empty() && unrendered.size() == 1 &&
-                      unrendered[0].find("le nœud 1 : en ACEScc, où "
-                                         "color.resolve_primaries n'a "
-                                         "jamais été mesurée") !=
-                          std::string::npos,
+            Check(stages.empty() &&
+                      joined(unrendered)
+                              .find("le nœud 1 : en ACEScc, où "
+                                    "color.resolve_primaries n'a "
+                                    "jamais été mesurée") != std::string::npos,
                   "en ACEScc, jamais mesuré, rien ne s'écrit : " +
                       joined(unrendered));
         }
@@ -1113,14 +1134,15 @@ int main(int argc, char** argv) {
         }
         Check(ResolveScienceRendersBalance("DaVinci YRGB") &&
                   ResolveScienceRendersBalance("DaVinci YRGB Color Managed") &&
-                  !ResolveScienceRendersBalance("ACEScct") &&
+                  ResolveScienceRendersBalance("ACEScct") &&
                   ResolveScienceRendersPrimaries("ACEScct") &&
+                  !ResolveScienceRendersBalance("ACEScc") &&
                   !ResolveScienceRendersPrimaries("ACEScc") &&
                   !ResolveScienceRendersPrimaries(
                       "DaVinci YRGB Color Managed v1") &&
                   !ResolveScienceRendersPrimaries("valeur 4"),
-              "les sciences mesurées : la balance en YRGB et Color Managed "
-              "v2, les primaires aussi en ACEScct, rien ailleurs");
+              "les sciences mesurées : YRGB, Color Managed v2 et ACEScct, "
+              "rien ailleurs");
         settings = ParseResolveProjectSettings("pas une configuration");
         Check(!settings.read && !settings.unread.empty(),
               "une configuration illisible laisse les réglages non lus : " +

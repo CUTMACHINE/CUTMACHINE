@@ -330,6 +330,13 @@ struct MotionEvaluatedNode {
     double scale_x = 1.0;
     double scale_y = 1.0;
     double rotate = 0.0;
+    // MOTION-WEB-2026-10 MW5 -- CSS skewX and skewY (degrees), applied
+    // after the scale and before the rotation (translate, rotate, skew,
+    // scale: GSAP's order, and Lottie's), and the point all three turn
+    // about (transformOrigin, the box's centre by default).
+    double skew_x = 0.0;
+    double skew_y = 0.0;
+    MotionTransformOrigin origin;
     bool has_background = false;
     MotionColor background;
     double border_radius = 0.0;

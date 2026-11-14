@@ -253,10 +253,27 @@ double MotionHomography::LocalScale(double x, double y) const {
     return std::sqrt(std::abs(dudx * dvdy - dudy * dvdx));
 }
 
+double MotionPivotX(const MotionEvaluatedNode& node) {
+    // The centre as it always was, to the bit: width / 2 is width * 0.5.
+    if (node.origin.IsCentre()) {
+        return node.box.x + node.box.width / 2.0;
+    }
+    return node.box.x + node.box.width * node.origin.x_fraction +
+           node.origin.x_pixels;
+}
+
+double MotionPivotY(const MotionEvaluatedNode& node) {
+    if (node.origin.IsCentre()) {
+        return node.box.y + node.box.height / 2.0;
+    }
+    return node.box.y + node.box.height * node.origin.y_fraction +
+           node.origin.y_pixels;
+}
+
 void MotionNodeMatrix3D(const MotionEvaluatedNode& node, double perspective,
                         double originX, double originY, double matrix[16]) {
-    const double centerX = node.box.x + node.box.width / 2.0;
-    const double centerY = node.box.y + node.box.height / 2.0;
+    const double centerX = MotionPivotX(node);
+    const double centerY = MotionPivotY(node);
     const double ax = node.rotate_x * kPi / 180.0;
     const double ay = node.rotate_y * kPi / 180.0;
     const double az = node.rotate * kPi / 180.0;
@@ -304,6 +321,26 @@ void MotionNodeMatrix3D(const MotionEvaluatedNode& node, double perspective,
     Multiply4(result, rotateX, result);
     Multiply4(result, rotateY, result);
     Multiply4(result, rotateZ, result);
+    if (node.skew_x != 0.0 || node.skew_y != 0.0) {
+        // MW5 -- CSS skew(ax, ay), between the rotation and the scale.
+        const double skew[16] = {1,
+                                 std::tan(node.skew_x * kPi / 180.0),
+                                 0,
+                                 0,
+                                 std::tan(node.skew_y * kPi / 180.0),
+                                 1,
+                                 0,
+                                 0,
+                                 0,
+                                 0,
+                                 1,
+                                 0,
+                                 0,
+                                 0,
+                                 0,
+                                 1};
+        Multiply4(result, skew, result);
+    }
     Multiply4(result, scale, result);
     Multiply4(result, back, result);
     if (perspective > 0.0) {
@@ -343,16 +380,31 @@ MotionHomography MotionNodeMapping(const MotionEvaluatedNode& node) {
 }
 
 MotionAffine MotionNodeTransform(const MotionEvaluatedNode& node) {
-    // Translate, then rotate, then scale, around the centre of the box: the
-    // painter's Transform (MotionRender.mm), term for term.
-    const double centerX = node.box.x + node.box.width / 2.0;
-    const double centerY = node.box.y + node.box.height / 2.0;
+    // Translate, then rotate, then skew (MW5), then scale, around the
+    // transform origin -- the centre of the box by default: the painter's
+    // Transform (MotionRender.mm), term for term.
+    const double centerX = MotionPivotX(node);
+    const double centerY = MotionPivotY(node);
     const double radians = node.rotate * kPi / 180.0;
     MotionAffine rotateScale;
     rotateScale.a = std::cos(radians) * node.scale_x;
     rotateScale.b = std::sin(radians) * node.scale_x;
     rotateScale.c = -std::sin(radians) * node.scale_y;
     rotateScale.d = std::cos(radians) * node.scale_y;
+    if (node.skew_x != 0.0 || node.skew_y != 0.0) {
+        MotionAffine rotation;
+        rotation.a = std::cos(radians);
+        rotation.b = std::sin(radians);
+        rotation.c = -std::sin(radians);
+        rotation.d = std::cos(radians);
+        MotionAffine skew;
+        skew.c = std::tan(node.skew_x * kPi / 180.0);
+        skew.b = std::tan(node.skew_y * kPi / 180.0);
+        MotionAffine scale;
+        scale.a = node.scale_x;
+        scale.d = node.scale_y;
+        rotateScale = rotation.After(skew).After(scale);
+    }
     return Translation(centerX + node.translate_x, centerY + node.translate_y)
         .After(rotateScale)
         .After(Translation(-centerX, -centerY));

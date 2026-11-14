@@ -4,6 +4,7 @@
 #include "Json.h"
 #include "MotionComposition.h"
 #include "MotionEvaluate.h"
+#include "MotionGeometry.h"
 #include "MotionSpring.h"
 #include "MotionVideo.h"
 
@@ -922,6 +923,119 @@ void TestTimecode() {
 // "px", separated by spaces or commas, or none. Anything else was taken
 // for a pattern up to the first word it could not read: "10px 5px" drew
 // 10 on, 10 off.
+// MOTION-WEB-2026-10 MW5 -- transformOrigin places the point scale, rotate
+// and skew turn about, as CSS; skewX and skewY slant as CSS's skew(), after
+// the scale and before the rotation. A third origin value, or one CSS
+// refuses, is refused; so is a skew in units, which have no skew.
+void TestTransformOriginAndSkew() {
+    const auto box = [](const std::string& style) {
+        return R"({"width":200,"height":200,"fps":25,"duration":10,)"
+               R"("root":{"type":"fill","children":[{"type":"box","style":{)"
+               R"("position":"absolute","left":0,"top":0,"width":100,)"
+               R"("height":100,"backgroundColor":"#fff",)" +
+               style + "}}]}}";
+    };
+    const struct {
+        const char* written;
+        MotionTransformOrigin origin;
+    } accepted[] = {
+        {"left top", {0.0, 0.0, 0.0, 0.0}},
+        {"top left", {0.0, 0.0, 0.0, 0.0}},
+        {"center bottom", {0.5, 0.0, 1.0, 0.0}},
+        {"bottom", {0.5, 0.0, 1.0, 0.0}},
+        {"right", {1.0, 0.0, 0.5, 0.0}},
+        {"25% 100%", {0.25, 0.0, 1.0, 0.0}},
+        {"0 12px", {0.0, 0.0, 0.0, 12.0}},
+        {"10px top", {0.0, 10.0, 0.0, 0.0}},
+        {"50%", {0.5, 0.0, 0.5, 0.0}},
+    };
+    for (const auto& item : accepted) {
+        MotionTransformOrigin origin;
+        Check(ParseMotionTransformOrigin(item.written, origin) &&
+                  origin.x_fraction == item.origin.x_fraction &&
+                  origin.x_pixels == item.origin.x_pixels &&
+                  origin.y_fraction == item.origin.y_fraction &&
+                  origin.y_pixels == item.origin.y_pixels,
+              std::string("transformOrigin \"") + item.written +
+                  "\" reads as CSS reads it");
+    }
+    for (const char* refused : {"top 10px", "left right", "top bottom",
+                                "1px 2px 3px", "", "middle", "10em 0"}) {
+        const MotionError error = ParseError(
+            box(std::string(R"("transformOrigin":")") + refused + "\""));
+        Check(error.code == "InvalidValue" &&
+                  error.path == "root.children[0].style.transformOrigin",
+              std::string("transformOrigin \"") + refused +
+                  "\" is refused: " + error.code + " at " + error.path);
+    }
+    // Rotated a quarter turn about its bottom-left corner: that corner
+    // stays, the bottom-right one lands below it.
+    MotionComposition composition;
+    MotionFrame frame;
+    if (Parse(box(R"("transformOrigin":"left bottom","rotate":90)"),
+              composition, "origin") &&
+        Evaluate(composition, 0, frame)) {
+        const MotionEvaluatedNode& node = Child(frame.root, {0});
+        const MotionAffine map = MotionNodeTransform(node);
+        double x = 0.0;
+        double y = 0.0;
+        map.Apply(0.0, 100.0, x, y);
+        const bool stays = Near(x, 0.0) && Near(y, 100.0);
+        map.Apply(100.0, 100.0, x, y);
+        Check(stays && Near(x, 0.0) && Near(y, 200.0),
+              "a quarter turn about the bottom-left corner: " +
+                  std::to_string(x) + ", " + std::to_string(y));
+        Check(DumpMotionFrame(frame).find(R"("origin":[0,0,1,0])") !=
+                  std::string::npos,
+              "the descriptor says the origin");
+    }
+    // skewX(45deg) about the centre: the bottom edge goes right by half the
+    // height, the top edge left; the scale comes first (CSS's skew(), as
+    // GSAP and Lottie order them).
+    MotionComposition skewed;
+    if (Parse(box(R"("skewX":45,"scaleY":0.5)"), skewed, "skew") &&
+        Evaluate(skewed, 0, frame)) {
+        const MotionAffine map = MotionNodeTransform(Child(frame.root, {0}));
+        double x = 0.0;
+        double y = 0.0;
+        map.Apply(50.0, 100.0, x, y);
+        const bool bottom = Near(x, 75.0) && Near(y, 75.0);
+        map.Apply(50.0, 0.0, x, y);
+        Check(bottom && Near(x, 25.0) && Near(y, 25.0),
+              "skewX(45deg) after scaleY(0.5) slants by a quarter of the box");
+        Check(DumpMotionFrame(frame).find(R"("skewX":45,"skewY":0)") !=
+                  std::string::npos,
+              "the descriptor says the skew");
+    }
+    MotionComposition slanting;
+    if (Parse(box(R"("transformOrigin":"0 0"},"animate":{"skewY":{)"
+                  R"("interpolate":{"frames":[0,10],"values":[0,20]}})"),
+              slanting, "animated skew") &&
+        Evaluate(slanting, 5, frame)) {
+        const MotionAffine map = MotionNodeTransform(Child(frame.root, {0}));
+        double x = 0.0;
+        double y = 0.0;
+        map.Apply(100.0, 0.0, x, y);
+        Check(Near(x, 100.0) && Near(y, 100.0 * std::tan(10.0 * M_PI / 180.0)),
+              "skewY animates, about the top-left corner");
+    }
+    // Without either, a node's transform keeps every bit it had.
+    MotionComposition plain;
+    if (Parse(box(R"("rotate":30,"scale":1.5)"), plain, "plain") &&
+        Evaluate(plain, 0, frame)) {
+        Check(DumpMotionFrame(frame).find("skew") == std::string::npos &&
+                  DumpMotionFrame(frame).find("origin") == std::string::npos,
+              "no skew, no origin: the descriptor is as before");
+    }
+    const MotionError units = ParseError(
+        R"({"width":200,"height":200,"fps":25,"duration":10,"root":{)"
+        R"("type":"text","content":"ab","units":"char","style":{)"
+        R"("fontFamily":"Fake"},"animate":{"skewX":{"interpolate":{)"
+        R"("frames":[0,5],"values":[0,10]}}}}})");
+    Check(units.code != "NoError",
+          "a skew in units is refused: " + units.code + " " + units.message);
+}
+
 void TestDashArray() {
     const auto dashed = [](const std::string& dashes) {
         return R"({"width":60,"height":10,"fps":25,"duration":1,"root":{)"
@@ -997,10 +1111,13 @@ void TestRefusals() {
         return refused.code == "UnknownStyleProperty" ? refused.message
                                                       : refused.code;
     };
-    Check(refusal(R"({"transformOrigin": "left center"})")
-                  .find("around the centre of the box") != std::string::npos,
-          "transformOrigin says where scale and rotate turn: " +
-              refusal(R"({"transformOrigin": "left center"})"));
+    // MOTION-WEB-2026-10 MW5 -- transformOrigin is written now; CSS's skew()
+    // shorthand says its two properties.
+    Check(refusal(R"({"transformOrigin": "left center"})") == "NoError" &&
+              refusal(R"({"skew": 10})").find("skewX and skewY") !=
+                  std::string::npos,
+          "transformOrigin is read; skew names skewX and skewY: " +
+              refusal(R"({"skew": 10})"));
     Check(refusal(R"({"whiteSpace": "nowrap"})").find("flexShrink: 0") !=
                   std::string::npos &&
               refusal(R"({"white-space": "nowrap"})").find("flexShrink: 0") !=
@@ -1024,9 +1141,8 @@ void TestRefusals() {
           "a name with no known equivalent is refused as before");
     error = ParseError(R"({"width": 10, "height": 10, "fps": 25, "duration": 5,
         "root": {"type": "fill", "animate": {"transformOrigin": {"interpolate": {"frames": [0, 1], "values": [0, 1]}}}}})");
-    Check(error.code == "UnknownStyleProperty" &&
-              error.message.find("around the centre") != std::string::npos,
-          "and so is an animation of it: " + error.code);
+    Check(error.code == "InvalidAnimation",
+          "transformOrigin is not animated: " + error.code);
     error = ParseError(card(R"({"lineHeight": "72"})"));
     Check(error.code == "InvalidValue",
           "a unitless lineHeight string is ambiguous and refused");
@@ -2551,6 +2667,7 @@ int main() {
     TestBindings();
     TestTimecode();
     TestDashArray();
+    TestTransformOriginAndSkew();
     TestFilterSeeds();
     TestRefusals();
     TestDeterminismAndRates();

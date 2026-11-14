@@ -4,6 +4,7 @@
 // with the other files of the catalog is in McpToolsInternal.h.
 
 #include "McpToolsInternal.h"
+#include "ResolveSend.h"
 
 using namespace mcp_tools;
 
@@ -84,6 +85,47 @@ bool DispatchImportResolveTimeline(McpBackend& backend, const IdResolver&,
         return Fail(errorName, message, message);
     return backend.ImportResolveTimeline(path, database, resultJson, errorName,
                                          message);
+}
+
+// PA16 -- docs/roadmap/PARITE-2026-11.md. The montage to Resolve, whole, in
+// one call: the descriptor of the selected timeline, the bridge, its report
+// (ResolveSend.h). Changes nothing in the project.
+bool DispatchSendToResolve(McpBackend& backend, const IdResolver&,
+                           const Value& args, std::string& resultJson,
+                           std::string& errorName, std::string& message) {
+    const std::string tool = "send_to_resolve";
+    std::string grade;
+    int64_t node = 1;
+    ResolveSendRequest request;
+    if (!CheckKnownKeys(args, {"name", "grade", "resolve_node", "dry_run"},
+                        tool, message) ||
+        !ReadString(args, "name", tool, false, "", request.name, message) ||
+        !ReadString(args, "grade", tool, false, "none", grade, message) ||
+        !ReadInt64(args, "resolve_node", tool, false, 1, node, message) ||
+        !ReadBool(args, "dry_run", tool, false, request.dry_run, message))
+        return Fail(errorName, message, message);
+    if (grade != "none" && grade != "cdl")
+        return Fail(errorName, message,
+                    "'" + tool + ".grade' must be 'none' or 'cdl'");
+    if (node < 1 || node > 1000)
+        return Fail(errorName, message,
+                    "'" + tool + ".resolve_node' is a node number, from 1");
+    if (request.name.find(':') != std::string::npos)
+        return Fail(errorName, message,
+                    "'" + tool +
+                        ".name' holds a ':', which Resolve refuses in a "
+                        "timeline name (measured 12 October): write 16x9, "
+                        "not 16:9");
+    request.options.grade_cdl = grade == "cdl";
+    request.options.cdl_node = static_cast<int>(node);
+    Document document;
+    if (!backend.SnapshotDocument(document, message)) {
+        errorName = "IoError";
+        return false;
+    }
+    return SendTimelineToResolve(
+        std::move(document), backend.PackageDirectory(), request,
+        LocateResolveBridge(), resultJson, errorName, message);
 }
 
 // R9 -- docs/roadmap/REEL-2026-09.md.
@@ -826,6 +868,51 @@ void RegisterDeliveryTools(const McpToolAdder& add) {
             .Build("import_resolve_timeline arguments"),
         DispatchImportResolveTimeline);
 
+    // PA16 -- docs/roadmap/PARITE-2026-11.md.
+    add("send_to_resolve",
+        "Send the selected timeline to the project open in DaVinci Resolve "
+        "Studio 21.1+, whole, as a new timeline, then read it back. Video "
+        "clips go picture only, audio clips sound only on their own tracks "
+        "(a voice track of rushes' own sound arrives mono, music stereo), "
+        "linked as in the document; constant speeds and held frames; cross "
+        "dissolves and audio cross fades; dips to black as opacity fades; "
+        "framing for the project's fit or fill; opacity; disabled clips; "
+        "audio gain and fades; hidden and muted tracks; markers; the first "
+        "caption track as subtitles. grade 'cdl' adds each clip's grade as "
+        "export_cdl folds it, on node resolve_node -- valid only when that "
+        "node grades the values the engine grades. What the API cannot carry "
+        "is named in `not_sent`, clip by clip, not refused: keyframes (first "
+        "frame's framing kept), crops, blurs, masks, speed ramps (mean "
+        "speed), motion clips (place left empty), a second caption track, "
+        "caption styles, the look, grades unless asked. The answer gives "
+        "`timeline`, `project`, what was set, `verified` (positions, lengths, "
+        "speeds, transitions, markers, subtitles, length read back; "
+        "differences in `mismatches`), `timings_ms` and `elapsed_ms` (1.7 s "
+        "for 220 clips, measured). Refused before Resolve is touched: a rush "
+        "missing from its Media Pool, another frame rate, a framed montage in "
+        "a project that neither fits nor fills. Without `name`, the "
+        "sequence's name or the next free one; a taken `name` is refused. "
+        "A Resolve with a dialog open stops answering: the send gives up "
+        "after 10 minutes (ResolveTimeout). dry_run writes the descriptor "
+        "and stops. Changes nothing in the project.",
+        SchemaBuilder()
+            .Field("name",
+                   StringSchema("The timeline's name in Resolve; default the "
+                                "sequence's, or the next free one. No ':'."),
+                   false)
+            .Field("grade",
+                   EnumSchema({"none", "cdl"},
+                              "'none' (default): grades are named in "
+                              "not_sent; 'cdl': sent as CDLs."),
+                   false)
+            .Field("resolve_node", IntSchema("Node the CDLs go on; default 1."),
+                   false)
+            .Field("dry_run",
+                   BoolSchema("Write the descriptor and stop; default false."),
+                   false)
+            .Build("send_to_resolve arguments"),
+        DispatchSendToResolve);
+
     // R9 -- docs/roadmap/REEL-2026-09.md. The return trip that carries a
     // speed and a dissolve, beside import_resolve_timeline's direction.
     add("export_resolve_xml",
@@ -836,10 +923,10 @@ void RegisterDeliveryTools(const McpToolAdder& add) {
         "clip's colour grade is not carried and is counted in "
         "`grades_not_sent`, its blur in `blurs_not_sent`. Import it with "
         "`resolve_bridge.py --send-xml`, which stamps the timecodes and checks "
-        "every clip. Use this whenever a clip carries a speed or the timeline "
-        "a transition; a montage of plain cuts can still go the simpler way "
-        "(`--export-resolve-timeline` plus `--send`), which is also the only "
-        "one that carries a clip's own sound and a subtitle track. Refused, by "
+        "every clip. send_to_resolve is the route for a whole montage (sound, "
+        "subtitles, markers, speeds, transitions); this one remains for "
+        "animated framing, whose keys it carries and the API cannot set. "
+        "Refused, by "
         "name, when a position, a length or a source in-point is not a whole "
         "sequence frame once the speed is applied. This route carries picture "
         "only: the audio tracks left behind are counted in the answer.",

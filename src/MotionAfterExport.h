@@ -89,12 +89,29 @@ struct MotionAfterExportOptions {
     std::vector<std::string> boil;
 };
 
+// MA2 -- where one note of the report shows, so that verify_after_export
+// can tell a frame an announced approximation explains from a frame nothing
+// explains: the structural path of the node it is about
+// (MotionEvaluatedNode::path), and for a slice() turned into Wave Warp,
+// only while that slice cuts (its amplitude is not 0; at 0 both draw the
+// node untouched). A note about the whole composition has no scope: it
+// cannot say which frames it explains, and none is counted as explained
+// by it.
+struct MotionAfterNoteScope {
+    size_t note = 0;  // index in MotionAfterExportReport::notes
+    std::string path;
+    bool slice = false;
+};
+
 struct MotionAfterExportReport {
     int64_t comps = 0;
     int64_t layers = 0;
     int64_t keyframes = 0;
     // "path: what After gets instead" -- approximated or left out.
     std::vector<std::string> notes;
+    // MA2 -- the notes about a node, and every node a shared note is about
+    // (one note says "the other slice() too"). Not part of the description.
+    std::vector<MotionAfterNoteScope> scopes;
 };
 
 bool ExportMotionToAfter(const MotionComposition& composition,

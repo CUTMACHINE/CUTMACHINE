@@ -519,6 +519,14 @@ const std::vector<CliCommand>& CliCommands() {
          "[--name <name>] [--boil <node-id>]... [--props '<json>'] "
          "[--font-dir <directory>]...",
          "a composition described for After Effects", CliSection::kMotion},
+        // MB7 -- docs/roadmap/MOTION-BIBLIOTHEQUE-2026-10.md.
+        {"--import-after-comp",
+         "<reading.json> <composition.json> "
+         "[--font <After PostScript name>=<PostScript name>]... "
+         "[--font-dir <directory>]...",
+         "an After Effects composition read by the bridge (read_comp) as a "
+         "composition of the format, with what is not translated",
+         CliSection::kMotion},
         // MM3 -- docs/roadmap/MOTION-MARQUE-2026-10.md.
         {"--check-motion-safe-area",
          "<composition.json|project> [--composition <id>] "
@@ -550,8 +558,14 @@ const std::vector<CliCommand>& CliCommands() {
          "<media> <file.srt> [--language <code>] [--verbatim]",
          "transcribe a media file straight into SRT, without a project",
          CliSection::kDelivery},
-        {"--export-resolve-timeline", "<project> [--timeline <id>]",
-         "the timeline as the JSON the Resolve bridge reads",
+        {"--export-resolve-timeline",
+         "<project> [--timeline <id>] [--grade none|cdl] [--cdl-node <n>]",
+         "the timeline as the JSON the Resolve bridge builds it from",
+         CliSection::kDelivery},
+        {"--send-resolve",
+         "<project> [--timeline <id>] [--name <name>] [--grade none|cdl] "
+         "[--cdl-node <n>] [--dry-run]",
+         "send the timeline to the open DaVinci Resolve project, whole",
          CliSection::kDelivery},
         {"--export-resolve-xml",
          "<project> <file.xml> [--timeline <id>] "

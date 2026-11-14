@@ -402,10 +402,11 @@ std::string SerializeResolveGradeReading(const ResolveGradeReading& reading);
 // The project's settings (`settings`, ReadResolveDatabaseTimelines) decide
 // the rest. A saturation, a contrast, a temperature or a tint away from
 // neutral renders only when they were read and the colour science is one it
-// was measured in (ResolveScienceRendersBalance); the contrast also follows
-// the aware tools, the S-curve and the working luminance. In a colour
-// science where even the lift, gamma and gain were never measured, no node
-// renders.
+// was measured in (ResolveScienceRendersBalance); a node of a project in
+// ACEScct carries `acescct` 1. The contrast also follows the aware tools,
+// the S-curve and the working luminance, and in ACEScct renders with the
+// aware tools off only. In a colour science where even the lift, gamma and
+// gain were never measured, no node renders.
 void ResolveGradeStages(const ResolveGrade& grade,
                         std::vector<ClipEffect>& stages,
                         std::vector<std::string>& unrendered,

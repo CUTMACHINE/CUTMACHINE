@@ -6,6 +6,8 @@
 #include "FrameCapture.h"
 #include "McpMotionClipTools.h"
 #include "MotionAfterExport.h"
+#include "MotionAfterImport.h"
+#include "MotionAfterVerify.h"
 #include "MotionCanvas.h"
 #include "MotionDocument.h"
 #include "MotionFrameRenderer.h"
@@ -1565,6 +1567,285 @@ bool DispatchExportAfter(McpBackend& backend, const IdResolver&,
     return true;
 }
 
+// MB7 -- docs/roadmap/MOTION-BIBLIOTHEQUE-2026-10.md (DEC43). A composition
+// of the project open in After, read whole by the bridge (read_comp),
+// translated by the engine (MotionAfterImport.h) and added to the project
+// as add_motion_composition adds one: one undo step, the same operation.
+// What does not translate is listed in `notes`.
+bool DispatchImportAfter(McpBackend& backend, const IdResolver&,
+                         const Value& args, std::string& resultJson,
+                         std::string& errorName, std::string& message) {
+    const std::string path = "import_after_comp";
+    std::string compId;
+    std::string name;
+    std::string readingPath;
+    MotionAfterImportRequest request;
+    if (!Known(args, {"comp_id", "name", "fonts", "font_dirs", "reading_path"},
+               path, true, message) ||
+        !ReadText(args, "comp_id", path, true, compId, message) ||
+        !ReadText(args, "name", path, false, name, message) ||
+        !ReadText(args, "reading_path", path, false, readingPath, message) ||
+        !ReadTexts(args, "font_dirs", path, request.font_directories,
+                   message)) {
+        return Invalid(errorName, message, message);
+    }
+    if (const Value* fonts = args.Find("fonts")) {
+        if (!fonts->IsObject()) {
+            return Invalid(errorName, message,
+                           "'" + path + ".fonts' must be an object");
+        }
+        for (const auto& [from, to] : fonts->AsObject()) {
+            if (from.empty() || !to.IsString() || to.AsString().empty()) {
+                return Invalid(errorName, message,
+                               "'" + path +
+                                   ".fonts' maps a PostScript name read in "
+                                   "After to a non-empty PostScript name");
+            }
+            request.options.fonts[from] = to.AsString();
+        }
+    }
+    if (!readingPath.empty()) {
+        const std::filesystem::path file(readingPath);
+        std::error_code error;
+        if (!file.is_absolute() || file.extension() != ".json") {
+            return Invalid(
+                errorName, message,
+                "'" + path + ".reading_path' must be an absolute .json path");
+        }
+        if (std::filesystem::exists(file, error)) {
+            return Refuse(
+                errorName, message, "IoError",
+                "refusing to overwrite existing file '" + readingPath + "'");
+        }
+    }
+    const MotionAfterImporter import = CurrentMotionAfterImporter();
+    if (import == nullptr) {
+        return Refuse(errorName, message, "UnsupportedOperation",
+                      "this process cannot measure text (Core Text): use the "
+                      "cutmachine executable");
+    }
+    AfterBridgeRequest bridge;
+    bridge.method = AfterBridgeMethod::ReadComp;
+    bridge.arguments.Set("comp_id", Value::MakeString(compId));
+    std::string responseJson;
+    if (!backend.RunAfterRequest(SerializeAfterBridgeRequest(bridge),
+                                 responseJson, errorName, message)) {
+        return false;
+    }
+    Value reading;
+    std::string parseError;
+    if (!Value::Parse(responseJson, reading, parseError)) {
+        return Refuse(errorName, message, "AfterExecutionFailed",
+                      "unreadable read_comp answer: " + parseError);
+    }
+    if (!readingPath.empty()) {
+        std::ofstream file(readingPath, std::ios::binary | std::ios::trunc);
+        file << responseJson;
+        if (!file) {
+            return Refuse(errorName, message, "IoError",
+                          "cannot write '" + readingPath + "'");
+        }
+    }
+    request.comp = &reading;
+    Value definition;
+    MotionAfterImportReport report;
+    MotionError error;
+    if (!import(request, definition, report, error)) {
+        return Refuse(
+            errorName, message, error.code,
+            (error.path.empty() ? "" : error.path + ": ") + error.message);
+    }
+    AddMotionCompositionOperation op;
+    op.composition.name = name.empty() ? report.comp_name : name;
+    op.composition.definition = std::move(definition);
+    const Ulid id = op.composition.id;
+    if (!backend.ApplyOperation(op, resultJson, errorName, message)) {
+        return false;
+    }
+    Value result;
+    if (!Value::Parse(resultJson, result, parseError) || !result.IsObject()) {
+        result = Value::MakeObject();
+    }
+    result.Set("composition_id", Value::MakeString(id));
+    MotionAfterImportReportFields(report, result);
+    if (!readingPath.empty()) {
+        result.Set("reading_path", Value::MakeString(readingPath));
+    }
+    resultJson = result.Dump();
+    return true;
+}
+
+// MA2 -- docs/roadmap/MOTION-AFTER-2026-09.md. The project export_motion_after
+// built, checked against the engine: After renders each frame through the
+// bridge's render_frame (the method of after_render_frame), the engine
+// renders the same frame, and each gap is judged against the exporter's own
+// report (MotionAfterVerify.h). Both pictures stay in image_dir.
+bool DispatchVerifyAfter(McpBackend& backend, const IdResolver&,
+                         const Value& args, std::string& resultJson,
+                         std::string& errorName, std::string& message) {
+    const std::string path = "verify_after_export";
+    std::string id;
+    std::string compId;
+    std::string directory;
+    MotionAfterRequest describing;
+    MotionAfterVerifyRequest request;
+    if (!Known(args,
+               {"composition_id", "comp_id", "image_dir", "frames", "step",
+                "tolerance", "props", "font_dirs", "boil"},
+               path, false, message) ||
+        !ReadText(args, "composition_id", path, true, id, message) ||
+        !ReadText(args, "comp_id", path, true, compId, message) ||
+        !ReadText(args, "image_dir", path, true, directory, message) ||
+        !ReadTexts(args, "font_dirs", path, describing.font_directories,
+                   message) ||
+        !ReadTexts(args, "boil", path, describing.options.boil, message)) {
+        return Invalid(errorName, message, message);
+    }
+    if (const Value* props = args.Find("props")) {
+        if (!props->IsObject()) {
+            return Invalid(errorName, message,
+                           "'" + path + ".props' must be an object");
+        }
+        describing.props = *props;
+    }
+    if (const Value* tolerance = args.Find("tolerance")) {
+        double read = -1.0;
+        if (!MotionNumber(*tolerance, read) || !(read >= 0.0) || read > 255.0) {
+            return Invalid(errorName, message,
+                           "'" + path +
+                               ".tolerance' must be a number of luma levels, "
+                               "0 to 255");
+        }
+        request.tolerance = read;
+    }
+    const Value* frames = args.Find("frames");
+    const Value* step = args.Find("step");
+    int64_t every = 8;
+    if (frames != nullptr && step != nullptr) {
+        return Invalid(errorName, message,
+                       "'" + path + "' takes frames or step, not both");
+    }
+    if (step != nullptr && (!step->AsInt64(every) || every < 1)) {
+        return Invalid(errorName, message,
+                       "'" + path +
+                           ".step' must be a whole number of frames, "
+                           "1 or more");
+    }
+    if (frames != nullptr) {
+        if (!frames->IsArray() || frames->AsArray().empty()) {
+            return Invalid(errorName, message,
+                           "'" + path +
+                               ".frames' must be a non-empty array "
+                               "of frames");
+        }
+        for (const Value& frame : frames->AsArray()) {
+            int64_t read = 0;
+            if (!frame.AsInt64(read)) {
+                return Invalid(errorName, message,
+                               "'" + path + ".frames' holds whole frames");
+            }
+            request.frames.push_back(read);
+        }
+    }
+    const std::filesystem::path folder(directory);
+    std::error_code fileError;
+    if (!folder.is_absolute()) {
+        return Invalid(errorName, message,
+                       "'" + path + ".image_dir' must be an absolute path");
+    }
+    if (std::filesystem::exists(folder, fileError)) {
+        return Refuse(errorName, message, "IoError",
+                      "refusing to write into an existing '" + directory +
+                          "': image_dir is a new directory");
+    }
+    if (!std::filesystem::is_directory(folder.parent_path(), fileError)) {
+        return Refuse(errorName, message, "IoError",
+                      "directory does not exist: '" +
+                          folder.parent_path().string() + "'");
+    }
+    const MotionAfterDescriber describe = CurrentMotionAfterDescriber();
+    const MotionFrameRenderer render = CurrentMotionFrameRenderer();
+    if (describe == nullptr || render == nullptr) {
+        return Refuse(errorName, message, "UnsupportedOperation",
+                      std::string("this process cannot render nor measure "
+                                  "text (Core Text): ") +
+                          kMotionRendererHolder);
+    }
+
+    Document document;
+    const DocumentComposition* composition = nullptr;
+    if (!Snapshot(backend, document, errorName, message) ||
+        !ResolveComposition(document, id, composition, errorName, message)) {
+        return false;
+    }
+    MotionComposition parsed;
+    MotionError error;
+    if (!ParseDocumentComposition(*composition, parsed, error) ||
+        !MotionReachFor(document, composition->id, describing.reach, error)) {
+        return Refuse(errorName, message, error.code,
+                      error.path + ": " + error.message);
+    }
+    if (frames == nullptr) {
+        for (int64_t frame = 0; frame < parsed.duration; frame += every) {
+            request.frames.push_back(frame);
+        }
+    }
+    for (const int64_t frame : request.frames) {
+        if (frame < 0 || frame >= parsed.duration) {
+            return Invalid(errorName, message,
+                           "frame " + std::to_string(frame) +
+                               " is outside the composition (0 to " +
+                               std::to_string(parsed.duration - 1) + ")");
+        }
+    }
+
+    // The report of the export as it would be made now: which node each
+    // approximation is about.
+    describing.composition = &parsed;
+    describing.options.media_directory = backend.MotionMediaDirectory();
+    describing.options.name = composition->name;
+    Value description;
+    if (!describe(describing, description, request.report, error)) {
+        return Refuse(
+            errorName, message, error.code,
+            (error.path.empty() ? "" : error.path + ": ") + error.message);
+    }
+    request.engine.composition = &parsed;
+    request.engine.props = describing.props;
+    request.engine.media_directory = describing.options.media_directory;
+    request.engine.font_directories = describing.font_directories;
+    request.engine.reach = describing.reach;
+    request.directory = directory;
+    if (!std::filesystem::create_directory(folder, fileError)) {
+        return Refuse(errorName, message, "IoError",
+                      "cannot create '" + directory + "'");
+    }
+
+    const MotionAfterFrameSource after =
+        [&](int64_t frame, const std::string& image, std::string& code,
+            std::string& text) {
+            AfterBridgeRequest bridge;
+            bridge.method = AfterBridgeMethod::RenderFrame;
+            bridge.arguments.Set("comp_id", Value::MakeString(compId));
+            bridge.arguments.Set("frame", Value::MakeInt(frame));
+            bridge.arguments.Set("image_path", Value::MakeString(image));
+            std::string response;
+            return backend.RunAfterRequest(SerializeAfterBridgeRequest(bridge),
+                                           response, code, text);
+        };
+    std::vector<MotionAfterFrameCheck> checks;
+    if (!VerifyMotionAfterFrames(request, render, after, checks, error)) {
+        return Refuse(
+            errorName, message, error.code,
+            (error.path.empty() ? "" : error.path + ": ") + error.message);
+    }
+    Value result = Value::MakeObject();
+    result.Set("comp_id", Value::MakeString(compId));
+    MotionAfterVerifyFields(request, checks, result);
+    resultJson = result.Dump();
+    return true;
+}
+
 // MA6 -- docs/roadmap/MOTION-AFTER-2026-09.md. A composition written by a
 // machine rewritten at a human's level (MotionHumanize.h), proved by
 // rendering every frame of both, and applied as one UpdateMotionComposition:
@@ -1760,7 +2041,7 @@ bool IsMotionEditingTool(const std::string& name) {
     return name == "add_motion_composition" ||
            name == "remove_motion_composition" ||
            name == "edit_motion_composition" || name == "add_motion_template" ||
-           name == "humanize_motion_composition";
+           name == "humanize_motion_composition" || name == "import_after_comp";
 }
 
 void RegisterMotionTools(const McpToolAdder& add) {
@@ -2104,8 +2385,9 @@ void RegisterMotionTools(const McpToolAdder& add) {
         "untitled project: a project with work in it is refused "
         "(ProjectAlreadyOpen), never closed. `timeline_id` adds the sounds "
         "of that timeline as audio layers. What After cannot show the same "
-        "way is listed in `notes` (slice() as Wave Warp, springs, flexbox "
-        "as fixed positions). With build false, only the description is "
+        "way is listed in `notes` (slice() as Wave Warp, springs). A row "
+        "of texts keeps its flexbox push by expressions (sourceRectAtTime). "
+        "With build false, only the description is "
         "written, to description_path. After is an output: nothing comes "
         "back into the project.",
         Schema(
@@ -2148,4 +2430,88 @@ void RegisterMotionTools(const McpToolAdder& add) {
             {"composition_id", "project_path"},
             "export_motion_after arguments"),
         DispatchExportAfter);
+
+    add("import_after_comp",
+        "Import a composition of the project open in After Effects into this "
+        "project as a motion composition you can read and edit: one node per "
+        "layer, named after it (texts stay texts, in their face, on their "
+        "baseline; shape rectangles become boxes; parents become boxes "
+        "around their children), keys with their eases as cubic-bezier per "
+        "segment. What After computes and the format cannot say (an "
+        "expression, a curved path, a track matte made of one rectangle) is "
+        "read frame by frame and stops being live; what has no equivalent "
+        "(precompositions, footage, masks, text animators, other effects, "
+        "blending modes) is left out. Both are listed in `notes`: read them "
+        "before using the composition. Nothing is written to the .aep. A "
+        "face this machine lacks can be replaced (`fonts`), as After's own "
+        "font replacement; each replacement is a note.",
+        Schema({{"comp_id", Described("string",
+                                      "Host ID of the After composition "
+                                      "(after_list_comps).")},
+                {"name", Described("string",
+                                   "Name in the project (default: the After "
+                                   "composition's).")},
+                {"fonts",
+                 Described("object",
+                           "PostScript name read in After -> PostScript name "
+                           "to draw instead.")},
+                {"font_dirs",
+                 names +
+                     Quoted("Directories of .ttf/.otf files to register "
+                            "first.") +
+                     "}"},
+                {"reading_path",
+                 Described("string",
+                           "Absolute .json path to keep what the bridge read "
+                           "(after-comp.v1), to replay with "
+                           "--import-after-comp; never overwritten.")}},
+               {"comp_id"}, "import_after_comp arguments"),
+        DispatchImportAfter);
+
+    add("verify_after_export",
+        "Check an After Effects project export_motion_after built against "
+        "the engine, frame by frame: After renders each frame through the "
+        "bridge (the project must be open in After, as the export leaves "
+        "it), the engine renders the same frame, and each pair is compared "
+        "by mean luma difference (levels 0-255, over black). A frame over "
+        "the tolerance is `announced` when a note of the export's report "
+        "about a node drawn at that frame explains it (slice() only while "
+        "it cuts), `unexplained` otherwise: that is what to look at. Notes "
+        "about the whole composition are listed apart and never explain a "
+        "frame. Both pictures of every frame stay in image_dir "
+        "(moteur-NNNNNN.png, after-NNNNNN.png). Pass the props, font_dirs "
+        "and boil the export was given.",
+        Schema(
+            {{"composition_id", compositionId},
+             {"comp_id",
+              Described("string",
+                        "Host ID of the After composition the export built "
+                        "(export_motion_after's after.result.main_comp_id, "
+                        "or after_list_comps).")},
+             {"image_dir",
+              Described("string",
+                        "Absolute path of a new directory for the pictures; "
+                        "an existing one is refused.")},
+             {"frames",
+              "{\"type\":\"array\",\"items\":{\"type\":\"integer\"},"
+              "\"description\":" +
+                  Quoted("Frames to check, each within the composition.") +
+                  "}"},
+             {"step", Described("integer",
+                                "Without frames: every step-th frame from "
+                                "0; default 8.")},
+             {"tolerance",
+              Described("number",
+                        "Mean luma difference a frame may have, in levels; "
+                        "default 0.5.")},
+             {"props", Described("object", "Prop values the export had.")},
+             {"font_dirs",
+              names +
+                  Quoted("Directories of .ttf/.otf files to register "
+                         "first.") +
+                  "}"},
+             {"boil", names + Quoted("The boil the export was given.") + "}"}},
+            {"composition_id", "comp_id", "image_dir"},
+            "verify_after_export arguments"),
+        DispatchVerifyAfter);
 }

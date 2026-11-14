@@ -791,6 +791,8 @@ using namespace cutmachine_app;
 @property(nonatomic, strong) NSTextField* startupSetupNoticeLabel;
 @property(nonatomic, assign) BOOL startupSetupNoticeChecked;
 @property(nonatomic, assign) BOOL setupDiagnosticPending;
+// PA16 -- a send to Resolve is running on its thread; a second one waits.
+@property(nonatomic, assign) BOOL resolveSendPending;
 @property(nonatomic, copy) NSString* setupDiagnosticClipboard;
 @property(nonatomic, strong) TimelineMetalView* metalView;
 @property(nonatomic, strong) TimelineMetalView* sourceMonitorView;

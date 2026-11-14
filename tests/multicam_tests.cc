@@ -15,6 +15,7 @@
 #include "TimelineSheets.h"
 #include "TimelineStats.h"
 
+#include <algorithm>
 #include <iostream>
 #include <map>
 #include <set>
@@ -160,7 +161,7 @@ std::vector<int32_t> ResolveLayers(const Document& document,
         return layers;
     }
     for (const ResolveTimelineClip& clip : exported.clips) {
-        layers.push_back(clip.video_layer);
+        if (!clip.audio) layers.push_back(clip.track - 1);
     }
     return layers;
 }
@@ -296,18 +297,28 @@ int main() {
               "one as uncovered");
     }
     {
+        // PA16 -- every clip travels as what it is: the hidden angle's
+        // picture stays behind, its sound goes as a clip of its own.
         std::string resolveError;
-        Check(ResolveLayers(document, resolveError).empty() &&
-                  resolveError.find(kClose) != std::string::npos,
-              "the Resolve trip refuses a hidden angle whose sound plays: " +
-                  resolveError);
+        Check(
+            ResolveLayers(document, resolveError) == std::vector<int32_t>{0, 0},
+            "the Resolve trip sends the shown pictures only: " + resolveError);
+        ResolveTimelineExport exported;
+        Check(BuildResolveTimelineExport(document, exported, resolveError) &&
+                  exported.multicam_angles_not_sent == 1 &&
+                  std::any_of(exported.clips.begin(), exported.clips.end(),
+                              [](const ResolveTimelineClip& clip) {
+                                  return clip.audio &&
+                                         clip.clip_id == kCloseSound;
+                              }),
+              "the hidden angle's own sound still travels: " + resolveError);
         Document muted = document;
         muted.sequence.tracks[2].muted = true;
         resolveError.clear();
-        const std::vector<int32_t> layers = ResolveLayers(muted, resolveError);
-        Check(layers == std::vector<int32_t>{0, 0},
-              "with that sound muted, only the shown pictures are sent: " +
-                  resolveError);
+        Check(BuildResolveTimelineExport(muted, exported, resolveError) &&
+                  !exported.tracks.back().enabled &&
+                  exported.tracks.back().audio,
+              "a muted track arrives disabled: " + resolveError);
     }
 
     // --- Close angle active ---------------------------------------------

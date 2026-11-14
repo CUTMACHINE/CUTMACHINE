@@ -584,6 +584,31 @@ bool ParseMotionFilters(const std::string& text,
 bool ParseMotionDashArray(const std::string& text,
                           std::vector<double>& lengths);
 
+// MOTION-WEB-2026-10 MW5 -- ROADMAP.md. CSS transform-origin in the plane:
+// where a node's scale, rotate and skew turn, a fraction of its box plus
+// pixels on each axis. The centre by default, as CSS. Written once, from
+// the web (GSAP's transformOrigin, 68 times in MW0) and from After, whose
+// anchor point it is.
+struct MotionTransformOrigin {
+    double x_fraction = 0.5;
+    double x_pixels = 0.0;
+    double y_fraction = 0.5;
+    double y_pixels = 0.0;
+
+    bool IsCentre() const {
+        return x_fraction == 0.5 && x_pixels == 0.0 && y_fraction == 0.5 &&
+               y_pixels == 0.0;
+    }
+};
+
+// One or two values, as CSS writes them: keywords (left, center, right;
+// top, center, bottom; two keywords in either order), percentages, or
+// pixels ("12px", or 0). One value sets x, or y for top and bottom; the
+// other stays at the centre. A third value (CSS's depth) is refused: the
+// plane has none.
+bool ParseMotionTransformOrigin(const std::string& text,
+                                MotionTransformOrigin& origin);
+
 // Exact rational reading of a decimal literal ("1.25" is 5/4), so a speed or
 // a percentage never enters time as a rounded float.
 bool MotionDecimalRational(const std::string& text, int64_t& numerator,

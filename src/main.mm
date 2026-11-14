@@ -7,6 +7,7 @@
 #include "LinkGroupRepair.h"
 #include "ProcessLauncher.h"
 #include "ProjectSwitch.h"
+#include "ResolveSend.h"
 #include "WorkspaceActivity.h"
 
 namespace cutmachine_app {
@@ -1708,6 +1709,10 @@ DeleteGapOperation GapDeleteOperationForSelection(
                              key:@"e"]];
     [file addItem:[self menuItem:@"Exporter les sous-titres SRT…"
                           action:@selector(exportSubtitlesPressed:)
+                             key:@""]];
+    [file addItem:NSMenuItem.separatorItem];
+    [file addItem:[self menuItem:@"Envoyer dans Resolve"
+                          action:@selector(sendToResolvePressed:)
                              key:@""]];
     fileRoot.submenu = file;
     [bar addItem:fileRoot];
@@ -9274,6 +9279,57 @@ static ui::agent_window::Rect CMAgentRect(NSRect rect) {
         return;
     }
     self.infoLabel.stringValue = @"Sous-titres SRT exportés";
+}
+
+// PA16 -- docs/roadmap/PARITE-2026-11.md. « Fichier ▸ Envoyer dans
+// Resolve » : send_to_resolve, the same engine call (ResolveSend.h), on the
+// timeline on screen, into the project open in Resolve. Off the main thread:
+// the bridge drives Resolve for a few seconds, and the window keeps
+// answering. No name is asked: the bridge takes the sequence's, or the next
+// free one. What it says comes from ResolveSendNoticeFor, in the status line,
+// and in a sheet when something did not travel or the send was refused.
+- (void)sendToResolvePressed:(id)sender {
+    (void)sender;
+    if (self.resolveSendPending || !self.state) {
+        NSBeep();
+        return;
+    }
+    self.resolveSendPending = YES;
+    self.infoLabel.stringValue = @"Envoi dans Resolve…";
+    auto document = std::make_shared<Document>(self.state->document);
+    const std::string package =
+        std::filesystem::path(self.documentPath.UTF8String ?: "")
+            .parent_path()
+            .string();
+    __weak AppDelegate* weakSelf = self;
+    static NSArray* const modes =
+        @[ NSDefaultRunLoopMode, NSModalPanelRunLoopMode ];
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+      std::string result;
+      std::string errorName;
+      std::string error;
+      const bool sent = SendTimelineToResolve(
+          *document, package, ResolveSendRequest{}, LocateResolveBridge(),
+          result, errorName, error);
+      auto notice = std::make_shared<ResolveSendNotice>(
+          ResolveSendNoticeFor(sent, result, errorName, error));
+      CFRunLoopRef mainLoop = CFRunLoopGetMain();
+      CFRunLoopPerformBlock(mainLoop, (__bridge CFTypeRef)modes, ^{
+        AppDelegate* strongSelf = weakSelf;
+        if (!strongSelf) return;
+        strongSelf.resolveSendPending = NO;
+        strongSelf.infoLabel.stringValue = CMStringFromUtf8(notice->status);
+        if (notice->title.empty()) return;
+        NSAlert* alert = [NSAlert new];
+        alert.alertStyle =
+            notice->failed ? NSAlertStyleCritical : NSAlertStyleInformational;
+        alert.messageText = CMStringFromUtf8(notice->title);
+        alert.informativeText = CMStringFromUtf8(notice->text);
+        [alert beginSheetModalForWindow:strongSelf.window
+                      completionHandler:nil];
+      });
+      CFRunLoopWakeUp(mainLoop);
+    });
 }
 
 - (BOOL)importMediaURLs:(NSArray<NSURL*>*)urls intoBin:(NSString*)binId {

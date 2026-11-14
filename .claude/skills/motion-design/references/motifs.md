@@ -236,9 +236,10 @@ Des rayons autour d'un centre (l'étincelle de l'original) : aucun calcul
 n'est possible dans la composition, et une table ne s'applique pas à
 `{"index": true}` (refus `InvalidValue` : « map applies to item, not to
 index »). Les angles viennent donc d'une prop `list` parcourue par
-`repeat` ; et, faute de `transform-origin`, chaque rayon est une barre deux
-fois plus longue, **colorée sur sa moitié haute seulement**, qui tourne
-autour de son centre : le rayon part du centre commun.
+`repeat` ; chaque rayon est une barre deux fois plus longue, **colorée sur
+sa moitié haute seulement**, qui tourne autour de son centre : le rayon part
+du centre commun. (Depuis le 14 novembre 2026, `transformOrigin: "50% 100%"`
+fait aussi tourner une barre simple autour de sa base, MW5.)
 
 ```json
 "props": { "angles": { "type": "list", "of": "number", "default": [0, 45, 90, 135, 180, 225, 270, 315] } },

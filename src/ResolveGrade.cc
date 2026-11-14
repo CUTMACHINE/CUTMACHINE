@@ -1003,11 +1003,12 @@ ResolveProjectSettings ParseResolveProjectSettings(const std::string& blob) {
 }
 
 bool ResolveScienceRendersPrimaries(const std::string& science) {
-    return ResolveScienceRendersBalance(science) || science == "ACEScct";
+    return ResolveScienceRendersBalance(science);
 }
 
 bool ResolveScienceRendersBalance(const std::string& science) {
-    return science == "DaVinci YRGB" || science == "DaVinci YRGB Color Managed";
+    return science == "DaVinci YRGB" ||
+           science == "DaVinci YRGB Color Managed" || science == "ACEScct";
 }
 
 bool ReadResolveDatabaseTimelines(

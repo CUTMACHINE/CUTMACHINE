@@ -4,6 +4,7 @@
 
 #include "CutInspection.h"
 
+#include <algorithm>
 #include <cmath>
 #include <functional>
 #include <iostream>

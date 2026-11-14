@@ -111,7 +111,7 @@ const std::vector<InstructionsMapLine>& InstructionsMap() {
           "render_motion_frame", "place_motion_clip", "save_motion_template"}},
         {"delivery",
          {"check_timeline", "review_cuts", "export_timeline", "verify_export",
-          "export_resolve_xml"}},
+          "send_to_resolve", "export_resolve_xml"}},
         {"in the app", {"get_editor_view"}},
     };
     return map;
