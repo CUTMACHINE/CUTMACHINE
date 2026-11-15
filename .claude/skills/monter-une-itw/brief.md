@@ -5,8 +5,7 @@ jamais autrement : une minute de validation coûte moins que quarante de
 montage sur un malentendu. Les commandes arrivent souvent minces : un
 ticket de deux lignes, un message.
 
-Ce fichier sert les trois procédures : interview, reel ou pub, motion
-(BRIEF-2026-10).
+Ce fichier sert les trois procédures : interview, reel ou pub, motion.
 
 ## Avec la personne qui signe
 
@@ -121,10 +120,10 @@ Chaque question porte l'hypothèse que tu prendras sans réponse, et se
 répond d'un mot : « Je pars sur une minute en 9:16, comme les quatre films
 livrés de la série (54 à 77 s). Plus court ? »
 
-Pour une interview, celles qui ont déjà coûté une version : quel propos
-porte le film quand la personne en développe deux ; sous-titres incrustés,
-en SRT, ou repris dans Resolve. Un reel ou du motion a les siennes, dans sa
-procédure.
+Pour une interview, celles qui coûtent une version quand on ne les pose
+pas : quel propos porte le film quand la personne en développe deux ;
+sous-titres incrustés, en SRT, ou repris dans Resolve. Un reel ou du motion
+a les siennes, dans sa procédure.
 
 ## Ensuite
 

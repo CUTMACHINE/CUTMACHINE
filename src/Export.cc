@@ -20,6 +20,8 @@
 #include "MotionDocument.h"
 #include "MotionFrameRenderer.h"
 #include "MotionParallelRender.h"
+#include "PersonMatte.h"
+#include "SourceGrid.h"
 #include "Timeline.h"
 #include "TimelineAudioReport.h"
 #include "TransitionRender.h"
@@ -1457,6 +1459,7 @@ bool BuildSegments(const Document& document, const std::string& documentPath,
     plan.clip_grade_luts.clear();
     plan.display_shaper = {};
     plan.motion_assets.clear();
+    plan.matte_assets.clear();
     return true;
 }
 
@@ -1794,9 +1797,86 @@ bool Exporter::BuildPlan(const Document& document,
         std::vector<EffectParamValue> opacity_by_frame;
         // R3, criterion 4 -- docs/roadmap/REEL-2026-09.md. The source frame
         // each output frame of a ramped clip shows, as ClipSpeed.h's rule
-        // names it, once per frame. Empty for every clip at one speed,
-        // which keeps the chain it had.
-        std::vector<int64_t> ramp_frames;
+        // names it, once per frame. VF1 -- docs/roadmap/VFR-2026-11.md: a
+        // clip at unit speed whose source is counted at another rate than
+        // the sequence is handed the same list, the rule being no cadence
+        // `fps` resamples exactly once the source and the sequence differ.
+        // Empty for every other clip.
+        std::vector<int64_t> listed_frames;
+        // VF1 -- the grid frames the chain reads, first and last
+        // (SourceGrid.h), and how FFmpeg reads them.
+        int64_t grid_first = 0;
+        int64_t grid_last = 0;
+        SourceGridRead grid_read;
+    };
+    // VF1 -- docs/roadmap/VFR-2026-11.md. The first picture of each source,
+    // decoded once per plan: the origin of its grid (SourceGrid.h).
+    std::map<Ulid, int64_t> firstPictures;
+    const auto planGridRead = [&](InputClip& input, const DocumentClip& clip,
+                                  const DocumentSource& source,
+                                  std::string& planError) {
+        const MediaRate sourceRate = source.rate;
+        const MediaRate sequenceRate = settings.frame_rate;
+        // The rule asked of the span the chain covers: a dissolve's handle
+        // moves where the chain starts reading, not which rule applies.
+        DocumentClip read = clip;
+        read.source_in = input.source_in;
+        const bool sameRate =
+            static_cast<int64_t>(sourceRate.num) * sequenceRate.den ==
+            static_cast<int64_t>(sequenceRate.num) * sourceRate.den;
+        MediaRate gridRate = sourceRate;
+        try {
+            const int64_t frames = ExactFrames(input.duration, sequenceRate,
+                                               "video clip duration");
+            if (!input.listed_frames.empty()) {
+                input.grid_first = input.listed_frames.front();
+                input.grid_last = input.listed_frames.back();
+            } else if (ClipIsFreeze(clip)) {
+                input.grid_first =
+                    ClipSourceFrameAt(read, RationalTime{0, 1}, sourceRate);
+                input.grid_last = input.grid_first;
+            } else if (ClipHasSpeed(clip)) {
+                input.grid_first =
+                    ClipSourceFrameAt(read, RationalTime{0, 1}, sourceRate);
+                input.grid_last = ClipSourceFrameAt(
+                    read,
+                    RationalTime{(frames - 1) * sequenceRate.den,
+                                 sequenceRate.num},
+                    sourceRate);
+            } else if (sameRate) {
+                // One grid step is one sequence frame: the chain shows grid
+                // frames first, first + 1... at the sequence's own rate.
+                gridRate = sequenceRate;
+                input.grid_first =
+                    ClipSourceFrameAt(read, RationalTime{0, 1}, sourceRate);
+                input.grid_last = input.grid_first + frames - 1;
+            } else {
+                input.listed_frames =
+                    ClipSourceFrames(read, 0, frames, sequenceRate, sourceRate);
+                input.grid_first = input.listed_frames.front();
+                input.grid_last = input.listed_frames.back();
+            }
+        } catch (const std::exception& exception) {
+            planError = "clip '" + clip.id + "': " + exception.what();
+            return false;
+        }
+        auto known = firstPictures.find(source.id);
+        if (known == firstPictures.end()) {
+            int64_t pts = 0;
+            std::string ignored;
+            // A file FFmpeg cannot decode a picture from fails the export
+            // when FFmpeg reads it; until then its grid is anchored at
+            // zero, so that the plan can still be built and inspected.
+            if (!FirstPicturePts(
+                    ResolveMediaPath(baseDirectory, source).string(), pts,
+                    ignored)) {
+                pts = 0;
+            }
+            known = firstPictures.emplace(source.id, pts).first;
+        }
+        input.grid_read = SourceGridReadFor(
+            known->second, gridRate, input.grid_first, input.grid_last, true);
+        return true;
     };
     std::vector<const DocumentTrack*> tracks;
     for (const DocumentTrack& track : document.sequence.tracks)
@@ -1985,7 +2065,7 @@ bool Exporter::BuildPlan(const Document& document,
             // its span is the clip's own.
             if (video && !motion && ClipHasSpeedRamp(clip)) {
                 try {
-                    input.ramp_frames = ClipSourceFrames(
+                    input.listed_frames = ClipSourceFrames(
                         clip, 0,
                         ExactFrames(input.duration, settings.frame_rate,
                                     "ramped clip duration"),
@@ -1994,6 +2074,18 @@ bool Exporter::BuildPlan(const Document& document,
                     error = "clip '" + clip.id + "': " + exception.what();
                     return false;
                 }
+            }
+            // VF1 -- docs/roadmap/VFR-2026-11.md. Which grid frames the
+            // chain reads, by the rule (ClipSpeed.h) applied to the span the
+            // chain covers, its dissolve handles included; then how FFmpeg
+            // reads them on the source's grid, anchored on its first picture
+            // as verify_export reads it (SourceGrid.h). Reading from where a
+            // `-ss` landed made a whole clip one picture early whenever the
+            // first picture after the seek came more than half a frame late,
+            // as a phone's pictures do.
+            if (video && !motion &&
+                !planGridRead(input, clip, *source, error)) {
+                return false;
             }
             // R1 -- one call, the same one the monitor, the sheets and
             // verify_export make.
@@ -2218,57 +2310,25 @@ bool Exporter::BuildPlan(const Document& document,
             output.motion_assets.push_back(std::move(asset));
             continue;
         }
-        // R3, criterion 4 -- a ramp reads from the start of the first frame
-        // its list names to the end of the last: its source_in may sit
-        // anywhere in a frame (ClipSpeed.h), and an accurate seek keeps the
-        // first frame at or after the time it is given.
-        if (!input.ramp_frames.empty()) {
-            const MediaRate sourceRate = input.source->rate;
-            arguments.push_back("-ss");
-            arguments.push_back(Decimal(RationalTime{
-                input.ramp_frames.front() * sourceRate.den, sourceRate.num}));
-            arguments.push_back("-t");
-            arguments.push_back(Decimal(RationalTime{
-                (input.ramp_frames.back() - input.ramp_frames.front() + 1) *
-                    sourceRate.den,
-                sourceRate.num}));
+        // VF1 -- docs/roadmap/VFR-2026-11.md. A picture is read on the
+        // source's grid (SourceGrid.h), whatever its speed: a seek a second
+        // ahead of the first grid frame the chain needs, timestamps kept,
+        // and the chain itself names the frames (`grid_read.filter`).
+        if (input.video) {
+            arguments.insert(arguments.end(),
+                             input.grid_read.input_arguments.begin(),
+                             input.grid_read.input_arguments.end());
             arguments.push_back("-i");
             arguments.push_back(
                 ResolveMediaPath(baseDirectory, *input.source).string());
             continue;
         }
+        // A sound reads `duration * speed` of its source (ClipSpeed.h),
+        // from its source_in: the samples are placed by time, not on a grid.
         arguments.push_back("-ss");
         arguments.push_back(Decimal(input.source_in));
         arguments.push_back("-t");
-        // R3 -- docs/roadmap/REEL-2026-09.md. A clip reads `duration *
-        // speed` of its source. On a slow motion the last output frame can
-        // land inside the source frame after the one that span ends on --
-        // at 2/5 a six-frame shot needs source frame 2 out of the 2.4
-        // frames the span covers -- so the read is stretched to the last
-        // frame the rule actually asks for. `max` keeps a clip at 1/1
-        // reading exactly what it read before this ticket.
-        RationalTime readSpan = input.source_duration;
-        if (input.video && ClipHasSpeed(*input.clip)) {
-            try {
-                const int64_t frames = ExactFrames(
-                    input.duration, settings.frame_rate, "video clip duration");
-                const RationalTime lastOffset{
-                    (frames - 1) * settings.frame_rate.den,
-                    settings.frame_rate.num};
-                const int64_t lastFrame =
-                    ScaleBySpeed(lastOffset, input.clip->speed)
-                        .to_frames(input.source->rate.num,
-                                   input.source->rate.den);
-                const RationalTime needed{
-                    (lastFrame + 1) * input.source->rate.den,
-                    input.source->rate.num};
-                if (needed > readSpan) readSpan = needed;
-            } catch (const std::exception& exception) {
-                error = exception.what();
-                return false;
-            }
-        }
-        arguments.push_back(Decimal(readSpan));
+        arguments.push_back(Decimal(input.source_duration));
         arguments.push_back("-i");
         arguments.push_back(
             ResolveMediaPath(baseDirectory, *input.source).string());
@@ -2291,6 +2351,47 @@ bool Exporter::BuildPlan(const Document& document,
                                       static_cast<int>(CountInputs(arguments)));
             arguments.insert(arguments.end(), {"-i", motion.audio_path});
         }
+    }
+
+    // PA15 -- docs/roadmap/PARITE-2026-11.md. The matte of each clip cut
+    // out along its people, read after every other input so that none of
+    // their indices moves: frames from the first grid frame the clip's
+    // chain reads (planGridRead, VF1), a few past the last it can ask for,
+    // raw 8-bit grey at the media's rate. The chain below reads it through
+    // the clip's own timing, crop and scale.
+    std::map<const InputClip*, int> matteInputs;
+    for (const InputClip& input : inputs) {
+        if (input.motion || !input.video || input.clip == nullptr ||
+            !ClipHasPersonMask(*input.clip))
+            continue;
+        std::string mattePath;
+        person_matte::Info matte;
+        if (!person_matte::MatteForMedia(document, baseDirectory.string(),
+                                         input.clip->source_id, mattePath,
+                                         matte, error)) {
+            error = "clip '" + input.clip->id + "': " + error;
+            return false;
+        }
+        const MediaRate sourceRate = input.source->rate;
+        ExportMatteAsset asset;
+        asset.matte_path = mattePath;
+        asset.first_frame = input.grid_first;
+        // Two frames past the last the rule asks for cost nothing: the
+        // chain trims every branch to its frame count.
+        asset.count = input.grid_last - input.grid_first + 1 + 2;
+        asset.raw_path = (std::filesystem::temp_directory_path() /
+                          ("cutmachine-matte-" + GenerateUlid() + ".gray"))
+                             .string();
+        matteInputs[&input] = static_cast<int>(CountInputs(arguments));
+        arguments.insert(
+            arguments.end(),
+            {"-f", "rawvideo", "-pix_fmt", "gray", "-video_size",
+             std::to_string(matte.width) + "x" + std::to_string(matte.height),
+             "-framerate",
+             std::to_string(sourceRate.num) + "/" +
+                 std::to_string(sourceRate.den),
+             "-i", asset.raw_path});
+        output.matte_assets.push_back(std::move(asset));
     }
 
     std::ostringstream graph;
@@ -2382,52 +2483,67 @@ bool Exporter::BuildPlan(const Document& document,
             return false;
         }
         graph << '[' << input.input_index << ":v:0]";
+        // PA15 -- what follows, the clip's timing, crop and scale, is also
+        // the way its matte is read when it is cut out along its people:
+        // written once, here, and handed to both.
+        std::ostringstream chain;
+        chain.imbue(std::locale::classic());
         // Set for an animated clip: its per-frame scale, applied last.
         std::string animatedScale;
+        // VF1 -- docs/roadmap/VFR-2026-11.md. Every picture is read on its
+        // source's grid first (SourceGrid.h): anchored on the first
+        // picture, resampled at the rate the source is counted at, and
+        // trimmed to the first grid frame the chain needs, so the chain's
+        // frame n is grid frame grid_first + n whatever the seek did. The
+        // branches below then only count, from a first frame at time zero,
+        // as every chain after this one expects (the managed layer's lead
+        // frame and the `sendcmd` times of its veils among them). A motion
+        // clip has no source: its rendered frames are already at the
+        // sequence's cadence. This read is the picture's own, not part of
+        // the chain its matte shares (PA15): the matte is handed to FFmpeg
+        // from grid frame grid_first already, one frame per grid step.
+        if (!input.motion) {
+            graph << input.grid_read.filter << ",setpts=PTS-STARTPTS,";
+        }
         // R3 -- docs/roadmap/REEL-2026-09.md. A constant speed is the
         // source read at another cadence, so that is exactly what the graph
-        // says. `fps=<source rate>` first turns the decoded stream into a
-        // plain frame sequence; `settb` + `setpts=N` then give frame n the
-        // time n/R_eff, R_eff being the source rate times the speed
-        // (ClipSpeed.h); and `fps=<sequence rate>:round=up` picks, for
-        // output frame k, source frame floor(k * R_eff / R_seq) -- the
-        // engine's rule, term for term, which the frame-by-frame export
-        // test pins. Nothing here is a formula FFmpeg evaluates in double:
-        // `setpts=N` is the integer frame counter and the two cadences are
-        // exact rationals (ITW1). A clip at 1/1 keeps the single `fps=`
-        // this graph has always had, and its bytes with it.
-        if (!input.ramp_frames.empty()) {
+        // says. `settb` + `setpts=N` give grid frame n the time n/R_eff,
+        // R_eff being the source rate times the speed (ClipSpeed.h); and
+        // `fps=<sequence rate>:round=up` picks, for output frame k, source
+        // frame floor(k * R_eff / R_seq) -- the engine's rule, term for
+        // term, which the frame-by-frame export test pins. Nothing here is
+        // a formula FFmpeg evaluates in double: `setpts=N` is the integer
+        // frame counter and the two cadences are exact rationals (ITW1).
+        if (!input.listed_frames.empty()) {
             // R3, criterion 4 -- docs/roadmap/REEL-2026-09.md. A ramp is no
-            // cadence `fps` can resample, so the graph is handed the list.
-            // The source is read as a plain frame sequence from the first
-            // frame the list names (`fps`, then `trim` to the last one), and
-            // each of those frames is numbered from zero: `setpts=N`, then
-            // `PTS-STARTPTS`, which makes the number exact whatever base N
-            // counts from on a given FFmpeg build. Frame n then gets, as its
-            // time in sequence frames, the first output frame that shows it
-            // or a later one -- min{k : list[k] >= n} -- spelled as integer
-            // runs (FrameProgressionList), never as a formula FFmpeg
-            // evaluates. `fps` at the sequence cadence keeps, at each output
-            // frame k, the last source frame whose time is k or earlier,
-            // which is list[k]: a frame the ramp skips shares its time with
-            // the next one it shows and is dropped, and a frame the ramp
-            // holds is repeated until the next one's time. `tpad` and
-            // `trim` then hold the clip to exactly its frame count, whatever
-            // `fps` does at the end of its input.
-            const MediaRate sourceRate = input.source->rate;
-            const int64_t first = input.ramp_frames.front();
-            const int64_t span = input.ramp_frames.back() - first + 1;
+            // cadence `fps` can resample, so the graph is handed the list;
+            // so is a clip at unit speed whose source is counted at another
+            // rate than the sequence (VF1). The grid frames from the first
+            // the list names to the last are numbered from zero:
+            // `setpts=N`, then `PTS-STARTPTS`, which makes the number exact
+            // whatever base N counts from on a given FFmpeg build. Frame n
+            // then gets, as its time in sequence frames, the first output
+            // frame that shows it or a later one -- min{k : list[k] >= n}
+            // -- spelled as integer runs (FrameProgressionList), never as a
+            // formula FFmpeg evaluates. `fps` at the sequence cadence keeps,
+            // at each output frame k, the last source frame whose time is k
+            // or earlier, which is list[k]: a frame the list skips shares
+            // its time with the next one it shows and is dropped, and a
+            // frame it holds is repeated until the next one's time. `tpad`
+            // and `trim` then hold the clip to exactly its frame count,
+            // whatever `fps` does at the end of its input.
+            const int64_t first = input.listed_frames.front();
+            const int64_t span = input.listed_frames.back() - first + 1;
             std::vector<int64_t> firstShown(static_cast<size_t>(span), 0);
             size_t output = 0;
             for (int64_t frame = 0; frame < span; ++frame) {
-                while (input.ramp_frames[output] < first + frame) {
+                while (input.listed_frames[output] < first + frame) {
                     ++output;
                 }
                 firstShown[static_cast<size_t>(frame)] =
                     static_cast<int64_t>(output);
             }
-            graph << "fps=" << sourceRate.num << '/' << sourceRate.den
-                  << ",trim=end_frame=" << span
+            chain << "trim=end_frame=" << span
                   << ",settb=" << settings.frame_rate.den << '/'
                   << settings.frame_rate.num
                   << ",setpts=N,setpts=PTS-STARTPTS,setpts='"
@@ -2436,10 +2552,9 @@ bool Exporter::BuildPlan(const Document& document,
                   << ",tpad=stop_mode=clone:stop=" << frameCount
                   << ",trim=end_frame=" << frameCount << ',';
         } else if (ClipIsFreeze(*input.clip)) {
-            // R4 -- the frame the rule names is the one the read opened on
-            // (source_in sits on a source frame, Document::Validate says
-            // so): kept alone, repeated to the clip's length, and counted
-            // at the sequence cadence as every other branch leaves it.
+            // R4 -- the frame the rule names is the chain's first: kept
+            // alone, repeated to the clip's length, and counted at the
+            // sequence cadence as every other branch leaves it.
             int64_t frames = 0;
             try {
                 frames = ExactFrames(input.duration, settings.frame_rate,
@@ -2448,20 +2563,21 @@ bool Exporter::BuildPlan(const Document& document,
                 error = exception.what();
                 return false;
             }
-            const MediaRate sourceRate = input.source->rate;
-            graph << "fps=" << sourceRate.num << '/' << sourceRate.den
-                  << ",trim=end_frame=1,loop=loop=" << (frames - 1)
+            chain << "trim=end_frame=1,loop=loop=" << (frames - 1)
                   << ":size=1:start=0,settb=" << settings.frame_rate.den << '/'
                   << settings.frame_rate.num << ",setpts=N,";
         } else if (ClipHasSpeed(*input.clip)) {
-            const MediaRate sourceRate = input.source->rate;
             const MediaRate effective =
-                SpeedAdjustedSourceRate(sourceRate, input.clip->speed);
-            graph << "fps=" << sourceRate.num << '/' << sourceRate.den
-                  << ",settb=" << effective.den << '/' << effective.num
-                  << ",setpts=N,fps=fps=" << rate << ":round=up,";
+                SpeedAdjustedSourceRate(input.source->rate, input.clip->speed);
+            chain << "settb=" << effective.den << '/' << effective.num
+                  << ",setpts=N,fps=fps=" << rate
+                  << ":round=up,trim=end_frame=" << frameCount << ',';
+        } else if (input.motion) {
+            chain << "fps=" << rate << ',';
         } else {
-            graph << "fps=" << rate << ',';
+            // Unit speed, the source counted at the sequence's rate: one
+            // grid frame per sequence frame (planGridRead).
+            chain << "trim=end_frame=" << frameCount << ',';
         }
         // R1 -- docs/roadmap/REEL-2026-09.md. A framed clip reads the
         // source rectangle ClipFraming.h named and scales it to the
@@ -2484,7 +2600,7 @@ bool Exporter::BuildPlan(const Document& document,
             if (first.crop_x != 0 || first.crop_y != 0 ||
                 first.crop_width != displayedWidth ||
                 first.crop_height != displayedHeight) {
-                graph << "crop=" << first.crop_width << ':' << first.crop_height
+                chain << "crop=" << first.crop_width << ':' << first.crop_height
                       << ':' << first.crop_x << ':' << first.crop_y << ',';
                 maskRegion.x = first.crop_x;
                 maskRegion.y = first.crop_y;
@@ -2513,25 +2629,25 @@ bool Exporter::BuildPlan(const Document& document,
             // takes here, where the blur below can be drawn at it. The
             // per-frame scale at the end of the chain then changes nothing.
             if (!blurFilter.empty()) {
-                graph << "scale=" << first.full_width << ':'
+                chain << "scale=" << first.full_width << ':'
                       << first.full_height << ":flags=lanczos";
             } else {
-                graph << "scale=w=iw:h=ih";
+                chain << "scale=w=iw:h=ih";
             }
         } else if (input.framed) {
             const std::string crop = ClipFramingCropFilter(
                 input.framing, displayedWidth, displayedHeight);
             if (!crop.empty()) {
-                graph << crop << ',';
+                chain << crop << ',';
                 maskRegion.x = input.framing.source_x;
                 maskRegion.y = input.framing.source_y;
                 maskRegion.width = input.framing.source_width;
                 maskRegion.height = input.framing.source_height;
             }
-            graph << "scale=" << input.framing.width << ':'
+            chain << "scale=" << input.framing.width << ':'
                   << input.framing.height << ":flags=lanczos";
         } else {
-            graph << "scale=" << settings.width << ':' << settings.height
+            chain << "scale=" << settings.width << ':' << settings.height
                   << ":force_original_aspect_ratio=decrease:flags=lanczos";
         }
         // MOTION-2026-09 M4 -- a motion frame is display-referred sRGB with
@@ -2543,10 +2659,31 @@ bool Exporter::BuildPlan(const Document& document,
         // are. An RGB one (a PNG) is converted with the BT.709 matrix the
         // delivery is tagged with, alpha kept, as a motion frame is. A
         // motion clip has no media (its source is null): never asked.
-        const std::string maskFilter =
-            masked ? ClipMaskFilter(input.clip->mask, maskRegion,
-                                    std::to_string(videoOrdinal))
-                   : std::string();
+        graph << chain.str();
+        // PA15 -- a clip cut out along its people takes its matte instead
+        // of a shape's rule, as an alpha the picture did not have: it goes
+        // where the picture is still opaque, before its opacity and its
+        // fades scale that alpha.
+        const bool personMasked = masked && ClipHasPersonMask(*input.clip) &&
+                                  matteInputs.count(&input);
+        std::string maskFilter;
+        if (personMasked) {
+            int64_t clipFrames = 0;
+            try {
+                clipFrames = ExactFrames(input.duration, settings.frame_rate,
+                                         "masked clip duration");
+            } catch (const std::exception& exception) {
+                error = exception.what();
+                return false;
+            }
+            maskFilter = person_matte::MatteFilter(
+                matteInputs.at(&input), displayedWidth, displayedHeight,
+                chain.str(), input.clip->mask.inverted,
+                std::to_string(videoOrdinal), clipFrames);
+        } else if (masked) {
+            maskFilter = ClipMaskFilter(input.clip->mask, maskRegion,
+                                        std::to_string(videoOrdinal));
+        }
         const bool graphic =
             !input.motion && document.IsGraphicsMedia(input.source->id);
         if ((input.motion || (graphic && sourceIsRgb[input.source->id])) &&
@@ -2873,6 +3010,8 @@ bool Exporter::BuildPlan(const Document& document,
             !input.motion) {
             graph << ",format=yuva444p10le";
         }
+        // PA15 -- the matte replaces an alpha that is still opaque here.
+        if (personMasked) graph << ',' << maskFilter;
         if (translucent && !input.animated_opacity) {
             graph << ",colorchannelmixer=aa=(" << input.clip->opacity.num << '/'
                   << input.clip->opacity.den << ')';
@@ -2928,7 +3067,7 @@ bool Exporter::BuildPlan(const Document& document,
         // PA8 -- the mask, one more factor of the alpha the opacity and
         // the fade already scale, on the picture before its per-frame
         // scale and its place in the frame.
-        if (!maskFilter.empty()) graph << ',' << maskFilter;
+        if (!maskFilter.empty() && !personMasked) graph << ',' << maskFilter;
         if (!animatedScale.empty()) graph << ',' << animatedScale;
         // After fps= the time base is exactly 1/rate, so the offset is an
         // integer number of time-base units and the sum stays exact.
@@ -3504,7 +3643,20 @@ bool Exporter::Run(const ExportPlan& plan,
         for (const auto& asset : plan.motion_assets) {
             std::filesystem::remove_all(asset.directory, ignored);
         }
+        for (const auto& asset : plan.matte_assets) {
+            std::filesystem::remove(asset.raw_path, ignored);
+        }
     };
+    // PA15 -- the mattes of the clips cut out along their people, raw,
+    // before FFmpeg reads them.
+    for (const ExportMatteAsset& asset : plan.matte_assets) {
+        if (!person_matte::WriteRawFrames(asset.matte_path, asset.first_frame,
+                                          asset.count, asset.raw_path, error)) {
+            error = "the matte of a clip cut out along its people: " + error;
+            removeTemporaryFiles();
+            return false;
+        }
+    }
     // MOTION-2026-09 M4 -- the motion clips' frames, before FFmpeg reads
     // them. A missing font or image is the renderer's named refusal.
     for (const ExportMotionAsset& asset : plan.motion_assets) {

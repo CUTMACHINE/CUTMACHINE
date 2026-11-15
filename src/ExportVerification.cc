@@ -8,6 +8,7 @@
 #include "MotionDocument.h"
 #include "MotionFrameRenderer.h"
 #include "MotionParallelRender.h"
+#include "SourceGrid.h"
 #include "Timeline.h"
 #include "Ulid.h"
 
@@ -183,9 +184,6 @@ constexpr int32_t kWorkingScale = 16;
 // decoded as two runs, each after its own seek, rather than through every
 // frame in between.
 constexpr int64_t kRunGapSeconds = 2;
-// How far before a run a decode seeks: FFmpeg lands on the keyframe at or
-// before that point, and the frames up to the run are decoded and dropped.
-constexpr double kSeekLeadSeconds = 1.0;
 
 std::vector<std::pair<int64_t, int64_t>> FrameRuns(
     const std::set<int64_t>& frames, int64_t gap) {
@@ -197,74 +195,6 @@ std::vector<std::pair<int64_t, int64_t>> FrameRuns(
             runs.back().second = frame;
     }
     return runs;
-}
-
-// The presentation time of the first picture a decode of the whole stream
-// yields, in seconds: what `setpts=PTS-STARTPTS` subtracted back when every
-// decode started at the beginning. Frames stay numbered from that picture
-// wherever a decode seeks to.
-bool FirstPictureSeconds(const std::string& path, double& seconds,
-                         std::string& error) {
-    av_log_set_level(AV_LOG_ERROR);
-    AVFormatContext* format = nullptr;
-    if (avformat_open_input(&format, path.c_str(), nullptr, nullptr) < 0) {
-        error = "unable to open " + path;
-        return false;
-    }
-    AVCodecContext* decoder = nullptr;
-    AVPacket* packet = av_packet_alloc();
-    AVFrame* frame = av_frame_alloc();
-    bool found = false;
-    int stream = -1;
-    if (avformat_find_stream_info(format, nullptr) >= 0)
-        stream =
-            av_find_best_stream(format, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
-    const AVCodec* codec =
-        stream >= 0
-            ? avcodec_find_decoder(format->streams[stream]->codecpar->codec_id)
-            : nullptr;
-    if (codec != nullptr && packet != nullptr && frame != nullptr) {
-        decoder = avcodec_alloc_context3(codec);
-        if (decoder != nullptr &&
-            avcodec_parameters_to_context(
-                decoder, format->streams[stream]->codecpar) >= 0 &&
-            avcodec_open2(decoder, codec, nullptr) >= 0) {
-            bool draining = false;
-            while (!found) {
-                if (!draining) {
-                    const int read = av_read_frame(format, packet);
-                    if (read < 0) {
-                        draining = true;
-                        avcodec_send_packet(decoder, nullptr);
-                    } else if (packet->stream_index == stream) {
-                        avcodec_send_packet(decoder, packet);
-                        av_packet_unref(packet);
-                    } else {
-                        av_packet_unref(packet);
-                        continue;
-                    }
-                }
-                const int received = avcodec_receive_frame(decoder, frame);
-                if (received == 0) {
-                    const int64_t timestamp = frame->best_effort_timestamp;
-                    if (timestamp != AV_NOPTS_VALUE) {
-                        seconds = static_cast<double>(timestamp) *
-                                  av_q2d(format->streams[stream]->time_base);
-                        found = true;
-                    }
-                } else if (received == AVERROR_EOF ||
-                           (draining && received != AVERROR(EAGAIN))) {
-                    break;
-                }
-            }
-        }
-    }
-    av_frame_free(&frame);
-    av_packet_free(&packet);
-    avcodec_free_context(&decoder);
-    avformat_close_input(&format);
-    if (!found) error = "no picture decoded from " + path;
-    return found;
 }
 
 // R1/R2 -- the thumbnail a framed clip shows, from a decode of its rush at
@@ -761,7 +691,7 @@ bool VerifyExport(const Document& document,
     // and framed thumbnails are cut from one working-size decode of it.
     //
     // The frames are still numbered on the rush's own grid, anchored on its
-    // first picture (FirstPictureSeconds), with timestamps kept as the file
+    // first picture (FirstPicturePts), with timestamps kept as the file
     // has them: where the seek lands decides only how much is decoded for
     // nothing, never which frame is which. A verification that trusted the
     // seek would share the exporter's input seek, which is what it checks.
@@ -785,13 +715,11 @@ bool VerifyExport(const Document& document,
         }
         const std::string path =
             ResolvePath(projectDirectory, source->path).string();
-        double firstSeconds = 0.0;
-        if (!FirstPictureSeconds(path, firstSeconds, error)) {
+        int64_t firstPts = 0;
+        if (!FirstPicturePts(path, firstPts, error)) {
             error = "unable to decode source '" + sourceId + "': " + error;
             return false;
         }
-        char firstText[64];
-        std::snprintf(firstText, sizeof(firstText), "%.9f", firstSeconds);
         const int64_t gap = std::max<int64_t>(
             1, kRunGapSeconds * source->rate.num / source->rate.den);
         const auto decodeRuns =
@@ -799,31 +727,21 @@ bool VerifyExport(const Document& document,
                 size_t bytes,
                 const std::function<void(int64_t, const uint8_t*)>& onFrame) {
                 for (const auto& [first, last] : FrameRuns(frames, gap)) {
-                    const double runSeconds = static_cast<double>(first) *
-                                              source->rate.den /
-                                              source->rate.num;
-                    const double seek =
-                        std::max(0.0, runSeconds - kSeekLeadSeconds);
+                    // VF1 -- the grid read the export makes too
+                    // (SourceGrid.h), so the two cannot name a picture
+                    // differently.
+                    const SourceGridRead read = SourceGridReadFor(
+                        firstPts, source->rate, first, last, false);
                     std::vector<std::string> arguments = {
                         settings.ffmpeg_path, "-hide_banner", "-loglevel",
                         "error", "-nostdin"};
-                    if (seek > 0.0) {
-                        char seekText[64];
-                        std::snprintf(seekText, sizeof(seekText), "%.6f", seek);
-                        arguments.insert(arguments.end(), {"-ss", seekText});
-                    }
-                    // fps anchored at the first picture pads the frames the
-                    // seek skipped with copies, so the grid index survives
-                    // it; trim then drops everything before the run.
+                    arguments.insert(arguments.end(),
+                                     read.input_arguments.begin(),
+                                     read.input_arguments.end());
                     arguments.insert(
                         arguments.end(),
-                        {"-copyts", "-i", path, "-map", "0:v:0", "-an", "-sn",
-                         "-vf",
-                         std::string("setpts=PTS-(") + firstText +
-                             ")/TB,fps=" + RateString(source->rate) +
-                             ":start_time=0,trim=start_frame=" +
-                             std::to_string(first) + ',' + filter +
-                             ",format=gray",
+                        {"-i", path, "-map", "0:v:0", "-an", "-sn", "-vf",
+                         read.filter + ',' + filter + ",format=gray",
                          "-fps_mode", "passthrough", "-frames:v",
                          std::to_string(last - first + 1), "-f", "rawvideo",
                          "-pix_fmt", "gray", "pipe:1"});

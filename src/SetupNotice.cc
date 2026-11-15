@@ -372,6 +372,41 @@ Entry ArchiveBackupEntry(const setup::Item& item, const WindowFacts& facts) {
     return entry;
 }
 
+// AL4 -- the s075 weights for French verbatim, from the report's `found`:
+// their path and whether their SHA-256 was verified.
+Entry HesitationsModelEntry(const setup::Item& item, const WindowFacts& facts) {
+    Entry entry = BaseEntry(item);
+    const std::string path = TextOf(item.found, "path");
+    const std::string where =
+        facts.settings_file.empty()
+            ? std::string("dans l'environnement")
+            : "dans l'environnement ou dans " + facts.settings_file;
+    if (item.state == setup::State::kOk) {
+        const mcp_json::Value* evaluated = item.found.Find("evaluated");
+        entry.found.emplace_back(
+            "Le français verbatim se transcrit avec " + path +
+            (evaluated != nullptr && evaluated->IsBool()
+                 ? ", dont l'empreinte est vérifiée."
+                 : " ; son empreinte n'a pas encore été vérifiée."));
+        return entry;
+    }
+    if (item.state == setup::State::kOptionalAbsent) {
+        entry.found.emplace_back(
+            "CUTMACHINE_WHISPER_HESITATIONS_MODEL n'est pas réglé.");
+    } else {
+        entry.found.emplace_back(path +
+                                 " n'est pas un fichier lisible des poids "
+                                 "s075 évalués.");
+    }
+    entry.prevents =
+        "Sans eux, le français verbatim se transcrit avec le modèle Whisper "
+        "et le profil default, sans fr-hesitations-v1.";
+    entry.repair =
+        "régler CUTMACHINE_WHISPER_HESITATIONS_MODEL sur les poids s075, " +
+        where + ".";
+    return entry;
+}
+
 // GN6a -- the local voice-over model, from the report's structured
 // `missing`: the roles found nowhere ("python", "script", "models") and the
 // model folders the models folder lacks.
@@ -468,6 +503,9 @@ std::string ItemTitle(const std::string& id) {
     if (id == setup::kWhisperModelItem) {
         return "Modèle Whisper";
     }
+    if (id == setup::kWhisperHesitationsModelItem) {
+        return "Poids des hésitations";
+    }
     if (id == setup::kMfaItem) {
         return "MFA";
     }
@@ -492,6 +530,8 @@ std::vector<Entry> Entries(const setup::Report& report,
             entries.push_back(FfmpegEntry(item, facts));
         } else if (item.id == setup::kWhisperModelItem) {
             entries.push_back(WhisperEntry(item, facts));
+        } else if (item.id == setup::kWhisperHesitationsModelItem) {
+            entries.push_back(HesitationsModelEntry(item, facts));
         } else if (item.id == setup::kMfaItem) {
             entries.push_back(MfaEntry(item, facts));
         } else if (item.id == setup::kAgentKeyItem) {

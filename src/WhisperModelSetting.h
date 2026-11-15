@@ -21,7 +21,10 @@
 // user's settings.
 
 #include <cstdint>
+#include <optional>
 #include <string>
+
+class MediaTaskContext;
 
 namespace whisper_model_setting {
 
@@ -80,5 +83,56 @@ Migration MigrateWindowPreference(const std::string& preference);
 
 // "nothing", "migrated", "engine_setting_kept", "failed".
 const char* MigrationOutcomeName(MigrationOutcome outcome);
+
+// AL4 -- docs/roadmap/ALIGNEMENT-2026-11.md. « Transcrire les hésitations
+// (français)… » asks for the euh: it names fr-hesitations-v1 and runs on the
+// hesitations weights (CUTMACHINE_WHISPER_HESITATIONS_MODEL), never on a
+// silent `default`. Without them it refuses, and says why and what to set.
+enum class HesitationsProblem : std::uint8_t {
+    // The evaluated weights: transcribe.
+    kNone,
+    // A readable file this process has not read yet: the task reads it
+    // (HesitationsWeightsReady), the main thread does not.
+    kUnverified,
+    // The setting is not set.
+    kUnset,
+    // It names no readable, non-empty file.
+    kUnreadable,
+    // It names other weights than the evaluated ones.
+    kOtherWeights,
+};
+
+// What the window knows of the hesitations weights without reading them.
+struct HesitationsFacts {
+    // The setting's value; empty when unset.
+    std::string path;
+    // A regular, readable, non-empty file there.
+    bool readable = false;
+    // The evaluated weights or not, when this process already knows it
+    // (KnownWhisperDecodingModel).
+    std::optional<bool> evaluated;
+    // The settings file the refusal names (LocalEnv.h); empty: the
+    // environment only.
+    std::string settings_file;
+};
+
+// This process's facts: the setting, the file there, what is known of it.
+HesitationsFacts CurrentHesitationsFacts();
+
+HesitationsProblem HesitationsWeightsProblem(const HesitationsFacts& facts);
+
+// The alert of a refusal, in French: its title, then why and what to set.
+struct HesitationsRefusal {
+    std::string title;
+    std::string detail;
+};
+HesitationsRefusal RefuseHesitations(HesitationsProblem problem,
+                                     const HesitationsFacts& facts);
+
+// The same decision in the task, where the weights can be read: false, with
+// the refusal's detail as `error`, unless `facts.path` holds the evaluated
+// weights. A cancelled read says so instead.
+bool HesitationsWeightsReady(const HesitationsFacts& facts,
+                             MediaTaskContext& context, std::string& error);
 
 }  // namespace whisper_model_setting

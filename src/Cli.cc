@@ -2194,7 +2194,7 @@ int TranscribeTimelineCommand(const std::string& projectPath,
                               std::string& output,
                               const MediaTaskRunner& runner,
                               const Project* stored,
-                              WhisperDecodingProfile profile) {
+                              const WhisperDecodingRequest& profile) {
     std::string profileError;
     if (!ValidateWhisperDecodingRequest(profile, language, verbatim,
                                         profileError))
@@ -2218,16 +2218,23 @@ int TranscribeTimelineCommand(const std::string& projectPath,
     settings.whisper_model_path = modelPath;
     settings.language = language.empty() ? "auto" : language;
     settings.verbatim = verbatim;
-    settings.decoding_profile = profile;
     const std::filesystem::path base =
         std::filesystem::absolute(projectPath).parent_path();
-    const std::filesystem::path cache = TimelineTranscriptCachePath(
-        base / ".cutmachine", selected, verbatim, profile);
     Transcript transcript;
     bool cacheHit = false;
+    WhisperDecodingChoice choice;
+    const std::string hesitationsModel = ConfiguredWhisperHesitationsModel();
     const MediaTaskSnapshot task = RunCommandMediaTask(
         runner, MediaTaskKind::Transcription, "Whisper timeline",
         [&](MediaTaskContext& context, std::string& taskError) {
+            // AL4 -- the profile names the cache file: resolved first.
+            if (!ResolveWhisperSettings(profile, hesitationsModel, context,
+                                        settings, choice, taskError)) {
+                return false;
+            }
+            const std::filesystem::path cache = TimelineTranscriptCachePath(
+                base / ".cutmachine", selected, verbatim,
+                settings.decoding_profile);
             return TranscribeTimelineAudio(
                 project.MakeDocument(selected), projectPath, cache, settings,
                 context, transcript, cacheHit, taskError);
@@ -2245,6 +2252,9 @@ int TranscribeTimelineCommand(const std::string& projectPath,
     output = "{\"ok\":true,\"timeline_id\":\"" + EscapeJson(selected) +
              "\",\"decoding_profile\":\"" +
              WhisperDecodingProfileName(transcript.decoding_profile) +
+             "\",\"decoding_profile_implicit\":" +
+             (choice.implicit ? "true" : "false") + ",\"whisper_model\":\"" +
+             EscapeJson(transcript.whisper_model) +
              "\",\"cached\":" + (cacheHit ? "true" : "false") +
              ",\"words\":" + std::to_string(transcript.words.size()) +
              ",\"text\":\"" + EscapeJson(text.str()) + "\"}\n";
@@ -2254,7 +2264,8 @@ int TranscribeTimelineCommand(const std::string& projectPath,
 int SrtFromMediaCommand(const std::string& mediaPath,
                         const std::string& outputPath,
                         const std::string& language, bool verbatim,
-                        std::string& output, WhisperDecodingProfile profile) {
+                        std::string& output,
+                        const WhisperDecodingRequest& profile) {
     std::string profileError;
     if (!ValidateWhisperDecodingRequest(profile, language, verbatim,
                                         profileError))
@@ -2278,20 +2289,23 @@ int SrtFromMediaCommand(const std::string& mediaPath,
     settings.whisper_model_path = modelPath;
     settings.language = language.empty() ? "auto" : language;
     settings.verbatim = verbatim;
-    settings.decoding_profile = profile;
     const std::filesystem::path cache =
         std::filesystem::temp_directory_path() /
         ("cutmachine-srt-" + GenerateUlid() + ".json");
     const Ulid mediaId = "media:" + GenerateUlid();
     Transcript transcript;
     MediaTaskManager tasks(1);
-    const Ulid task =
-        tasks.Enqueue(MediaTaskKind::Transcription, "Whisper SRT",
-                      [&](MediaTaskContext& context, std::string& taskError) {
-                          return GenerateAudioTranscript(
-                              mediaPath, cache.string(), mediaId, media.rate,
-                              settings, context, taskError);
-                      });
+    WhisperDecodingChoice choice;
+    const std::string hesitationsModel = ConfiguredWhisperHesitationsModel();
+    const Ulid task = tasks.Enqueue(
+        MediaTaskKind::Transcription, "Whisper SRT",
+        [&](MediaTaskContext& context, std::string& taskError) {
+            return ResolveWhisperSettings(profile, hesitationsModel, context,
+                                          settings, choice, taskError) &&
+                   GenerateAudioTranscript(mediaPath, cache.string(), mediaId,
+                                           media.rate, settings, context,
+                                           taskError);
+        });
     const auto removeCache = [&]() {
         std::error_code ignored;
         std::filesystem::remove(cache, ignored);
@@ -2333,7 +2347,12 @@ int SrtFromMediaCommand(const std::string& mediaPath,
     removeCache();
     output = "{\"ok\":true,\"cues\":" + std::to_string(cues.size()) +
              ",\"rounded_timestamps\":" + std::to_string(rounded) +
-             ",\"path\":\"" + EscapeJson(outputPath) + "\"}\n";
+             ",\"decoding_profile\":\"" +
+             WhisperDecodingProfileName(choice.profile) +
+             "\",\"decoding_profile_implicit\":" +
+             (choice.implicit ? "true" : "false") + ",\"whisper_model\":\"" +
+             EscapeJson(transcript.whisper_model) + "\",\"path\":\"" +
+             EscapeJson(outputPath) + "\"}\n";
     return 0;
 }
 
@@ -2343,7 +2362,8 @@ int TranscribeMediaCommand(const std::string& projectPath,
                            const std::string& language, bool verbatim,
                            bool includeSilent, std::string& output,
                            const MediaTaskRunner& runner, const Project* stored,
-                           bool overwrite, WhisperDecodingProfile profile) {
+                           bool overwrite,
+                           const WhisperDecodingRequest& profile) {
     std::string profileError;
     if (!ValidateWhisperDecodingRequest(profile, language, verbatim,
                                         profileError))
@@ -2456,16 +2476,34 @@ int TranscribeMediaCommand(const std::string& projectPath,
     settings.whisper_model_path = modelPath;
     settings.language = language.empty() ? "auto" : language;
     settings.verbatim = verbatim;
-    settings.decoding_profile = profile;
+    // AL4 -- a batch that runs nothing loads no model, and tells no profile
+    // but the one named, or `default`. A model path named on the command
+    // line is the model of every pass: the hesitations weights are a setting
+    // for the configured model's place, not for a path the caller chose.
+    WhisperDecodingChoice choice{
+        profile.value_or(WhisperDecodingProfile::Default), !profile.has_value(),
+        modelPath};
+    const std::string hesitationsModel =
+        whisperModelPath.empty() ? ConfiguredWhisperHesitationsModel()
+                                 : std::string();
+    // The settings of the verbatim pass, once the profile and its weights
+    // are resolved; `settings` keeps the model, for the plain passes.
+    WhisperSettings resolved = settings;
+    bool plainPassRan = false;
     if (!jobs.empty()) {
         std::string batchError;
         const MediaTaskSnapshot task = RunCommandMediaTask(
             runner, MediaTaskKind::Transcription,
             "Whisper " + std::to_string(jobs.size()) + " media",
-            [&jobs, &outcomes, &batchError, settings](MediaTaskContext& context,
-                                                      std::string& taskError) {
-                const bool started = GenerateAudioTranscripts(
-                    jobs, settings, context, outcomes, batchError);
+            [&jobs, &outcomes, &batchError, &choice, &resolved, &profile,
+             &hesitationsModel](MediaTaskContext& context,
+                                std::string& taskError) {
+                // AL4 -- in the task: recognizing the weights reads them.
+                const bool started =
+                    ResolveWhisperSettings(profile, hesitationsModel, context,
+                                           resolved, choice, batchError) &&
+                    GenerateAudioTranscripts(jobs, resolved, context, outcomes,
+                                             batchError);
                 if (!started) taskError = batchError;
                 return started;
             });
@@ -2592,9 +2630,8 @@ int TranscribeMediaCommand(const std::string& projectPath,
         }
     }
     if (!plainJobs.empty()) {
-        WhisperSettings plainSettings = settings;
-        plainSettings.verbatim = false;
-        plainSettings.decoding_profile = WhisperDecodingProfile::Default;
+        const WhisperSettings plainSettings = PlainFallbackSettings(settings);
+        plainPassRan = true;
         std::vector<TranscriptionOutcome> plainOutcomes;
         std::string batchError;
         const MediaTaskSnapshot task = RunCommandMediaTask(
@@ -2699,14 +2736,12 @@ int TranscribeMediaCommand(const std::string& projectPath,
             }
         }
         if (ellipsisJobs.empty()) return;
-        WhisperSettings ellipsisSettings = settings;
-        ellipsisSettings.verbatim = verbatimRedo;
-        ellipsisSettings.suppress_ellipsis = true;
-        // AL4 -- a decoding profile holds for the verbatim pass it was
-        // evaluated on; the plain pass decodes as the plain fallback does.
-        if (!verbatimRedo) {
-            ellipsisSettings.decoding_profile = WhisperDecodingProfile::Default;
-        }
+        // AL4 -- a decoding profile and its weights hold for the verbatim
+        // pass they were evaluated on; the plain pass decodes as the plain
+        // fallback does, with the model.
+        const WhisperSettings ellipsisSettings =
+            EllipsisRedoSettings(resolved, settings, verbatimRedo);
+        plainPassRan = plainPassRan || !verbatimRedo;
         std::vector<TranscriptionOutcome> ellipsisOutcomes;
         std::string batchError;
         const MediaTaskSnapshot task = RunCommandMediaTask(
@@ -2816,8 +2851,24 @@ int TranscribeMediaCommand(const std::string& projectPath,
     size_t succeeded = 0;
     std::ostringstream json;
     json << "{\"ok\":true,\"verbatim\":" << (verbatim ? "true" : "false")
-         << ",\"decoding_profile\":\"" << WhisperDecodingProfileName(profile)
-         << "\",\"results\":[";
+         << ",\"decoding_profile\":\""
+         << WhisperDecodingProfileName(choice.profile)
+         << "\",\"decoding_profile_implicit\":"
+         << (choice.implicit ? "true" : "false");
+    // AL4 -- the weights of the first pass, and those of the plain passes
+    // made after it when they ran on others.
+    const std::string verbatimModel =
+        std::filesystem::path(choice.model_path).filename().string();
+    const std::string plainModel =
+        std::filesystem::path(modelPath).filename().string();
+    if (!jobs.empty()) {
+        json << ",\"whisper_model\":\"" << EscapeJson(verbatimModel) << "\"";
+        if (plainPassRan && plainModel != verbatimModel) {
+            json << ",\"fallback_whisper_model\":\"" << EscapeJson(plainModel)
+                 << "\"";
+        }
+    }
+    json << ",\"results\":[";
     bool first = true;
     for (const TranscriptionOutcome& outcome : outcomes) {
         if (!first) json << ',';

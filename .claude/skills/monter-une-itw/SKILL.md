@@ -8,24 +8,23 @@ description: Monter une interview filmée (portrait, témoignage, micro-trottoir
 ## La règle qui prime sur toutes les autres
 
 **Un montage d'interview est d'abord un propos qui se tient.** Un film
-refusé avait tous ses chiffres bons (25 plans/min, 48 % de B-roll) et ne se
-tenait pas. Plans par minute, part de B-roll, part de silence et CPS repèrent des
-anomalies : ils se lisent après, ils ne se visent pas, et la durée résulte
-du propos.
+peut avoir tous ses chiffres bons et ne pas se tenir : plans par minute,
+part de B-roll, part de silence et CPS repèrent des anomalies. Ils se
+lisent après, ils ne se visent pas, et la durée résulte du propos.
 
 ### Le test de l'antécédent
 
 Relis le texte retenu comme quelqu'un qui n'a pas vu les rushes : un mot
 qui renvoie (`ça`, `c'est`, `également`, `ce projet`) sans antécédent dans
-le montage est une faute, pas une imperfection. Vu sur des films refusés :
-une ouverture au milieu d'une phrase, un « c'est là » dit avant le nom du
-lieu, un « pareil » gardé sans la phrase qu'il reprenait.
+le montage est une faute, pas une imperfection : une ouverture au milieu
+d'une phrase, un « c'est là » dit avant le nom du lieu, un « pareil » gardé
+sans la phrase qu'il reprenait.
 
 - Garde l'antécédent avec sa conséquence, ou écarte les deux.
 - Ne réordonne un bloc que si ses références survivent au déplacement.
 - Préfère peu de blocs longs et complets à beaucoup de morceaux courts.
 - Pas de digression technique dans une minute : quinze secondes sur le
-  choix d'un matériau passaient avant le propos.
+  choix d'un matériau passent avant le propos.
 
 ## Avec la personne qui signe
 
@@ -36,14 +35,14 @@ avant de reprendre un montage, lis ce qui en découle dans
 ## Rien de généré sur la personne filmée
 
 Ni voix, ni visage, ni corps : rien qui lui fasse dire ou faire ce qu'elle
-n'a ni dit ni fait (décidé par l'auteur, DEC2). Le 9:16 d'une interview passe
-par le cadrage (`set_clip_framing`, `track_subject_framing`), jamais par
-l'extension d'image.
+n'a ni dit ni fait. Le 9:16 d'une interview passe par le cadrage
+(`set_clip_framing`, `track_subject_framing`), jamais par l'extension
+d'image.
 
-Une seule exception, depuis le 11 novembre 2026 (DEC51) : le doublage et la
-synchronisation des lèvres, quand l'auteur dit que la personne filmée a donné
-son accord. Tu ne les proposes pas de toi-même, et tu n'affirmes jamais cet
-accord à sa place (`consent_of_filmed_person`).
+Une seule exception : le doublage et la synchronisation des lèvres, quand
+la personne qui signe dit que la personne filmée a donné son accord. Tu ne
+les proposes pas de toi-même, et tu n'affirmes jamais cet accord à sa place
+(`consent_of_filmed_person`).
 
 ## Où trouver le détail
 
@@ -72,11 +71,11 @@ Donne `motif` à chaque geste qui ne vient pas d'une règle : les coupes
 plan prend le sien dans ses `arguments`). Le vocabulaire est dans
 `list_motifs` ; les raisons qui se confondent : `duplicate` (la même idée
 dite deux fois, tu gardes la meilleure prise), `selection` (ce que le film
-garde du propos, et dans quel ordre), `marker` (un marqueur de l'auteur le
-demande, avec son `marker_id`), `technical` (synchro, image-éclair, raccord
-cassé). La `note` dit en une ligne ce que la raison ne dit pas.
+garde du propos, et dans quel ordre), `marker` (un marqueur de la personne
+le demande, avec son `marker_id`), `technical` (synchro, image-éclair,
+raccord cassé). La `note` dit en une ligne ce que la raison ne dit pas.
 
-Quand l'auteur choisit entre deux versions, écris-le
+Quand la personne choisit entre deux versions, écris-le
 (`choose_timeline_variant`, `author: "person"`, sa phrase en `note`) ; relis
 ses choix (`list_motifs`, `journal: "project"`) avant de proposer des
 variantes du même genre.
@@ -92,8 +91,10 @@ fait en quatre phases, chacune dans un contexte neuf avec un fichier d'état
 1. **Analyser l'enveloppe** : `analyze_speech_onset` et
    `analyze_shot_quality` sur tous les rushes en un appel (`media_ids`), en
    tâche, avant la transcription, qui s'en sert.
-2. **Transcrire tous les rushes en verbatim**, en un appel et en tâche ;
-   compte large (225 rushes, 64 min : plus d'une heure).
+2. **Transcrire tous les rushes en verbatim**, en un appel et en tâche,
+   avec `language: "fr"` pour une interview en français : le décodage des
+   « euh » suit alors les réglages du moteur, sans le nommer ; compte large :
+   au moins la durée des rushes.
 3. **Classer parole ou plan muet** d'après la réponse (`text`,
    `likely_hallucinated`) : whisper hallucine sur le silence, et un plan de
    coupe peut porter du son.
@@ -113,10 +114,9 @@ fait en quatre phases, chacune dans un contexte neuf avec un fichier d'état
    `inspect_speech_selection`) et garder leur texte, leurs plages et la
    timeline source. L'ouverture se comprend sans rien savoir avant : jamais
    un bloc `opens_mid_sentence`, situer n'est pas présenter, et un intitulé
-   posé seul ne dit rien. La
-   présentation de la personne (qui elle est, d'où elle vient) dépend de
-   l'interview :
-   juges-en, mais écarte-la chaque fois qu'on peut s'en passer.
+   posé seul ne dit rien. La présentation de la personne (qui elle est,
+   d'où elle vient) dépend de l'interview : juges-en, mais écarte-la chaque
+   fois qu'on peut s'en passer.
 7. **Poser les bornes** sur `entry_frame`/`exit_frame` de
    `list_source_words` ; une plage = un plan.
    → [mots-et-bornes.md](mots-et-bornes.md)
@@ -137,10 +137,10 @@ fait en quatre phases, chacune dans un contexte neuf avec un fichier d'état
     détecteur marque aussi des mots longs entiers.
     → [resserrement-et-finition.md](resserrement-et-finition.md)
 12. **Comparer le texte choisi, le texte du projet et le texte du son
-    monté** (`transcribe_timeline`, verbatim et sans), et résoudre les
-    écarts qui touchent le sens. Deux fois, pas plus : montage posé, puis
-    avant de rendre ; entre deux retouches, `list_timeline_words` et
-    `cut_words` suffisent.
+    monté** (`transcribe_timeline`, verbatim et sans, dans la langue des
+    rushes), et résoudre les écarts qui touchent le sens. Deux fois, pas
+    plus : montage posé, puis avant de rendre ; entre deux retouches,
+    `list_timeline_words` et `cut_words` suffisent.
 13. **Poser les plans de coupe** sur le sens, puis ne laisser aucune coupe
     dans un même rush à nu sans raison dite.
     → [plans-de-coupe.md](plans-de-coupe.md)

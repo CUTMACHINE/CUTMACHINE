@@ -10,6 +10,8 @@
 #include <algorithm>
 #include <cstdlib>
 #include <filesystem>
+#include <functional>
+#include <optional>
 #include <system_error>
 #include <utility>
 
@@ -162,6 +164,67 @@ Item WhisperModelItem(const Machine& machine) {
     item.state = State::kOk;
     item.detail = "the Whisper model is '" + path + "' (" +
                   std::to_string(status.size) + " bytes), " + from;
+    return item;
+}
+
+// AL4 -- docs/roadmap/ALIGNEMENT-2026-11.md. The s075 weights serve French
+// verbatim only, from a setting of their own. Optional: without them, French
+// verbatim decodes with the model and the default profile.
+Item WhisperHesitationsModelItem(const Machine& machine) {
+    Item item;
+    item.id = kWhisperHesitationsModelItem;
+    item.prevents =
+        "French verbatim transcription decodes with the Whisper model and "
+        "the default profile, not with fr-hesitations-v1 on the s075 weights";
+    item.tools = {"transcribe_media", "transcribe_timeline"};
+    const std::string variable = kWhisperHesitationsModelVariable;
+    const std::string where = WhereSettingsGo(machine.settings_file);
+    const std::string repair = "Set " + variable +
+                               " to the evaluated s075 weights (SHA-256 " +
+                               kFrenchHesitationsModelSha256 + "), " + where;
+    const Setting setting =
+        machine.setting ? machine.setting(variable) : Setting();
+    if (setting.value.empty()) {
+        item.state = State::kOptionalAbsent;
+        item.detail = variable + " is not set";
+        item.repair = repair;
+        return item;
+    }
+    const std::string& path = setting.value;
+    const FileStatus status = machine.file ? machine.file(path) : FileStatus();
+    const std::string from = ReadFrom(setting.origin, machine.settings_file);
+    item.found.Set("path", Value::MakeString(path));
+    item.found.Set("bytes", Value::MakeInt(static_cast<int64_t>(status.size)));
+    item.found.Set("origin",
+                   Value::MakeString(SettingOriginName(setting.origin)));
+    if (!status.regular || !status.readable || status.size == 0) {
+        item.state = State::kIncomplete;
+        item.detail = "the hesitations weights '" + path + "', " + from +
+                      ", are not a readable, non-empty file";
+        item.repair = repair;
+        return item;
+    }
+    const std::optional<bool> evaluated =
+        machine.hesitations_weights ? machine.hesitations_weights(path)
+                                    : std::nullopt;
+    item.found.Set("verified", Value::MakeBool(evaluated.has_value()));
+    if (evaluated && !*evaluated) {
+        item.found.Set("evaluated", Value::MakeBool(false));
+        item.state = State::kIncomplete;
+        item.detail = "'" + path + "', " + from +
+                      ", is not the evaluated s075 weights: their SHA-256 "
+                      "differs";
+        item.repair = repair;
+        return item;
+    }
+    item.state = State::kOk;
+    if (evaluated) {
+        item.found.Set("evaluated", Value::MakeBool(true));
+    }
+    item.detail = "the hesitations weights are '" + path + "' (" +
+                  std::to_string(status.size) + " bytes), " + from +
+                  (evaluated ? ", their SHA-256 verified"
+                             : ", their SHA-256 not verified");
     return item;
 }
 
@@ -531,6 +594,16 @@ Machine CurrentMachine() {
         return std::filesystem::is_directory(path, error);
     };
     machine.voice_over = CurrentVoiceOverSearch();
+    machine.hesitations_weights =
+        [](const std::string& path) -> std::optional<bool> {
+        bool evaluated = false;
+        std::string error;
+        if (!RecognizeWhisperDecodingModel(path, std::function<bool()>(),
+                                           evaluated, error)) {
+            return std::nullopt;
+        }
+        return evaluated;
+    };
     return machine;
 }
 
@@ -538,6 +611,7 @@ Report CheckSetup(const Machine& machine) {
     Report report;
     report.items.push_back(FfmpegItem(machine));
     report.items.push_back(WhisperModelItem(machine));
+    report.items.push_back(WhisperHesitationsModelItem(machine));
     report.items.push_back(MfaItem(machine));
     report.items.push_back(AgentKeyItem(machine));
     report.items.push_back(ArchiveBackupItem(machine));

@@ -871,15 +871,28 @@ bool BuildTimelineTranscriptSpansImpl(
             document, cacheDirectory.parent_path() / "project.cutmachine.json",
             plan, planError)) {
         for (const bool verbatim : {false, true}) {
-            Transcript reading;
-            std::string readingError;
-            if (LoadAudioTranscript(
-                    TimelineTranscriptCachePath(cacheDirectory,
-                                                document.sequence.id, verbatim)
-                        .string(),
-                    reading, readingError) &&
-                reading.media_id == plan.cache_identity)
-                readings.push_back(std::move(reading));
+            // AL4 -- a French verbatim reading decodes with
+            // fr-hesitations-v1 when the model allows it, cached under its
+            // own name: the normal use, read first.
+            for (const WhisperDecodingProfile profile :
+                 {WhisperDecodingProfile::FrenchHesitationsV1,
+                  WhisperDecodingProfile::Default}) {
+                if (!verbatim && profile != WhisperDecodingProfile::Default) {
+                    continue;
+                }
+                Transcript reading;
+                std::string readingError;
+                if (LoadAudioTranscript(
+                        TimelineTranscriptCachePath(cacheDirectory,
+                                                    document.sequence.id,
+                                                    verbatim, profile)
+                            .string(),
+                        reading, readingError) &&
+                    reading.media_id == plan.cache_identity) {
+                    readings.push_back(std::move(reading));
+                    break;
+                }
+            }
         }
     }
     if (check != nullptr)

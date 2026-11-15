@@ -21,7 +21,7 @@ Un `spring` n'anime qu'un nombre : l'opacité passe par un `interpolate`.
 
 ## Pièges du moteur
 
-Rencontrés en vrai, et que le moteur ne refuse pas :
+Ce que le moteur ne refuse pas :
 
 - Une police de titre peut n'avoir que des chiffres bas de casse
   (« 1 » lu « I ») : `fontVariantNumeric: "lining-nums"`,
@@ -124,10 +124,10 @@ La plage suit la prop : aucun index à recalculer quand le texte change. Un
 seul mot fort par titre. Le halo de l'original (`textShadow`) s'écrit
 `"filter": "glow(20px #FFD23F 2)"` sur une boîte qui ne tient que ce mot.
 
-**Le surligneur** (MB3, 24 octobre 2026) : un trait de feutre sous une
-plage de mots, d'un seul tenant par ligne, espaces compris, qui avance de
-gauche à droite et passe à la ligne. Ce n'est pas une plage à fond
-(`backgroundColor` peint une boîte dure par mot, espaces nus) :
+**Le surligneur** : un trait de feutre sous une plage de mots, d'un seul
+tenant par ligne, espaces compris, qui avance de gauche à droite et passe à
+la ligne. Ce n'est pas une plage à fond (`backgroundColor` peint une boîte
+dure par mot, espaces nus) :
 
 ```json
 "highlights": [ { "unit": "word", "start": { "prop": "mot_fort" }, "count": 2,
@@ -238,8 +238,8 @@ n'est possible dans la composition, et une table ne s'applique pas à
 index »). Les angles viennent donc d'une prop `list` parcourue par
 `repeat` ; chaque rayon est une barre deux fois plus longue, **colorée sur
 sa moitié haute seulement**, qui tourne autour de son centre : le rayon part
-du centre commun. (Depuis le 14 novembre 2026, `transformOrigin: "50% 100%"`
-fait aussi tourner une barre simple autour de sa base, MW5.)
+du centre commun. (`transformOrigin: "50% 100%"` fait aussi tourner une
+barre simple autour de sa base.)
 
 ```json
 "props": { "angles": { "type": "list", "of": "number", "default": [0, 45, 90, 135, 180, 225, 270, 315] } },
@@ -323,8 +323,7 @@ chevaucher les deux séquences de sa durée. À la main, 8 à 14 images :
 - **volet à la forme de la marque** : un `clipPath` qui balaie.
 
 Exemple : [transitions.json](../exemples/transitions.json). Avant d'en
-mettre, demande : certains commanditaires n'en veulent aucune (« pas de
-volet »).
+mettre, demande : certains commanditaires n'en veulent aucune.
 
 ## 15. Flou de mouvement
 
@@ -441,7 +440,7 @@ Exemple : [declinaisons.json](../exemples/declinaisons.json).
 
 - Les **plaques** : le montage de Resolve rendu **sans** ses titres, pour
   juger l'habillage dessus. Par l'API de Resolve 21.1, `SetTrackEnable`
-  a répondu `True` sans que `GetIsTrackEnabled` change, et
+  répond `True` sans que `GetIsTrackEnabled` change, et
   `SetClipEnabled` n'agit que sur la timeline **courante** : rends chaque
   timeline courante (`SetCurrentTimeline`), désactive les clips des pistes
   de titres (`SetClipEnabled(False)`), vérifie avec `GetClipEnabled`, rends,
@@ -453,7 +452,7 @@ Exemple : [declinaisons.json](../exemples/declinaisons.json).
 Le texte se déforme par zones, comme une feuille qu'on étire : une moitié
 du mot gonfle pendant que l'autre s'écrase en fine bande, puis l'inverse.
 C'est le Mesh Warp d'After, que le moteur a sous le nom `mesh()` dans
-`filter` (depuis septembre 2026, voir « Maillage » dans le format).
+`filter` (voir « Maillage » dans le format).
 
 ```json
 "filter": "mesh(2 4, 0 0, 25% 0, 50% 0, 75% 0, 100% 0, 0 50%, 25% 50%, 50% 50%, 75% 50%, 100% 50%, 0 100%, 25% 100%, 50% 100%, 75% 100%, 100% 100%)"
@@ -471,9 +470,9 @@ C'est le Mesh Warp d'After, que le moteur a sous le nom `mesh()` dans
 - Anime le `filter` entre maillages de même grille : chaque sommet va en
   ligne droite. Une clé par geste, et le retour au repos en fin de boucle.
 - La courbe qui fait le style : l'aisance d'After puis la poignée d'arrivée
-  tirée à fond, soit `cubic-bezier(0.325, 0, 0, 1)` (mesurée sur le rendu
-  d'un tutoriel : départ vif, longue arrivée).
-- Une police très grasse et serrée (Passion One Bold dans le tutoriel), les
+  tirée à fond, soit `cubic-bezier(0.325, 0, 0, 1)` : départ vif, longue
+  arrivée.
+- Une police très grasse et serrée (Passion One Bold, par exemple), les
   lettres qui se touchent : l'étirement se lit dans les contreformes.
 - **Un bloc de plusieurs lignes** (une question justifiée, une ligne par
   croche) : un maillage `1 4` par ligne, sur une boîte à la hauteur de la
@@ -485,6 +484,4 @@ C'est le Mesh Warp d'After, que le moteur a sous le nom `mesh()` dans
   la ligne gonflée la place de ses accents étirés (environ
   (échelle − 1) × 0,2 em), sinon ils mordent sur la ligne du dessus.
 
-Exemple : [kinetic-warp.json](../exemples/kinetic-warp.json). Le même
-mouvement, rendu avec la police et le crénage du tutoriel, recouvre le rendu
-After à 94 % au moins sur chaque image.
+Exemple : [kinetic-warp.json](../exemples/kinetic-warp.json).

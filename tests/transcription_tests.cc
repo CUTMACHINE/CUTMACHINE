@@ -8,10 +8,12 @@
 #include <unistd.h>
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
@@ -2108,6 +2110,275 @@ int main() {
               "a plausible filename cannot bypass model identity");
         std::filesystem::remove_all(root);
     });
+
+    // AL4 -- decided on 15 November 2026: the profile is the normal use, on
+    // weights of their own. A request that names none gets it for French
+    // verbatim when the hesitations setting names the evaluated weights,
+    // which a three-byte file stands for here (the SHA-256 of "abc" is the
+    // FIPS 180-2 example).
+    Test(
+        "an unnamed decoding profile follows language, verbatim and weights",
+        [] {
+            const auto root =
+                std::filesystem::temp_directory_path() / GenerateUlid();
+            std::filesystem::create_directories(root);
+            const auto model = root / "model.bin";
+            const auto evaluatedPath = root / "evaluated.bin";
+            const auto sameSize = root / "same-size.bin";
+            const auto otherSize = root / "other-size.bin";
+            std::ofstream(model, std::ios::binary) << "the model";
+            std::ofstream(evaluatedPath, std::ios::binary) << "abc";
+            std::ofstream(sameSize, std::ios::binary) << "abd";
+            std::ofstream(otherSize, std::ios::binary) << "abcd";
+            const ScopedEvaluatedWhisperModelForTesting evaluated(
+                3,
+                "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f200"
+                "15ad");
+            const auto hesitations =
+                WhisperDecodingProfile::FrenchHesitationsV1;
+            const auto original = WhisperDecodingProfile::Default;
+            MediaTaskManager manager;
+            // In a task, as every caller does: reading the weights can be
+            // cancelled.
+            const auto inTask =
+                [&](const std::function<void(MediaTaskContext&)>& work) {
+                    manager.Enqueue(
+                        MediaTaskKind::Transcription, "profile",
+                        [&](MediaTaskContext& context, std::string&) {
+                            work(context);
+                            return true;
+                        });
+                    Check(manager.WaitForIdle(30000),
+                          "the resolution terminates");
+                };
+            const auto resolve = [&](const WhisperDecodingRequest& request,
+                                     const std::string& language, bool verbatim,
+                                     const std::filesystem::path& weights,
+                                     WhisperDecodingChoice& choice,
+                                     std::string& error) {
+                bool resolved = false;
+                inTask([&](MediaTaskContext& context) {
+                    resolved = ResolveWhisperDecodingProfile(
+                        request, language, verbatim, model.string(),
+                        weights.empty() ? std::string() : weights.string(),
+                        context, choice, error);
+                });
+                return resolved;
+            };
+            struct Case {
+                WhisperDecodingRequest request;
+                std::string language;
+                bool verbatim;
+                std::filesystem::path weights;
+                WhisperDecodingProfile expected;
+                bool implicit;
+                std::filesystem::path runsOn;
+                std::string what;
+            };
+            const std::size_t hashedBefore = WhisperModelDigestsComputed();
+            for (const Case& item : std::vector<Case>{
+                     {{},
+                      "fr",
+                      true,
+                      evaluatedPath,
+                      hesitations,
+                      true,
+                      evaluatedPath,
+                      "French verbatim gets the profile on the evaluated "
+                      "weights"},
+                     {original, "fr", true, evaluatedPath, original, false,
+                      model, "default named keeps the model, even then"},
+                     {hesitations, "fr", true, evaluatedPath, hesitations,
+                      false, evaluatedPath,
+                      "the profile named runs on its weights"},
+                     {hesitations,
+                      "fr",
+                      true,
+                      {},
+                      hesitations,
+                      false,
+                      model,
+                      "without them, on the model, which loading checks"},
+                     {hesitations, "fr", true, sameSize, hesitations, false,
+                      model, "and with other weights set"},
+                     {{},
+                      "auto",
+                      true,
+                      evaluatedPath,
+                      original,
+                      true,
+                      model,
+                      "a detected language is not French"},
+                     {{},
+                      "en",
+                      true,
+                      evaluatedPath,
+                      original,
+                      true,
+                      model,
+                      "nor is English: the weights serve French only"},
+                     {{},
+                      "fr",
+                      false,
+                      evaluatedPath,
+                      original,
+                      true,
+                      model,
+                      "a plain transcription keeps the model"},
+                     {{},
+                      "fr",
+                      true,
+                      sameSize,
+                      original,
+                      true,
+                      model,
+                      "other weights of the same size are not used"},
+                     {{},
+                      "fr",
+                      true,
+                      otherSize,
+                      original,
+                      true,
+                      model,
+                      "nor weights of another size"},
+                     {{},
+                      "fr",
+                      true,
+                      {},
+                      original,
+                      true,
+                      model,
+                      "nor anything when the setting is unset"},
+                     {{},
+                      "fr",
+                      true,
+                      root / "absent.bin",
+                      original,
+                      true,
+                      model,
+                      "or names no file"}}) {
+                WhisperDecodingChoice choice;
+                std::string error;
+                Check(resolve(item.request, item.language, item.verbatim,
+                              item.weights, choice, error) &&
+                          choice.profile == item.expected &&
+                          choice.implicit == item.implicit &&
+                          choice.model_path == item.runsOn.string(),
+                      item.what + ": " + choice.model_path + " " + error);
+            }
+            Check(WhisperModelDigestsComputed() - hashedBefore == 2,
+                  "only the two files of the evaluated size were read, once "
+                  "each, and the model never");
+            WhisperDecodingChoice choice;
+            std::string error;
+            Check(!resolve(hesitations, "en", true, evaluatedPath, choice,
+                           error) &&
+                      error.find("language=fr") != std::string::npos,
+                  "the profile named outside its scope is still refused");
+
+            // The digest is remembered by path, size and modification time.
+            const std::size_t hashed = WhisperModelDigestsComputed();
+            const auto known = KnownWhisperDecodingChoice(
+                {}, "fr", true, model.string(), evaluatedPath.string());
+            Check(known && known->profile == hesitations && known->implicit &&
+                      known->model_path == evaluatedPath.string(),
+                  "recognized weights are known without reading them again");
+            Check(resolve({}, "fr", true, evaluatedPath, choice, error) &&
+                      choice.profile == hesitations,
+                  "a second transcription resolves the same: " + error);
+            bool accepted = false;
+            inTask([&](MediaTaskContext& context) {
+                accepted = ValidateWhisperDecodingModel(
+                    hesitations, evaluatedPath.string(), context, error);
+            });
+            Check(accepted, "the model check at loading accepts them");
+            Check(WhisperModelDigestsComputed() == hashed,
+                  "neither reads the weights again");
+            Check(
+                KnownWhisperDecodingModel(otherSize.string()) ==
+                        std::optional<bool>(false) &&
+                    !KnownWhisperDecodingModel((root / "absent.bin").string()),
+                "another size is known unread, a missing file is not");
+            std::filesystem::last_write_time(
+                evaluatedPath, std::filesystem::last_write_time(evaluatedPath) +
+                                   std::chrono::seconds(5));
+            Check(!KnownWhisperDecodingChoice({}, "fr", true, model.string(),
+                                              evaluatedPath.string()),
+                  "a file modified since is no longer known");
+            Check(resolve({}, "fr", true, evaluatedPath, choice, error) &&
+                      choice.profile == hesitations &&
+                      WhisperModelDigestsComputed() == hashed + 1,
+                  "and is read once more");
+
+            // The provenance the cache keeps is the profile and the
+            // weights that ran.
+            WhisperSettings configured;
+            configured.whisper_model_path = model.string();
+            configured.language = "fr";
+            configured.verbatim = true;
+            WhisperSettings settings = configured;
+            bool settled = false;
+            inTask([&](MediaTaskContext& context) {
+                settled =
+                    ResolveWhisperSettings({}, evaluatedPath.string(), context,
+                                           settings, choice, error);
+            });
+            Check(
+                settled && settings.decoding_profile == hesitations &&
+                    settings.whisper_model_path == evaluatedPath.string() &&
+                    choice.implicit,
+                "the settings carry the profile and weights chosen: " + error);
+            Transcript transcript;
+            transcript.media_id = GenerateUlid();
+            transcript.whisper_model = "evaluated.bin";
+            transcript.language = "fr";
+            transcript.verbatim = true;
+            transcript.decoding_profile = settings.decoding_profile;
+            transcript.source_rate = {25, 1};
+            transcript.words = {{"Euh,", {0, 25}, {5, 25}}};
+            const auto cache = root / "media.json";
+            Transcript loaded;
+            Check(
+                SaveAudioTranscript(cache.string(), transcript, error) &&
+                    LoadAudioTranscript(cache.string(), loaded, error) &&
+                    loaded.decoding_profile == hesitations &&
+                    TranscriptCacheMatches(loaded, transcript.media_id,
+                                           settings),
+                "a transcript chosen so is cached as the profile's: " + error);
+            WhisperSettings onModel = configured;
+            onModel.decoding_profile = hesitations;
+            Check(
+                !TranscriptCacheMatches(loaded, transcript.media_id, onModel) &&
+                    !TranscriptCacheMatches(loaded, transcript.media_id,
+                                            configured),
+                "and answers neither the model with the profile nor "
+                "default named");
+
+            // ITW9 -- the passes made again keep the model and the original
+            // decoder when they are plain, whatever the verbatim pass ran.
+            const WhisperSettings plain = PlainFallbackSettings(configured);
+            const WhisperSettings plainRedo =
+                EllipsisRedoSettings(settings, configured, false);
+            const WhisperSettings verbatimRedo =
+                EllipsisRedoSettings(settings, configured, true);
+            Check(!plain.verbatim && plain.decoding_profile == original &&
+                      plain.whisper_model_path == model.string() &&
+                      !plain.suppress_ellipsis,
+                  "the plain fallback decodes as default, with the model");
+            Check(!plainRedo.verbatim &&
+                      plainRedo.decoding_profile == original &&
+                      plainRedo.whisper_model_path == model.string() &&
+                      plainRedo.suppress_ellipsis,
+                  "the plain pass without ellipses too");
+            Check(
+                verbatimRedo.verbatim &&
+                    verbatimRedo.decoding_profile == hesitations &&
+                    verbatimRedo.whisper_model_path == evaluatedPath.string() &&
+                    verbatimRedo.suppress_ellipsis,
+                "the verbatim pass without ellipses decodes as the "
+                "verbatim pass it repairs, on its weights");
+            std::filesystem::remove_all(root);
+        });
 
     if (failures > 0) {
         std::cerr << failures << " failure(s)\n";

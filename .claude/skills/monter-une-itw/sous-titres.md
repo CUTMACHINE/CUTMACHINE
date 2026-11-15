@@ -21,17 +21,15 @@ Laisse `max_characters` à son défaut, sauf si la consigne donne un autre
 nombre.
 
 **Pour un livrable, découpe toi-même, avant de voir la découpe du moteur** :
-à l'aveugle, l'auteur a préféré celle de l'agent 29 fois sur 35 (une série, à
-confirmer). Corriger la proposition du moteur en la voyant en garde les
-défauts. Lis les mots du montage (`get_timeline_transcript`), découpe par
-unité syntaxique, passe tes `cartons` à `generate_captions` en `preview`,
-puis sans ; écris dans le compte rendu que tu as découpé toi-même. Compte
-environ 35 000 tokens par film d'une minute ; la découpe du moteur reste le
-brouillon rapide.
+corriger sa proposition en la voyant en garde les défauts. Lis les mots du
+montage (`get_timeline_transcript`), découpe par unité syntaxique, passe
+tes `cartons` à `generate_captions` en `preview`, puis sans ; écris dans le
+compte rendu que tu as découpé toi-même. Compte environ 35 000 tokens par
+minute de film ; la découpe du moteur reste le brouillon rapide.
 
 N'installe pas de modèle de découpe toi-même (`train_caption_breaks`) : il
-change les cartons de tous les films suivants, c'est à l'auteur de le décider.
-Écris `break_model` dans le compte rendu.
+change les cartons de tous les films suivants, c'est à la personne qui
+signe de le décider. Écris `break_model` dans le compte rendu.
 
 Pour un film vertical, un style peut suivre la voix mot à mot
 (`update_caption_style {word_animation: "highlight"}` ou `"reveal"`,
@@ -76,17 +74,16 @@ Resolve.
 
 Dans Resolve, lis le texte par `GetName()`, pas dans le `.drt` : un carton
 retapé par le monteur garde son ancien texte dans `<Name>`, le nouveau vit dans
-son `<EffectFiltersBA>` (vu le 29 septembre 2026 : la graphie corrigée à
-l'écran et par l'API, l'ancienne dans `<Name>`).
+son `<EffectFiltersBA>`, et c'est lui que l'écran et l'API montrent.
 
 ## La cadence : 18 CPS en moyenne
 
-**Consigne du monteur : 18 caractères par seconde en moyenne sur la
-séquence**, pas par carton : publie la moyenne pondérée
-(`somme(caractères) / somme(durées affichées)`) et la distribution. Les
-repères du métier (20 CPS au plus, 0,83 s au moins) : le réglage maison en
-sort des deux côtés, par choix, et il faut le dire. Sous 0,83 s, c'est le
-réglage : **ne refusionne pas les cartons courts**.
+**18 caractères par seconde en moyenne sur la séquence**, pas par carton :
+publie la moyenne pondérée (`somme(caractères) / somme(durées affichées)`)
+et la distribution. Les repères du métier (20 CPS au plus, 0,83 s au
+moins) : le réglage maison en sort des deux côtés, par choix, et il faut le
+dire. Sous 0,83 s, c'est le réglage : **ne refusionne pas les cartons
+courts**.
 
 ## Découper par unité syntaxique
 
@@ -96,18 +93,17 @@ un adverbe ou une conjonction, ni par-dessus une fin de phrase. Coupe de
 préférence sur une fin de phrase, une virgule, avant une conjonction, un
 relatif ou un groupe prépositionnel.
 
-L'auteur a tranché (REGLES-2026-10) : jamais d'article en fin de carton ; le nom
-garde son adjectif, une locution reste entière ; pas de carton qui
-clignote ; quand un groupe doit être coupé, la coupe qui équilibre les
-durées gagne.
+Jamais d'article en fin de carton ; le nom garde son adjectif, une locution
+reste entière ; pas de carton qui clignote ; quand un groupe doit être
+coupé, la coupe qui équilibre les durées gagne.
 
 ## Caler les frontières sur les cuts
 
-**Consigne du monteur : les frontières de carton se calent sur les cuts**,
-plans de coupe et incrustations compris. `generate_captions` le fait ; à la
-main (Resolve), sur le relevé de toutes les pistes vidéo, une frontière à
-moins de 12 images d'un cut s'y pose, sauf si un carton tombe sous 10 images
-ou si le déplacement découvre un mot (DEC18).
+**Les frontières de carton se calent sur les cuts**, plans de coupe et
+incrustations compris. `generate_captions` le fait ; à la main (Resolve),
+sur le relevé de toutes les pistes vidéo, une frontière à moins de
+12 images d'un cut s'y pose, sauf si un carton tombe sous 10 images ou si
+le déplacement découvre un mot.
 
 - FR et EN se calent chacun de leur côté : les cartons anglais ne partagent pas
   toujours les frontières françaises.
@@ -118,11 +114,11 @@ ou si le déplacement découvre un mot (DEC18).
 ## Safe zone : une ligne dans le moteur, deux au-delà de 650 px dans Resolve
 
 Un carton du moteur tient sur une ligne : un carton trop large
-(`over_width`) se recoupe. Dans Resolve, **consigne du monteur : un carton
-de plus de 650 px de large (≈ 60 % de 1080) passe sur deux lignes** ; la
-largeur tranche, pas le compte de caractères (l'anglais se mesure dans la
-graisse de sa piste). Pour la mesurer, rends le
-carton dans la police et à la taille de sa piste (PIL).
+(`over_width`) se recoupe. Dans Resolve, **un carton de plus de 650 px de
+large (≈ 60 % de 1080) passe sur deux lignes** ; la largeur tranche, pas le
+compte de caractères (l'anglais se mesure dans la graisse de sa piste).
+Pour la mesurer, rends le carton dans la police et à la taille de sa piste
+(PIL).
 
 Pour rendre une image de contrôle depuis Resolve : `SetRenderSettings` avec
 `MarkIn` = `MarkOut`, `"ExportSubtitle": True, "SubtitleFormat": "BurnIn"`,

@@ -587,7 +587,7 @@ public:
     virtual bool TranscribeSources(
         const std::vector<Ulid>&, const std::string&, bool, bool, bool,
         std::string&, std::string& message,
-        WhisperDecodingProfile = WhisperDecodingProfile::Default) {
+        const WhisperDecodingRequest& = std::nullopt) {
         message = "this backend cannot run a transcription";
         return false;
     }
@@ -596,8 +596,7 @@ public:
     // from clips and may be cached only against that exact arrangement.
     virtual bool TranscribeTimeline(
         const std::string&, const std::string&, bool, std::string&,
-        std::string& message,
-        WhisperDecodingProfile = WhisperDecodingProfile::Default) {
+        std::string& message, const WhisperDecodingRequest& = std::nullopt) {
         message = "this backend cannot transcribe a timeline";
         return false;
     }

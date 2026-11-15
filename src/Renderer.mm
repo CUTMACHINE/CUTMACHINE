@@ -104,6 +104,12 @@ struct Renderer::Impl {
     id<MTLBuffer> curveHistogramBuffer = nil;
     VideoHistogram curveHistogram{};
     std::vector<std::array<id<MTLTexture>, 4>> planes;
+    // PA15 -- each slot's matte (MonitorMatte), made again only when its
+    // size changes; a 1x1 black one stands for a missing matte (the clip
+    // shows nothing) and is bound for every slot without one, since each
+    // layer fragment declares the texture.
+    std::vector<id<MTLTexture>> mattes;
+    id<MTLTexture> matteFallback = nil;
     std::vector<std::array<int, 4>> textureWidths;
     std::vector<std::array<int, 4>> textureHeights;
     std::vector<int> textureFormats;
@@ -1099,6 +1105,63 @@ bool Renderer::Render(const std::vector<AVFrame*>& frames,
             parameters.maskHeight = mask.height;
             parameters.maskFeather = mask.feather;
             parameters.maskInverted = mask.inverted ? 1 : 0;
+            // PA15 -- the slot's matte, uploaded where its shape asks for
+            // one, the black stand-in everywhere else.
+            if (!impl_->matteFallback) {
+                MTLTextureDescriptor* single = [MTLTextureDescriptor
+                    texture2DDescriptorWithPixelFormat:MTLPixelFormatR8Unorm
+                                                 width:1
+                                                height:1
+                                             mipmapped:NO];
+                single.usage = MTLTextureUsageShaderRead;
+                impl_->matteFallback =
+                    [impl_->device newTextureWithDescriptor:single];
+                const uint8_t black = 0;
+                [impl_->matteFallback replaceRegion:MTLRegionMake2D(0, 0, 1, 1)
+                                        mipmapLevel:0
+                                          withBytes:&black
+                                        bytesPerRow:1];
+            }
+            id<MTLTexture> matteTexture = impl_->matteFallback;
+            if (mask.shape == 3 && frameIndex < timeline.video_mattes.size()) {
+                const MonitorMatte& matte = timeline.video_mattes[frameIndex];
+                if (matte.bytes != nullptr && matte.width > 0 &&
+                    matte.height > 0) {
+                    if (impl_->mattes.size() <= frameIndex)
+                        impl_->mattes.resize(frameIndex + 1, nil);
+                    __strong id<MTLTexture>& slotMatte =
+                        impl_->mattes[frameIndex];
+                    if (!slotMatte ||
+                        slotMatte.width !=
+                            static_cast<NSUInteger>(matte.width) ||
+                        slotMatte.height !=
+                            static_cast<NSUInteger>(matte.height)) {
+                        MTLTextureDescriptor* descriptor = [MTLTextureDescriptor
+                            texture2DDescriptorWithPixelFormat:
+                                MTLPixelFormatR8Unorm
+                                                         width:static_cast<
+                                                                   NSUInteger>(
+                                                                   matte.width)
+                                                        height:static_cast<
+                                                                   NSUInteger>(
+                                                                   matte.height)
+                                                     mipmapped:NO];
+                        descriptor.usage = MTLTextureUsageShaderRead;
+                        descriptor.storageMode = MTLStorageModeShared;
+                        slotMatte =
+                            [impl_->device newTextureWithDescriptor:descriptor];
+                    }
+                    [slotMatte
+                        replaceRegion:MTLRegionMake2D(
+                                          0, 0,
+                                          static_cast<NSUInteger>(matte.width),
+                                          static_cast<NSUInteger>(matte.height))
+                          mipmapLevel:0
+                            withBytes:matte.bytes
+                          bytesPerRow:static_cast<NSUInteger>(matte.width)];
+                    matteTexture = slotMatte;
+                }
+            }
             // Renderer.mm never interprets a grade entry's `kind`: it sends
             // what ColorEffects.h packs, the byte layout shader.metal's
             // ClipGradeParameters mirrors (checked on the GPU by
@@ -1262,6 +1325,7 @@ bool Renderer::Render(const std::vector<AVFrame*>& frames,
                                                : impl_->ocioInputLut)
                                            atIndex:4];
                     }
+                    [workingEncoder setFragmentTexture:matteTexture atIndex:6];
                     [workingEncoder setFragmentBytes:&parameters
                                               length:sizeof(parameters)
                                              atIndex:0];
@@ -1279,6 +1343,7 @@ bool Renderer::Render(const std::vector<AVFrame*>& frames,
                 }
             }
             if (!drawnBlurred) {
+                [workingEncoder setFragmentTexture:matteTexture atIndex:6];
                 [workingEncoder setFragmentBytes:&parameters
                                           length:sizeof(parameters)
                                          atIndex:0];

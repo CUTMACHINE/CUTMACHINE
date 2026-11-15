@@ -509,8 +509,15 @@ struct ClipParameterAnimation {
 // with what is below exactly as an opacity is (in linear light under colour
 // management, in the delivered signal without). Every renderer evaluates
 // the one rule of ClipMask.h.
+//
+// PA15 -- a third shape, "person": the people the picture shows, cut out
+// frame by frame (the roto). The coverage is not a rule but a matte, one
+// grey picture per frame of the media, computed once by Vision's person
+// segmentation and kept in the package (PersonMatte.h). It has no centre,
+// size or feather of its own -- those stay at their defaults -- and
+// `inverted` keeps everything but the people.
 struct ClipMask {
-    // "" for none, "rectangle" or "ellipse".
+    // "" for none, "rectangle", "ellipse" or "person".
     std::string shape;
     EffectParamValue center_x{1, 2};
     EffectParamValue center_y{1, 2};
@@ -522,6 +529,7 @@ struct ClipMask {
 
 inline constexpr const char* kClipMaskRectangle = "rectangle";
 inline constexpr const char* kClipMaskEllipse = "ellipse";
+inline constexpr const char* kClipMaskPerson = "person";
 
 // What Document::Validate holds a mask to: a known shape, a centre within
 // one picture of the picture ([-1, 2]), a width and a height in ]0, 4], a
@@ -1031,6 +1039,12 @@ inline constexpr int32_t kDocumentVersionWithVoiceReference = 25;
 // Version 26 has that binary refuse the file instead; a document without a
 // mask keeps the version and the bytes it had.
 inline constexpr int32_t kDocumentVersionWithClipMask = 26;
+// PA15 -- docs/roadmap/PARITE-2026-11.md. The version that carries a mask
+// of shape "person". A binary of version 26 knows masks but not this
+// shape, and would refuse the clip with an error about its shape; version
+// 27 has it say instead that the file is newer than it reads. A document
+// without such a mask keeps the version and the bytes it had.
+inline constexpr int32_t kDocumentVersionWithPersonMask = 27;
 
 class Document {
 public:
@@ -1366,6 +1380,19 @@ inline bool ClipHasMask(const DocumentClip& clip) {
 // PA8 -- a sequence with a masked clip: what version 26 holds.
 inline bool HoldsClipMask(const DocumentSequence& sequence);
 
+// PA15 -- a clip cut out by the matte of the people it shows.
+inline bool ClipHasPersonMask(const DocumentClip& clip) {
+    return clip.mask.shape == kClipMaskPerson;
+}
+
+// PA15 -- a sequence with such a clip: what version 27 holds.
+inline bool HoldsPersonMask(const DocumentSequence& sequence) {
+    for (const DocumentTrack& track : sequence.tracks)
+        for (const DocumentClip& clip : track.clips)
+            if (ClipHasPersonMask(clip)) return true;
+    return false;
+}
+
 // EF3 -- a sequence with a blurred clip: what version 24 holds too.
 inline bool HoldsClipBlur(const DocumentSequence& sequence) {
     for (const DocumentTrack& track : sequence.tracks)
@@ -1414,8 +1441,12 @@ inline int32_t DocumentFormatVersion(
     bool hasGeneratedMedia = false, bool hasGraphicsInput = false,
     bool hasResolvePrimaries = false, bool hasDisabledClips = false,
     bool hasTimelineEffects = false, bool hasVoiceReference = false,
-    bool hasClipMask = false) {
-    // PA8 -- a clip's mask is the newest.
+    bool hasClipMask = false, bool hasPersonMask = false) {
+    // PA15 -- a mask that follows the people is the newest.
+    if (hasPersonMask) {
+        return kDocumentVersionWithPersonMask;
+    }
+    // PA8 -- then a clip's mask.
     if (hasClipMask) {
         return kDocumentVersionWithClipMask;
     }

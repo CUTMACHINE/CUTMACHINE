@@ -9,6 +9,7 @@
 #include "MediaTaskManager.h"
 #include "ProjectStorage.h"
 #include "SequenceFormat.h"
+#include "SourceGrid.h"
 #include "SpeechOnset.h"
 #include "Ulid.h"
 #include "WorkCounters.h"
@@ -152,11 +153,18 @@ bool ProbeImpl(const std::filesystem::path& absolutePath, LibraryMedia& media,
             reason = "video stream has invalid dimensions";
             return false;
         }
-        const AVRational frameRate = video->avg_frame_rate;
-        if (frameRate.num <= 0 || frameRate.den <= 0) {
+        if (video->avg_frame_rate.num <= 0 || video->avg_frame_rate.den <= 0) {
             reason = "video stream has no valid avg_frame_rate";
             return false;
         }
+        // VF2 -- docs/roadmap/VFR-2026-11.md. The rate the frames are
+        // counted at, the one the decoder reports too (MediaSource.mm): a
+        // phone's variable-rate stream is counted on the grid it was
+        // recorded on, not at its average (SourceGrid.h).
+        const MediaRate counted = SourceCountingRate(
+            {video->avg_frame_rate.num, video->avg_frame_rate.den},
+            {video->r_frame_rate.num, video->r_frame_rate.den});
+        const AVRational frameRate{counted.num, counted.den};
 
         int64_t duration = 0;
         if (video->duration != AV_NOPTS_VALUE && video->duration > 0) {

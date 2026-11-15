@@ -202,8 +202,33 @@ bool ValidateCaptionStyle(const CaptionStyle& style, std::string& error) {
 }
 
 bool ClipMaskIsValid(const ClipMask& mask, std::string& error) {
+    if (mask.shape == kClipMaskPerson) {
+        // PA15 -- the matte says where the picture is kept: the geometry
+        // of a shape stays at its defaults, so one person mask has one
+        // spelling.
+        const ClipMask defaults;
+        const auto same = [](const EffectParamValue& left,
+                             const EffectParamValue& right) {
+            return left.den > 0 && right.den > 0 &&
+                   static_cast<int64_t>(left.num) * right.den ==
+                       static_cast<int64_t>(right.num) * left.den;
+        };
+        if (!same(mask.center_x, defaults.center_x) ||
+            !same(mask.center_y, defaults.center_y) ||
+            !same(mask.width, defaults.width) ||
+            !same(mask.height, defaults.height) ||
+            !same(mask.feather, defaults.feather)) {
+            error =
+                "has a 'person' mask with a centre, a size or a feather: "
+                "the matte of the people is the shape";
+            return false;
+        }
+        return true;
+    }
     if (mask.shape != kClipMaskRectangle && mask.shape != kClipMaskEllipse) {
-        error = "has a mask whose shape is neither 'rectangle' nor 'ellipse'";
+        error =
+            "has a mask whose shape is neither 'rectangle', 'ellipse' nor "
+            "'person'";
         return false;
     }
     const auto within = [](const EffectParamValue& value, int64_t lowNum,
@@ -757,6 +782,18 @@ bool Document::Validate(std::string& error,
                             "') is a motion clip and cannot carry a mask: a "
                             "composition draws its own shapes";
                     return false;
+                }
+                // PA15 -- the people of a graphic are drawn, not filmed,
+                // and its own alpha would be replaced by the matte.
+                if (ClipHasPersonMask(clip)) {
+                    const LibraryMedia* media =
+                        FindLibraryMedia(clip.source_id);
+                    if (media != nullptr && media->color_input.graphics) {
+                        error = context + " ('" + clip.id +
+                                "') shows a graphic and cannot carry a "
+                                "'person' mask";
+                        return false;
+                    }
                 }
             } else {
                 const ClipMask none;

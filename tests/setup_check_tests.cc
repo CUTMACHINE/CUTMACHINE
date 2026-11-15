@@ -29,6 +29,7 @@
 #include <functional>
 #include <iostream>
 #include <map>
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -62,6 +63,8 @@ bool Contains(const std::string& text, const std::string& part) {
 constexpr const char* kSettingsFile = "/machine/.config/cutmachine/.env";
 constexpr const char* kFfmpegPath = "/opt/ffmpeg/bin/ffmpeg";
 constexpr const char* kModelPath = "/models/ggml-large-v3.bin";
+constexpr const char* kHesitationsPath =
+    "/models/ggml-large-v3-hesitations-s075.bin";
 constexpr const char* kBackupFolder = "/Shared/OneDrive/Copies";
 
 // A machine made of maps. Everything absent from them is absent from the
@@ -73,6 +76,8 @@ struct FakeMachine {
     MfaSearch mfa;
     std::set<std::string> directories;
     VoiceOverSearch voice_over;
+    // AL4 -- the paths whose SHA-256 was verified, and the verdict.
+    std::map<std::string, bool> verified_weights;
 
     void AddFile(const std::string& path, std::uintmax_t size = 1024,
                  bool readable = true) {
@@ -103,6 +108,14 @@ struct FakeMachine {
             return directories.count(path) != 0;
         };
         machine.voice_over = voice_over;
+        machine.hesitations_weights =
+            [this](const std::string& path) -> std::optional<bool> {
+            const auto found = verified_weights.find(path);
+            if (found == verified_weights.end()) {
+                return std::nullopt;
+            }
+            return found->second;
+        };
         return machine;
     }
 };
@@ -203,6 +216,10 @@ FakeMachine CompleteMachine() {
     machine.Set("CUTMACHINE_WHISPER_MODEL", kModelPath,
                 setup::SettingOrigin::kSettingsFile);
     machine.AddFile(kModelPath, 3095033483ULL);
+    machine.Set("CUTMACHINE_WHISPER_HESITATIONS_MODEL", kHesitationsPath,
+                setup::SettingOrigin::kSettingsFile);
+    machine.AddFile(kHesitationsPath, 3095033483ULL);
+    machine.verified_weights[kHesitationsPath] = true;
     machine.mfa = CheckoutSearch();
     AddCheckoutMfa(machine);
     machine.Set("ANTHROPIC_API_KEY", "sk-test-key-setup",
@@ -234,15 +251,19 @@ std::string JsonText(const Value& value, const std::string& key) {
                                                  : std::string();
 }
 
-constexpr size_t kItemCount = 6;
+constexpr size_t kItemCount = 7;
 
 void TestReportShape() {
     const FakeMachine complete = CompleteMachine();
     const setup::Report report = setup::CheckSetup(complete.Make());
     const std::vector<std::string> expected = {
-        ffmpeg::kDiagnosisKey,     setup::kWhisperModelItem,
-        setup::kMfaItem,           setup::kAgentKeyItem,
-        setup::kArchiveBackupItem, setup::kVoiceOverItem};
+        ffmpeg::kDiagnosisKey,
+        setup::kWhisperModelItem,
+        setup::kWhisperHesitationsModelItem,
+        setup::kMfaItem,
+        setup::kAgentKeyItem,
+        setup::kArchiveBackupItem,
+        setup::kVoiceOverItem};
     std::vector<std::string> ids;
     ids.reserve(report.items.size());
     for (const setup::Item& item : report.items) {
@@ -456,6 +477,71 @@ void TestWhisperModelItem() {
         Check(FoundText(item, "origin") == "settings_file" &&
                   Contains(item.detail, std::string("from '") + kSettingsFile),
               "from the settings file: " + item.detail);
+    }
+}
+
+// AL4 -- the s075 weights for French verbatim: optional, and verified.
+void TestWhisperHesitationsModelItem() {
+    FakeMachine machine = CompleteMachine();
+    const auto hesitations = [&machine] {
+        return ItemOf(setup::CheckSetup(machine.Make()),
+                      "whisper_hesitations_model");
+    };
+    {
+        const setup::Item item = hesitations();
+        const Value* verified = item.found.Find("verified");
+        const Value* evaluated = item.found.Find("evaluated");
+        Check(item.state == setup::State::kOk && !item.required &&
+                  FoundText(item, "path") == kHesitationsPath &&
+                  verified != nullptr && verified->IsBool() &&
+                  verified->AsBool() && evaluated != nullptr &&
+                  evaluated->IsBool() && evaluated->AsBool() &&
+                  Contains(item.detail, "SHA-256 verified") &&
+                  item.repair.empty(),
+              "the evaluated weights: ok, verified: " + item.detail);
+    }
+
+    machine.verified_weights.clear();
+    {
+        const setup::Item item = hesitations();
+        const Value* verified = item.found.Find("verified");
+        Check(item.state == setup::State::kOk && verified != nullptr &&
+                  verified->IsBool() && !verified->AsBool() &&
+                  item.found.Find("evaluated") == nullptr &&
+                  Contains(item.detail, "not verified"),
+              "weights not verified: ok, and said: " + item.detail);
+    }
+
+    machine.verified_weights[kHesitationsPath] = false;
+    {
+        const setup::Item item = hesitations();
+        Check(
+            item.state == setup::State::kIncomplete &&
+                Contains(item.detail, "not the evaluated s075 weights") &&
+                Contains(item.repair, "CUTMACHINE_WHISPER_HESITATIONS_MODEL") &&
+                Contains(item.repair, "5b05a0870a122a83"),
+            "other weights: incomplete, with the digest to look for: " +
+                item.detail);
+    }
+
+    machine.files.erase(kHesitationsPath);
+    {
+        const setup::Item item = hesitations();
+        Check(item.state == setup::State::kIncomplete &&
+                  Contains(item.detail, "not a readable, non-empty file"),
+              "a path to nothing: incomplete: " + item.detail);
+    }
+
+    machine.settings.erase("CUTMACHINE_WHISPER_HESITATIONS_MODEL");
+    {
+        const setup::Item item = hesitations();
+        Check(item.state == setup::State::kOptionalAbsent && !item.required &&
+                  item.found.IsNull() && Contains(item.repair, kSettingsFile),
+              "unset: optional and absent: " + item.detail);
+        Check(
+            ItemOf(setup::CheckSetup(machine.Make()), "whisper_model").state ==
+                setup::State::kOk,
+            "the model does not depend on it");
     }
 }
 
@@ -1051,6 +1137,7 @@ int main() {
         Test("report shape", TestReportShape);
         Test("ffmpeg item", TestFfmpegItem);
         Test("whisper_model item", TestWhisperModelItem);
+        Test("whisper_hesitations_model item", TestWhisperHesitationsModelItem);
         Test("mfa item", TestMfaItem);
         Test("agent_key item", TestAgentKeyItem);
         Test("archive_backup item", TestArchiveBackupItem);

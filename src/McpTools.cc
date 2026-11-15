@@ -1626,6 +1626,7 @@ const std::vector<std::pair<std::string, McpToolClass>>& ToolClassTable() {
         {"align_transcript", C::Analysis},
         {"align_words", C::Analysis},
         {"analyze_speakers", C::Analysis},
+        {"analyze_person_matte", C::Analysis},
         // The timeline's journal: ApplyOperation, ApplyPreparedOperation,
         // undo, redo, the regrouping of an intervention, and a Resolve
         // timeline read in as operations appended to that journal.
@@ -2340,13 +2341,14 @@ McpToolRegistry::McpToolRegistry(const McpToolProfile& profile)
         "align_words",          "export_timeline",
         "export_timelines",     "render_motion_video",
         "measure_audio_offset", "propose_ducking",
-        "analyze_speakers"};
+        "analyze_speakers",     "analyze_person_matte"};
     static const std::vector<std::string> kCacheWritingAnalyses = {
         "transcribe_media",        "transcribe_timeline",
         "align_transcript",        "align_words",
         "analyze_speech_onset",    "analyze_shot_quality",
         "analyze_audio_beats",     "analyze_hesitations",
-        "analyze_isolated_frames", "analyze_speakers"};
+        "analyze_isolated_frames", "analyze_speakers",
+        "analyze_person_matte"};
     static const std::vector<std::string> kProjectMutations = {
         "create_project",
         "ingest_media",

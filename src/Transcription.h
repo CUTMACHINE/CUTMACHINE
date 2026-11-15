@@ -149,6 +149,31 @@ bool TranscriptCacheMatches(const Transcript& transcript,
                             const std::string& mediaId,
                             const WhisperSettings& settings);
 
+// AL4 -- docs/roadmap/ALIGNEMENT-2026-11.md. Sets settings.decoding_profile
+// and settings.whisper_model_path from what the caller asked
+// (ResolveWhisperDecodingProfile), with the settings' language and verbatim
+// mode, their model as the model, and `hesitationsModel` (empty: none).
+// Before any cache is read: profile and weights are part of its identity,
+// and the profile of a timeline cache's path.
+bool ResolveWhisperSettings(const WhisperDecodingRequest& request,
+                            const std::string& hesitationsModel,
+                            MediaTaskContext& context,
+                            WhisperSettings& settings,
+                            WhisperDecodingChoice& choice, std::string& error);
+
+// ITW9, AL4 -- the passes the transcription command makes again. The plain
+// pass completing a likely_incomplete verbatim one decodes as `default` with
+// the model, `configured` being the settings before the resolution: a
+// profile and its weights hold for the verbatim decoding they were
+// evaluated on.
+WhisperSettings PlainFallbackSettings(const WhisperSettings& configured);
+// The pass made again with the ellipsis forbidden: verbatim, it decodes as
+// the verbatim pass it repairs (`resolved`, profile and weights); plain, as
+// the plain fallback.
+WhisperSettings EllipsisRedoSettings(const WhisperSettings& resolved,
+                                     const WhisperSettings& configured,
+                                     bool verbatim);
+
 // ALPHA-2026-08 -- the model path is the one thing standing between the
 // agent and a transcript it can produce rather than only read. It cannot be a
 // tool argument (an agent has no way to know where a human keeps a ggml file,
@@ -163,6 +188,19 @@ bool ResolveConfiguredWhisperModel(std::string& path, std::string& reason);
 
 // The machine-local setting that names the model.
 inline constexpr const char* kWhisperModelVariable = "CUTMACHINE_WHISPER_MODEL";
+
+// AL4 -- docs/roadmap/ALIGNEMENT-2026-11.md. The machine-local setting that
+// names the weights fr-hesitations-v1 was evaluated with, read like the
+// model's (the environment, then the settings file). Optional: unset, French
+// verbatim decodes with the model as before. The s075 weights serve French
+// verbatim only, never as the model: on an English take they stopped where
+// large-v3 went on.
+inline constexpr const char* kWhisperHesitationsModelVariable =
+    "CUTMACHINE_WHISPER_HESITATIONS_MODEL";
+
+// Its value; empty when unset. Whether the weights are the evaluated ones is
+// ResolveWhisperDecodingProfile's question.
+std::string ConfiguredWhisperHesitationsModel();
 
 // PRD21 -- docs/roadmap/PRODUIT-2026-10b.md. The same resolution on values
 // the caller supplies: `configured` is the setting's value, `settingsFile`

@@ -6,6 +6,8 @@
 
 #include "LinkGroupRepair.h"
 #include "McpToolsInternal.h"
+#include "MediaTaskManager.h"
+#include "PersonMatte.h"
 
 using namespace mcp_tools;
 
@@ -258,10 +260,11 @@ bool DispatchSetClipMask(McpBackend& backend, const IdResolver& resolver,
         !ReadBool(args, "inverted", tool, false, op.mask.inverted, message))
         return Fail(errorName, message, message);
     if (shape != "none" && shape != kClipMaskRectangle &&
-        shape != kClipMaskEllipse)
-        return Fail(
-            errorName, message,
-            "'" + tool + ".shape' must be 'rectangle', 'ellipse' or 'none'");
+        shape != kClipMaskEllipse && shape != kClipMaskPerson)
+        return Fail(errorName, message,
+                    "'" + tool +
+                        ".shape' must be 'rectangle', 'ellipse', 'person' or "
+                        "'none'");
     const auto readFraction = [&](const char* key, EffectParamValue& value) {
         const Value* field = args.Find(key);
         if (field == nullptr || field->IsNull()) return true;
@@ -285,10 +288,145 @@ bool DispatchSetClipMask(McpBackend& backend, const IdResolver& resolver,
                                 "it");
         }
         op.mask = ClipMask{};
+    } else if (shape == kClipMaskPerson) {
+        // PA15 -- the matte is the shape: nothing places it but the people.
+        for (const char* key :
+             {"center_x", "center_y", "width", "height", "feather"}) {
+            if (args.Find(key) != nullptr)
+                return Fail(errorName, message,
+                            "'" + tool + "." + key +
+                                "' places a shape, and shape 'person' "
+                                "follows the matte of the people");
+        }
+        op.mask.shape = shape;
+        // The matte is computed once, by analyze_person_matte: refused now,
+        // by name, rather than at the export an hour later.
+        Document document;
+        if (!backend.SnapshotDocument(document, message))
+            return Fail(errorName, message, message);
+        const DocumentClip* clip = document.FindClip(op.clip_id);
+        const std::string package = backend.PackageDirectory();
+        if (clip != nullptr && !package.empty()) {
+            std::string path;
+            person_matte::Info info;
+            std::string matteError;
+            if (!person_matte::MatteForMedia(document, package, clip->source_id,
+                                             path, info, matteError)) {
+                errorName = "MatteMissing";
+                message = matteError;
+                return false;
+            }
+        }
     } else {
         op.mask.shape = shape;
     }
     return backend.ApplyOperation(op, resultJson, errorName, message);
+}
+
+// PA15 -- docs/roadmap/PARITE-2026-11.md. The roto: the matte of the
+// people a media shows, computed once on this machine by Vision's person
+// segmentation and kept in the package (PersonMatte.h), for set_clip_mask
+// with shape 'person'. Run on the call's task when it has one, so that
+// cancel_task stops it and its progress is the task's; otherwise as a task
+// of a manager of its own, as the voice-over runs (McpVoiceTools.cc).
+bool DispatchAnalyzePersonMatte(McpBackend& backend, const IdResolver& resolver,
+                                const Value& args, std::string& resultJson,
+                                std::string& errorName, std::string& message) {
+    const std::string tool = "analyze_person_matte";
+    static const std::vector<std::string> kAllowed = {"media_id", "quality"};
+    if (!CheckKnownKeys(args, kAllowed, tool, message))
+        return Fail(errorName, message, message);
+    Ulid mediaId;
+    std::string quality;
+    if (!ReadId(args, "media_id", tool, resolver, true, mediaId, message) ||
+        !ReadString(args, "quality", tool, false,
+                    person_matte::kQualityAccurate, quality, message))
+        return Fail(errorName, message, message);
+    if (quality != person_matte::kQualityAccurate &&
+        quality != person_matte::kQualityBalanced &&
+        quality != person_matte::kQualityFast)
+        return Fail(errorName, message,
+                    "'" + tool +
+                        ".quality' is 'accurate' (default), 'balanced' or "
+                        "'fast'");
+    if (person_matte::CurrentSegmenter() == nullptr) {
+        errorName = "UnsupportedOperation";
+        message =
+            "no person segmenter in this process: the roto needs Vision, "
+            "which only the macOS cutmachine executable installs";
+        return false;
+    }
+    const std::string package = backend.PackageDirectory();
+    if (package.empty()) {
+        errorName = "UnsupportedOperation";
+        message =
+            "no project package is open: the matte is kept in the package";
+        return false;
+    }
+    Document document;
+    if (!backend.SnapshotDocument(document, message))
+        return Fail(errorName, message, message);
+    const LibraryMedia* media = document.FindLibraryMedia(mediaId);
+    if (media == nullptr) {
+        errorName = "UnknownMedia";
+        message = "unknown media_id '" + mediaId + "'";
+        return false;
+    }
+    const std::string label = "Roto " + media->filename;
+    person_matte::ComputeResult computed;
+    MediaTaskManager::Work work = [&](MediaTaskContext& context,
+                                      std::string& error) {
+        return person_matte::Compute(
+            document, package, mediaId, quality, std::string(),
+            [&context](int64_t done, int64_t announced) {
+                if (announced > 0)
+                    context.SetProgress(
+                        std::min(1.0, static_cast<double>(done) / announced),
+                        std::to_string(done) + "/" + std::to_string(announced));
+                return !context.Cancelled();
+            },
+            computed, error);
+    };
+    const MediaTaskRunner runner = backend.BackgroundTaskRunner();
+    MediaTaskSnapshot task;
+    if (runner) {
+        task = runner(MediaTaskKind::PersonMatte, label, std::move(work));
+    } else {
+        MediaTaskManager tasks(1);
+        task = RunMediaTaskAndWait(tasks, MediaTaskKind::PersonMatte, label,
+                                   std::move(work));
+    }
+    if (task.state == MediaTaskState::Cancelled) {
+        errorName = "Cancelled";
+        message = "the matte was cancelled: nothing was kept";
+        return false;
+    }
+    if (task.state != MediaTaskState::Succeeded) {
+        errorName = "AnalysisFailed";
+        message =
+            task.error.empty() ? "the matte could not be computed" : task.error;
+        return false;
+    }
+    Value reply = Value::MakeObject();
+    reply.Set("media_id", Value::MakeString(mediaId));
+    reply.Set("model", Value::MakeString(computed.info.model));
+    reply.Set("quality", Value::MakeString(computed.info.quality));
+    reply.Set("frames", Value::MakeInt(computed.info.frames));
+    reply.Set("announced_frames", Value::MakeInt(computed.announced_frames));
+    reply.Set("width", Value::MakeInt(computed.info.width));
+    reply.Set("height", Value::MakeInt(computed.info.height));
+    reply.Set("seconds",
+              Value::MakeInt(static_cast<int64_t>(computed.seconds + 0.5)));
+    reply.Set("path", Value::MakeString(computed.path));
+    reply.Set("next",
+              Value::MakeString(
+                  "set_clip_mask {clip_id, shape: 'person'} on a clip of "
+                  "this media keeps its people and lets the tracks below "
+                  "show around them ('inverted': true keeps everything but "
+                  "them). Vision finds every person in the picture, not "
+                  "one of them. read_frame shows the result."));
+    resultJson = reply.Dump();
+    return true;
 }
 
 // R3 -- docs/roadmap/REEL-2026-09.md.
@@ -1186,15 +1324,21 @@ void RegisterClipTools(const McpToolAdder& add) {
         "fractions of the displayed rush (crops ignored), so the mask follows "
         "the picture when its framing moves or zooms. An 'ellipse' is the one "
         "inscribed in that rectangle. 'feather' softens the edge inwards, "
-        "from 0 (hard) to 1 (a fade from the edge to the centre). The mask is "
+        "from 0 (hard) to 1 (a fade from the edge to the centre). shape "
+        "'person' is the roto: the people the clip shows, cut out frame by "
+        "frame from the matte analyze_person_matte computed for its media "
+        "(no centre, size or feather; 'inverted' keeps all but them) -- for "
+        "a title behind someone, a new background, the background blurred "
+        "on a copy below. The mask is "
         "a coverage the colours never see, mixed with what is below as an "
         "opacity is. shape 'none' removes it. list_clip_framing says where "
         "the picture lies; read_frame shows the result.",
         SchemaBuilder()
             .Field("clip_id", IdSchema("Video clip to mask."), true)
             .Field("shape",
-                   EnumSchema({"rectangle", "ellipse", "none"},
-                              "The shape; 'none' removes the mask."),
+                   EnumSchema({"rectangle", "ellipse", "person", "none"},
+                              "The shape; 'person' follows the people; "
+                              "'none' removes the mask."),
                    true)
             .Field("center_x",
                    FractionSchema("Centre across, as a fraction of the "
@@ -1220,6 +1364,27 @@ void RegisterClipTools(const McpToolAdder& add) {
                    BoolSchema("true keeps what is outside the shape."), false)
             .Build("set_clip_mask arguments"),
         DispatchSetClipMask);
+
+    // PA15 -- docs/roadmap/PARITE-2026-11.md.
+    add("analyze_person_matte",
+        "Compute the roto of one media: the people its picture shows, cut "
+        "out frame by frame by Vision's person segmentation, on this machine "
+        "(free, nothing leaves it), and kept in the package. Then "
+        "set_clip_mask {shape: 'person'} cuts any clip of this media out "
+        "along it. Every person in the picture is kept, not one of them. "
+        "'accurate' (default) is about 75 ms a frame on an Apple silicon "
+        "Mac, a minute for a 30 s shot at 25 fps: use async on a long rush. "
+        "A new run replaces the media's matte once it is whole.",
+        SchemaBuilder()
+            .Field("media_id", IdSchema("Media whose people to cut out."), true)
+            .Field("quality",
+                   EnumSchema({"accurate", "balanced", "fast"},
+                              "Vision's level: 'accurate' (default) keeps "
+                              "hair, 'balanced' and 'fast' are coarser and "
+                              "about twice as fast."),
+                   false)
+            .Build("analyze_person_matte arguments"),
+        DispatchAnalyzePersonMatte);
 
     add("set_clip_speed",
         "Set a clip's speed, constant or ramped. 'speed' is one exact "

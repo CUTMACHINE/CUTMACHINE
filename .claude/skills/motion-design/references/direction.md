@@ -30,10 +30,9 @@ texture ni ombre ; les formes et le texte bougent, pas la lumière.
 ## Temps de lecture
 
 Planchers de sous-titrage (0,83 s chez Netflix, 0,35 s par mot à la BBC,
-15 caractères par seconde pour le CSA belge), non mesurés sur un film de
-l'auteur ; un texte qui porte le message (accroche, promesse, signature) se
-compte deux fois. Dans le générateur, la durée se calcule, et le script
-refuse un carton trop court :
+15 caractères par seconde pour le CSA belge) ; un texte qui porte le
+message (accroche, promesse, signature) se compte deux fois. Dans le
+générateur, la durée se calcule, et le script refuse un carton trop court :
 
 ```python
 def lecture(texte, fps, fois=1):
@@ -46,8 +45,8 @@ assert debut_sortie - fin_entree >= lecture(texte, FPS), texte
 
 L'entrée et la sortie ne se comptent pas, ni un volet à mi-course ou un
 flou qui se résout. **Une image à comparer, ou un texte posé sur une image
-qui bouge, se lit plus lentement.** Aucun chiffre n'a été mesuré ici :
-prends au moins la lecture comptée deux fois.
+qui bouge, se lit plus lentement** : prends au moins la lecture comptée
+deux fois.
 
 ## Son
 
@@ -55,11 +54,10 @@ Le son fait la moitié de la qualité perçue ; ne livre pas muet sans qu'on
 l'ait demandé.
 
 - Un bruitage marque un geste qui compte, deux à trois images avant
-  l'image ; posés sur chaque carton, ils ont été jugés « trop
-  systématiques ».
+  l'image ; posé sur chaque carton, il devient systématique.
 - Un changement d'écran prend un whoosh réel, différent à chaque coupe,
-  son pic sur la coupe ; des sons générés y ont été entendus comme « des
-  sons de marqueurs ».
+  son pic sur la coupe ; un son généré s'y entend comme un bip de
+  marqueur.
 - Une musique en boucle n'a pas de fin, et un fondu n'en est pas une : cale
   le retour de sa boucle sur le coup final et laisse-le résonner.
 - Lit musical bas (gain 0,2 à 0,3), plus bas sous une voix (≈ 0,126,

@@ -120,6 +120,7 @@ extern "C" {
 #include "PanelLayout.h"
 #include "PauseTightening.h"
 #include "PerformanceMetrics.h"
+#include "PersonMatte.h"
 #include "PlaybackPresentation.h"
 #include "PlaybackReader.h"
 #include "PlaybackReads.h"
@@ -274,6 +275,9 @@ struct PendingTranscription {
     Ulid timeline_id;
     Ulid batch_id;
     std::filesystem::path absolute_path;
+    // AL4 -- « Transcrire les hésitations (français)… »: a failure is shown
+    // as the refusal it is.
+    bool hesitations = false;
 };
 
 struct PendingTimelineTranscription {
@@ -281,6 +285,7 @@ struct PendingTimelineTranscription {
     std::set<Ulid> task_ids;
     std::map<Ulid, std::filesystem::path> transcript_paths;
     std::string error;
+    bool hesitations = false;
 };
 
 struct RelinkProbeResult {
@@ -399,6 +404,19 @@ struct AppState {
     // above).
     LoadedLookLut lookLut;
     std::set<std::string> reportedLookLuts;
+    // PA15 -- docs/roadmap/PARITE-2026-11.md. The mattes of the media whose
+    // clips are cut out along their people, open for Record to read the
+    // frame each slot shows (PersonMatte.h); reopened when the file is
+    // computed again. `matteFrames` holds each slot's frame for the render
+    // that reads it. `reportedMattes` keeps a missing matte said once.
+    struct OpenPersonMatte {
+        std::string path;
+        std::filesystem::file_time_type written;
+        std::unique_ptr<person_matte::Reader> reader;
+    };
+    std::map<Ulid, OpenPersonMatte> personMattes;
+    std::vector<std::vector<uint8_t>> matteFrames;
+    std::set<std::string> reportedMattes;
     std::unique_ptr<PerformanceMetrics> performanceMetrics;
     std::unique_ptr<AudioPlayback> audioPlayback;
     // Out of lot -- the author, 29 October 2026: the source monitor plays,
@@ -1064,10 +1082,12 @@ using namespace cutmachine_app;
 - (void)saveProjectPressed:(id)sender;
 - (void)transcribeSelectedMedia:(id)sender;
 - (void)transcribeSelectedMediaHesitations:(id)sender;
-- (void)transcribeSelectedMediaWithProfile:(WhisperDecodingProfile)profile;
+- (void)transcribeSelectedMediaFrenchVerbatim:(BOOL)frenchVerbatim;
+- (BOOL)hesitationsWeightsAllowed;
+- (void)showHesitationsRefusal:(const std::string&)detail;
 - (void)transcribeTimeline:(id)sender;
 - (void)transcribeTimelineHesitations:(id)sender;
-- (void)transcribeTimelineWithProfile:(WhisperDecodingProfile)profile;
+- (void)transcribeTimelineFrenchVerbatim:(BOOL)frenchVerbatim;
 - (void)chooseWhisperModel:(id)sender;
 - (NSString*)requestWhisperModelPath;
 - (NSString*)transcriptionModelPath;
@@ -1118,7 +1138,9 @@ using namespace cutmachine_app;
 - (void)enqueueThumbnailForMediaIdentifier:(NSString*)identifier;
 - (Ulid)enqueueTranscriptionForMediaIdentifier:(NSString*)identifier
                                       settings:(const WhisperSettings&)settings
-                                       batchId:(const Ulid&)batchId;
+                                       batchId:(const Ulid&)batchId
+                                    reuseCache:(BOOL)reuseCache
+                                   hesitations:(BOOL)hesitations;
 @end
 
 // The icon under a point of the media browser, which the harness aims at;

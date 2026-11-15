@@ -11,6 +11,7 @@
 // Plain C++ and POSIX: no AppKit, no Whisper model, no network.
 
 #include "LocalEnv.h"
+#include "MediaTaskManager.h"
 #include "Transcription.h"
 #include "Ulid.h"
 #include "WhisperModelSetting.h"
@@ -390,6 +391,118 @@ void TestMigration(const fs::path& root) {
     });
 }
 
+// AL4 -- « Transcrire les hésitations (français)… » runs on the
+// hesitations weights or refuses, saying why and what to set. A three-byte
+// file stands for the weights (the SHA-256 of "abc", FIPS 180-2).
+void TestHesitations(const fs::path& root) {
+    using whisper_model_setting::HesitationsFacts;
+    using whisper_model_setting::HesitationsProblem;
+    using whisper_model_setting::HesitationsWeightsProblem;
+    using whisper_model_setting::RefuseHesitations;
+    const fs::path evaluated = root / "weights" / "evaluated.bin";
+    const fs::path other = root / "weights" / "other.bin";
+    WriteAll(evaluated, "abc");
+    WriteAll(other, "abd");
+    const ScopedEvaluatedWhisperModelForTesting identity(
+        3, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+
+    Test("the hesitations action knows what refuses before reading", [&] {
+        HesitationsFacts facts;
+        facts.settings_file = "/machine/.config/cutmachine/.env";
+        Check(HesitationsWeightsProblem(facts) == HesitationsProblem::kUnset,
+              "unset");
+        facts.path = (root / "nowhere.bin").string();
+        Check(
+            HesitationsWeightsProblem(facts) == HesitationsProblem::kUnreadable,
+            "a path to nothing");
+        facts.path = other.string();
+        facts.readable = true;
+        Check(
+            HesitationsWeightsProblem(facts) == HesitationsProblem::kUnverified,
+            "a file not read yet: the task decides");
+        facts.evaluated = false;
+        Check(HesitationsWeightsProblem(facts) ==
+                  HesitationsProblem::kOtherWeights,
+              "other weights");
+        facts.evaluated = true;
+        Check(HesitationsWeightsProblem(facts) == HesitationsProblem::kNone,
+              "the evaluated weights");
+    });
+
+    Test("each refusal says why and what to set", [&] {
+        HesitationsFacts facts;
+        facts.settings_file = "/machine/.config/cutmachine/.env";
+        const auto unset = RefuseHesitations(HesitationsProblem::kUnset, facts);
+        facts.path = "/models/elsewhere.bin";
+        const auto unreadable =
+            RefuseHesitations(HesitationsProblem::kUnreadable, facts);
+        const auto weights =
+            RefuseHesitations(HesitationsProblem::kOtherWeights, facts);
+        for (const auto& refusal : {unset, unreadable, weights}) {
+            Check(refusal.title == "Transcription des hésitations impossible" &&
+                      Contains(refusal.detail,
+                               "Réglez CUTMACHINE_WHISPER_HESITATIONS_MODEL") &&
+                      Contains(refusal.detail,
+                               "/machine/.config/cutmachine/.env") &&
+                      Contains(refusal.detail, "5b05a0870a122a83"),
+                  "the setting, the file and the weights to look for: " +
+                      refusal.detail);
+        }
+        Check(Contains(unset.detail, "ne sont pas réglés"), unset.detail);
+        Check(Contains(unreadable.detail, "/models/elsewhere.bin") &&
+                  Contains(unreadable.detail, "pas un fichier lisible"),
+              unreadable.detail);
+        Check(Contains(weights.detail, "n'est pas les poids s075 évalués"),
+              weights.detail);
+        Check(
+            RefuseHesitations(HesitationsProblem::kNone, facts).detail.empty(),
+            "nothing to refuse, nothing said");
+    });
+
+    Test("this process's facts come from the engine's setting", [&] {
+        ::unsetenv(kWhisperHesitationsModelVariable);
+        Check(whisper_model_setting::CurrentHesitationsFacts().path.empty(),
+              "unset");
+        ::setenv(kWhisperHesitationsModelVariable, other.c_str(), 1);
+        const HesitationsFacts facts =
+            whisper_model_setting::CurrentHesitationsFacts();
+        Check(facts.path == other.string() && facts.readable &&
+                  !facts.evaluated.has_value(),
+              "a readable file, not read by the main thread");
+        ::unsetenv(kWhisperHesitationsModelVariable);
+    });
+
+    Test("the task reads the weights and refuses others", [&] {
+        MediaTaskManager manager;
+        const auto ready = [&](const HesitationsFacts& facts,
+                               std::string& error) {
+            bool result = false;
+            manager.Enqueue(
+                MediaTaskKind::Transcription, "hesitations",
+                [&](MediaTaskContext& context, std::string&) {
+                    result = whisper_model_setting::HesitationsWeightsReady(
+                        facts, context, error);
+                    return true;
+                });
+            Check(manager.WaitForIdle(30000), "the check terminates");
+            return result;
+        };
+        HesitationsFacts facts;
+        facts.path = evaluated.string();
+        facts.readable = true;
+        std::string error;
+        Check(ready(facts, error) && error.empty(),
+              "the evaluated weights: ready: " + error);
+        facts.path = other.string();
+        Check(!ready(facts, error) &&
+                  Contains(error, "n'est pas les poids s075 évalués"),
+              "other weights of the same size: refused, said: " + error);
+        facts = HesitationsFacts();
+        Check(!ready(facts, error) && Contains(error, "ne sont pas réglés"),
+              "unset: refused: " + error);
+    });
+}
+
 }  // namespace
 
 int main() {
@@ -405,6 +518,7 @@ int main() {
         TestWriteFileValue(root);
         TestChoice(root);
         TestMigration(root);
+        TestHesitations(root);
 
         Check(!fs::exists(root / "home" / ".config"),
               "nothing was written under the made-up home");

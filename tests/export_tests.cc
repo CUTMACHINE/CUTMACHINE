@@ -17,6 +17,7 @@
 #include "McpTools.h"
 #include "Multicam.h"
 #include "ProjectStorage.h"
+#include "SourceGrid.h"
 #include "Timeline.h"
 #include "TimelineAudioReport.h"
 #include "TimelineCheck.h"
@@ -147,6 +148,47 @@ bool WriteNumberedSource(const std::filesystem::path& path, MediaRate rate,
     const bool encoded = std::system(encode.c_str()) == 0;
     std::filesystem::remove(raw);
     return encoded;
+}
+
+// VF1, VF2 -- docs/roadmap/VFR-2026-11.md. A numbered source whose pictures
+// drift around the 1/30 s grid the way a phone's do: the first at zero,
+// then a hole of 1.6 frames, then a picture every 1/30 s give or take 3 ms.
+// Its timestamps are written exactly (VariableRateTicks, at 1/90000 s), so
+// the test knows which picture sits where.
+int64_t VariableRateTicks(int64_t picture) {
+    if (picture == 0) return 0;
+    return (picture * 3000) + 4800 + ((((picture * 37) % 7) - 3) * 90);
+}
+
+bool WriteVariableRateNumberedSource(const std::filesystem::path& path,
+                                     int frames) {
+    const auto plain = path.string() + ".plain.mp4";
+    if (!WriteNumberedSource(plain, {30, 1}, frames)) return false;
+    const std::string retime =
+        Quote(FFMPEG_EXECUTABLE) + " -hide_banner -loglevel error -i " +
+        Quote(plain) +
+        " -vf \"settb=1/90000,setpts='if(eq(N,0),0,N*3000+4800+"
+        "(mod(N*37,7)-3)*90)'\" -fps_mode passthrough -enc_time_base 1/90000 "
+        "-video_track_timescale 90000 -c:v libx264 -crf 0 -g 12 -bf 0 "
+        "-pix_fmt yuv420p -y " +
+        Quote(path.string());
+    const bool written = std::system(retime.c_str()) == 0;
+    std::filesystem::remove(plain);
+    return written;
+}
+
+// The picture a grid frame names (SourceGrid.h), worked out from the
+// timestamps the source was written with: the latest whose step is the
+// frame or before it.
+int64_t VariableRatePictureAt(int64_t gridFrame, int pictures) {
+    int64_t shown = 0;
+    for (int64_t picture = 0; picture < pictures; ++picture) {
+        if (SourceGridStep(VariableRateTicks(picture), 0, {1, 90000},
+                           {30, 1}) <= gridFrame) {
+            shown = picture;
+        }
+    }
+    return shown;
 }
 
 // Returns the source index shown by every frame of `path`, or -1 where the
@@ -1256,30 +1298,30 @@ void CheckWheelsAndCurvesExport(const std::filesystem::path& directory) {
 // argument, filter graph included: same process, same file. Recorded from
 // the exporter at 27a3f88, with its temporary paths named. DEC28 --
 // docs/roadmap/REEL-2026-09.md: each clip's `overlay` now names the 10-bit
-// 4:4:4 format its canvas has, the one change since, decided on 23 October
-// 2026.
+// 4:4:4 format its canvas has, decided on 23 October 2026. VF1 --
+// docs/roadmap/VFR-2026-11.md: each picture is read on its source's grid
+// (SourceGrid.h) -- `-t` and `-copyts` on its input instead of `-ss`, and a
+// chain that anchors the grid, trims to the frames shown and starts at
+// zero -- decided on 15 November 2026; the sound keeps its `-ss`.
 constexpr const char* kUnmanagedArguments = R"GOLDEN(-hide_banner
 -nostdin
 -y
 -progress
 pipe:1
 -nostats
--ss
-0.0
 -t
-0.48
+1.520000
+-copyts
 -i
 <source>
--ss
-0.32
 -t
-0.28
+1.640000
+-copyts
 -i
 <source>
--ss
-0.4
 -t
-0.2
+1.640000
+-copyts
 -i
 <source>
 -ss
@@ -1297,7 +1339,7 @@ image2
 -i
 <captions0>/%06d.png
 -filter_complex
-color=c=black:s=320x180:r=25/1:d=0.8,format=yuv444p10le,setparams=colorspace=bt709[base0];[0:v:0]fps=25/1,scale=320:180:force_original_aspect_ratio=decrease:flags=lanczos,setsar=1,setparams=colorspace=bt709,format=gbrp16le,lut3d=file='<grade0>':interp=trilinear,setpts=PTS-STARTPTS+5[v0];[base0][v0]overlay=format=yuv444p10:x=(W-w)/2:y=(H-h)/2:eof_action=repeat:repeatlast=1:shortest=0:enable=gte(t\,((9*1)/50))*lt(t\,((33*1)/50))[base1];[1:v:0]fps=25/1,scale=320:180:force_original_aspect_ratio=decrease:flags=lanczos,setsar=1,setparams=colorspace=bt709,format=yuva444p10le,fade=t=in:s=0:n=4:alpha=1,setpts=PTS-STARTPTS+13[v1];[base1][v1]overlay=format=yuv444p10:x=(W-w)/2:y=(H-h)/2:eof_action=repeat:repeatlast=1:shortest=0:enable=gte(t\,((25*1)/50))*lt(t\,((39*1)/50))[base2];[2:v:0]fps=25/1,scale=320:180:force_original_aspect_ratio=decrease:flags=lanczos,setsar=1,setparams=colorspace=bt709,format=yuva444p10le,colorchannelmixer=aa=(2/3),setpts=PTS-STARTPTS+10[v2];[base2][v2]overlay=format=yuv444p10:x=(W-w)/2:y=(H-h)/2:eof_action=repeat:repeatlast=1:shortest=0:enable=gte(t\,((19*1)/50))*lt(t\,((29*1)/50))[base3];[base3]format=yuv420p10le,null[captionbase];[4:v]setpts=PTS-STARTPTS+0,format=rgba,scale=out_color_matrix=bt709:out_range=tv,format=yuva444p10le[captions];[captionbase][captions]overlay=format=yuv420p10:eof_action=pass:shortest=0[captioned];[captioned]format=yuv420p10le,setparams=range=limited:color_primaries=bt709:color_trc=bt709:colorspace=bt709[video];[3:a:0]atrim=duration=0.4,asetpts=PTS-STARTPTS,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,afade=t=in:st=0:d=0.003,afade=t=out:st=0.397:d=0.003,adelay=9600S:all=1[a0];[a0]amix=inputs=1:duration=longest:normalize=0,alimiter=limit=0.668344:level=0:latency=1,apad,atrim=duration=0.8[audio]
+color=c=black:s=320x180:r=25/1:d=0.8,format=yuv444p10le,setparams=colorspace=bt709[base0];[0:v:0]setpts=PTS-0,fps=25/1:start_time=0,trim=start_frame=0,setpts=PTS-STARTPTS,trim=end_frame=12,scale=320:180:force_original_aspect_ratio=decrease:flags=lanczos,setsar=1,setparams=colorspace=bt709,format=gbrp16le,lut3d=file='<grade0>':interp=trilinear,setpts=PTS-STARTPTS+5[v0];[base0][v0]overlay=format=yuv444p10:x=(W-w)/2:y=(H-h)/2:eof_action=repeat:repeatlast=1:shortest=0:enable=gte(t\,((9*1)/50))*lt(t\,((33*1)/50))[base1];[1:v:0]setpts=PTS-0,fps=25/1:start_time=0,trim=start_frame=8,setpts=PTS-STARTPTS,trim=end_frame=7,scale=320:180:force_original_aspect_ratio=decrease:flags=lanczos,setsar=1,setparams=colorspace=bt709,format=yuva444p10le,fade=t=in:s=0:n=4:alpha=1,setpts=PTS-STARTPTS+13[v1];[base1][v1]overlay=format=yuv444p10:x=(W-w)/2:y=(H-h)/2:eof_action=repeat:repeatlast=1:shortest=0:enable=gte(t\,((25*1)/50))*lt(t\,((39*1)/50))[base2];[2:v:0]setpts=PTS-0,fps=25/1:start_time=0,trim=start_frame=10,setpts=PTS-STARTPTS,trim=end_frame=5,scale=320:180:force_original_aspect_ratio=decrease:flags=lanczos,setsar=1,setparams=colorspace=bt709,format=yuva444p10le,colorchannelmixer=aa=(2/3),setpts=PTS-STARTPTS+10[v2];[base2][v2]overlay=format=yuv444p10:x=(W-w)/2:y=(H-h)/2:eof_action=repeat:repeatlast=1:shortest=0:enable=gte(t\,((19*1)/50))*lt(t\,((29*1)/50))[base3];[base3]format=yuv420p10le,null[captionbase];[4:v]setpts=PTS-STARTPTS+0,format=rgba,scale=out_color_matrix=bt709:out_range=tv,format=yuva444p10le[captions];[captionbase][captions]overlay=format=yuv420p10:eof_action=pass:shortest=0[captioned];[captioned]format=yuv420p10le,setparams=range=limited:color_primaries=bt709:color_trc=bt709:colorspace=bt709[video];[3:a:0]atrim=duration=0.4,asetpts=PTS-STARTPTS,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,afade=t=in:st=0:d=0.003,afade=t=out:st=0.397:d=0.003,adelay=9600S:all=1[a0];[a0]amix=inputs=1:duration=longest:normalize=0,alimiter=limit=0.668344:level=0:latency=1,apad,atrim=duration=0.8[audio]
 -map
 [video]
 -map
@@ -1591,6 +1633,132 @@ void CheckExportTaskSteps(const std::filesystem::path& directory) {
 // R4 -- docs/roadmap/REEL-2026-09.md, decided on 8 October 2026. A freeze
 // is a clip at speed 0/1: a 2 s hold at 25 i/s exports 50 frames, every one
 // the source frame asked for, and the rush's very last frame can be held.
+// VF1, VF2 -- docs/roadmap/VFR-2026-11.md. A phone's rush, counted at its
+// nominal 30/1 by ingest, exported at unit speed, at 2/1 and frozen in a
+// 30 fps timeline, then at unit speed in a 25 fps one: every exported frame
+// shows the picture the rule names on the source's grid, and verify_export
+// finds the files exact. Before this ticket the unit-speed clip, which
+// starts where the first picture after the seek is 0.6 frame late, came out
+// one picture early from its first frame to its last.
+void CheckVariableRateExport(const std::filesystem::path& directory) {
+    constexpr int kPictures = 300;
+    const auto media = directory / "variable-rate-numbered.mp4";
+    Check(WriteVariableRateNumberedSource(media, kPictures),
+          "variable rate: the numbered phone-like source is generated");
+    LibraryMedia library;
+    std::string error;
+    Check(ProbeMediaMetadata(media.string(), library, error),
+          "variable rate: the source is probed: " + error);
+    Check(library.rate.num == 30 && library.rate.den == 1,
+          "variable rate: ingest counts it at its nominal 30/1, not at its "
+          "average (" +
+              std::to_string(library.rate.num) + "/" +
+              std::to_string(library.rate.den) + ")");
+    library.id = "01K4F7W1000000000000000V01";
+    library.path = media.string();
+    library.filename = media.filename().string();
+    library.metadata_complete = true;
+
+    struct Shot {
+        int64_t timeline_in;
+        int64_t duration;
+        int64_t source_in;
+        EffectParamValue speed;
+    };
+    const auto run = [&](MediaRate sequenceRate, const std::string& label,
+                         const std::vector<Shot>& shots) {
+        Document document;
+        document.sequence.width = kCodeWidth;
+        document.sequence.height = kCodeHeight;
+        document.sequence.frame_rate = sequenceRate;
+        document.library = {library};
+        document.sources = {
+            {library.id, media.string(), library.rate, library.duration}};
+        DocumentTrack track{"01K4F7W1000000000000000V02", "video", 0, {}};
+        int number = 0;
+        int64_t end = 0;
+        for (const Shot& shot : shots) {
+            DocumentClip clip;
+            clip.id = "01K4F7W1000000000000000V1" + std::to_string(number++);
+            clip.source_id = library.id;
+            clip.source_in = {shot.source_in, 30};
+            clip.duration = {shot.duration * sequenceRate.den,
+                             sequenceRate.num};
+            clip.timeline_in = {shot.timeline_in * sequenceRate.den,
+                                sequenceRate.num};
+            clip.speed = shot.speed;
+            clip.include_audio = false;
+            track.clips.push_back(clip);
+            end = std::max(end, shot.timeline_in + shot.duration);
+        }
+        document.sequence.tracks = {track};
+        std::string validation;
+        Check(document.Validate(validation),
+              label + ": the timeline is valid: " + validation);
+
+        const auto projectPath = directory / ("variable-" + label + ".json");
+        const auto output = directory / ("variable-" + label + ".mp4");
+        ExportSettings settings = Exporter::H264Preset(output.string());
+        settings.encoder = ExportEncoder::H264Software;
+        settings.width = kCodeWidth;
+        settings.height = kCodeHeight;
+        settings.frame_rate = sequenceRate;
+        settings.ffmpeg_path = FFMPEG_EXECUTABLE;
+        ExportPlan plan;
+        std::string runError;
+        const bool rendered =
+            Exporter::BuildPlan(document, projectPath.string(), settings, plan,
+                                runError) &&
+            Exporter::Run(plan, {}, nullptr, runError);
+        Check(rendered, label + ": the timeline exports: " + runError);
+        std::vector<int> codes;
+        Check(rendered && ReadFrameCodes(output.string(), codes) &&
+                  codes.size() == static_cast<size_t>(end),
+              label + ": one exported frame per timeline frame");
+        int mismatches = 0;
+        std::string first;
+        for (size_t index = 0; index < track.clips.size(); ++index) {
+            const DocumentClip& clip = track.clips[index];
+            for (int64_t frame = 0; frame < shots[index].duration; ++frame) {
+                const int64_t at = shots[index].timeline_in + frame;
+                if (at >= static_cast<int64_t>(codes.size())) break;
+                const int64_t grid = ClipSourceFrameAt(
+                    clip,
+                    RationalTime{frame * sequenceRate.den, sequenceRate.num},
+                    library.rate);
+                const int64_t expected = VariableRatePictureAt(grid, kPictures);
+                if (codes[static_cast<size_t>(at)] != expected) {
+                    if (++mismatches <= 6) {
+                        first +=
+                            " frame " + std::to_string(at) + " shows " +
+                            std::to_string(codes[static_cast<size_t>(at)]) +
+                            ", the grid names " + std::to_string(expected);
+                    }
+                }
+            }
+        }
+        Check(mismatches == 0,
+              label + ": every frame shows the picture the grid names (" +
+                  std::to_string(mismatches) + " off:" + first + ')');
+        if (!rendered) return;
+        Check(document.Save(projectPath.string(), runError),
+              label + ": the project saves: " + runError);
+        ExportVerificationSettings verification;
+        verification.ffmpeg_path = FFMPEG_EXECUTABLE;
+        ExportVerificationReport report;
+        Check(VerifyExport(document, directory, output.string(), verification,
+                           report, runError) &&
+                  report.divergent_frames == 0 && report.exported_frames == end,
+              label + ": verify_export finds the file exact: " + runError +
+                  ' ' + SerializeExportVerification(report));
+    };
+    // Grid frame 60 of the unit-speed shot: the first picture after 2 s is
+    // picture 59, 0.6 frame late -- where the old read slipped.
+    run({30, 1}, "30",
+        {{0, 40, 60, {1, 1}}, {40, 20, 120, {2, 1}}, {60, 10, 200, {0, 1}}});
+    run({25, 1}, "25", {{0, 50, 61, {1, 1}}});
+}
+
 void CheckFreezeExport(const std::filesystem::path& directory) {
     constexpr MediaRate kRate{25, 1};
     constexpr int kSourceFrames = 100;
@@ -4623,6 +4791,7 @@ int main() {
     CheckUnmanagedArgumentsUnchanged(directory, media);
     CheckSpeedExport(directory);
     CheckFreezeExport(directory);
+    CheckVariableRateExport(directory);
     CheckGraphicsExport(directory);
     CheckRampExport(directory);
     CheckSlowedAudioExport(directory);

@@ -30,8 +30,8 @@ série ([brief.md](brief.md)).
   et compositions appartiennent au projet. En série, on n'y touche qu'avant
   de lancer les agents, ou par un seul d'entre eux.
 
-Le 3 octobre 2026, quatre interviews ont été montées ainsi : aucune timeline
-d'un autre touchée, seules des attentes dans la file des tâches.
+Les tâches de tous les agents passent par la même file : une attente n'y
+est pas une panne.
 
 ## Ce que rend une série
 

@@ -66,8 +66,9 @@ const std::vector<McpToolProfile>& McpToolProfiles() {
           "update_sequence", "add_track", "add_marker", "update_marker",
           "remove_marker", "add_transition",
           // clip
-          "set_clip_framing", "set_clip_mask", "track_subject_framing",
-          "stabilize_clip", "set_clip_audio", "set_clip_enabled",
+          "set_clip_framing", "set_clip_mask", "analyze_person_matte",
+          "track_subject_framing", "stabilize_clip", "set_clip_audio",
+          "set_clip_enabled",
           // picture: the cutaways and the look at a cut
           "analyze_shot_quality", "describe_shots", "inspect_cut",
           "list_stable_windows", "media_sheet", "read_frame", "review_cuts",

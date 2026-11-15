@@ -65,7 +65,15 @@ description exceeds 2,000 characters: Claude Code truncates beyond 2,048.
 
 Each clip is placed at a whole frame number: FFmpeg evaluates no floating-point
 division for a clip's position or activation window, which would shift about
-one clip in ten by one frame. `verify_export` then compares the delivered file
+one clip in ten by one frame. Each picture is read on its source's grid
+(see [Time decisions](decisions-de-temps.md)): the input keeps the file's
+timestamps (`-copyts`) after a seek one second ahead, and the clip's chain
+subtracts the first picture's timestamp, resamples at the source's counted
+rate (`fps=<rate>:start_time=0`) and trims to the first grid frame it shows,
+so where the seek lands decides how much is decoded, never which picture is
+shown. A clip at unit speed whose source is counted at another rate than the
+sequence is handed the explicit list of frames the rule names, as a speed
+ramp is. `verify_export` then compares the delivered file
 with the document, frame by frame, and names the ranges that diverge: frame
 offset (`offset`), a frame foreign to the clip (`wrong_picture`), a frame in a
 gap (`picture_in_gap`) or a black frame (`black_frame`). The comparison works

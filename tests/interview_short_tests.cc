@@ -603,6 +603,34 @@ int main() {
                   check.cut_but_heard[0].text == "qui" &&
                   check.cut_but_heard[1].text == "donc",
               "with the verbatim reading alone, its extra word counts too");
+
+        // AL4 -- a French verbatim reading decodes with fr-hesitations-v1
+        // by default, and is cached under that profile's name.
+        const std::filesystem::path verbatimPath = TimelineTranscriptCachePath(
+            package / ".cutmachine", montage.sequence.id, true);
+        Transcript profileReading;
+        Check(LoadAudioTranscript(verbatimPath.string(), profileReading, error),
+              "bench verbatim reading reloads: " + error);
+        profileReading.language = "fr";
+        profileReading.decoding_profile =
+            WhisperDecodingProfile::FrenchHesitationsV1;
+        Check(SaveAudioTranscript(
+                  TimelineTranscriptCachePath(
+                      package / ".cutmachine", montage.sequence.id, true,
+                      WhisperDecodingProfile::FrenchHesitationsV1)
+                      .string(),
+                  profileReading, error),
+              "bench profile reading saves: " + error);
+        Check(BuildTimelineTranscriptWordSpans(montage, transcripts, words,
+                                               error, &check) &&
+                  check.readings == 1,
+              "two verbatim readings of the same montage count as one");
+        std::filesystem::remove(verbatimPath);
+        Check(BuildTimelineTranscriptWordSpans(montage, transcripts, words,
+                                               error, &check) &&
+                  check.readings == 1 && check.cut_but_heard.size() == 2 &&
+                  check.cut_but_heard[1].text == "donc",
+              "the profile's verbatim reading is read in its place");
         std::filesystem::remove_all(package);
     }
 

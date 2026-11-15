@@ -72,6 +72,14 @@ struct FrameCaptureSettings {
     // (ClipMaskFilter); what it cuts out is shown black, the frame's own
     // colour here, since a read shows one clip alone.
     std::string mask_filter;
+    // PA15 -- docs/roadmap/PARITE-2026-11.md. A clip cut out along its
+    // people takes the matte of the frame read (PersonMatte.h) in place of
+    // a shape's filter. The caller says where the package is;
+    // ApplyClipFramingToCapture finds the matte there and names the frame.
+    std::string package_directory;
+    std::string matte_path;
+    int64_t matte_frame = 0;
+    bool matte_inverted = false;
 };
 
 // The last step before a JPEG is written, here and for the timeline sheets.

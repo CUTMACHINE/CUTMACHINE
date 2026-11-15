@@ -707,6 +707,9 @@ add_library(cutmachine_model
     # the diagnosis behind the menu).
     src/SetupNotice.cc
     src/SourceAddress.cc
+    # VFR-2026-11 -- docs/roadmap/VFR-2026-11.md. Which picture a frame number
+    # names, the same for the export, the verification and the monitor.
+    src/SourceGrid.cc
     src/DocumentDelta.cc
     src/ShotQuality.cc
     # PL1 -- docs/roadmap/PLANS-2026-10.md. Described shots: validated,
@@ -722,6 +725,9 @@ add_library(cutmachine_model
     src/Stabilization.cc
     src/StabilizationSampling.cc
     src/SpeakerDiarization.cc
+    # PA15 -- docs/roadmap/PARITE-2026-11.md. The roto's matte: its file and
+    # its computation, through the segmenter the executable installs.
+    src/PersonMatte.cc
     src/Subtitles.cc
     src/TempoGrid.cc
     src/MusicStructure.cc
@@ -819,6 +825,9 @@ add_library(cutmachine_motion_render STATIC
     # AGENT-2026-09 A20 -- Vision's face rectangles, the engine's face
     # finder for a grade read on the skin (FaceFinder.h).
     src/FaceFinderVision.mm
+    # PA15 -- Vision's person segmentation, the roto's segmenter
+    # (PersonMatte.h).
+    src/PersonMatteVision.mm
 )
 target_include_directories(cutmachine_motion_render PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src")
@@ -829,6 +838,7 @@ target_link_libraries(cutmachine_motion_render PUBLIC
     "-framework CoreText"
     "-framework ImageIO"
     "-framework Vision"
+    "-framework CoreVideo"
 )
 
 set(CUTMACHINE_APP_SOURCES
@@ -1242,6 +1252,18 @@ if(BUILD_TESTING)
     add_test(NAME cutmachine_clip_mask_tests
              COMMAND cutmachine_clip_mask_tests)
 
+    # PA15 -- docs/roadmap/PARITE-2026-11.md. The roto: the matte's file, a
+    # matte computed through a segmenter that stands for Vision, the export
+    # and read_frame of a clip cut out by it, and Vision itself on a drawn
+    # figure when this build has it.
+    add_executable(cutmachine_person_matte_tests tests/person_matte_tests.cc)
+    target_link_libraries(cutmachine_person_matte_tests PRIVATE
+                          cutmachine_model cutmachine_motion_render)
+    target_compile_definitions(cutmachine_person_matte_tests
+        PRIVATE FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}")
+    add_test(NAME cutmachine_person_matte_tests
+             COMMAND cutmachine_person_matte_tests)
+
     # PA3 -- docs/roadmap/PARITE-2026-11.md. Who speaks when: the script's
     # report, the cache, the voice of a word, where the files are looked
     # for, and the tools on a stored project with a script standing for the
@@ -1526,6 +1548,17 @@ if(BUILD_TESTING)
     add_test(NAME cutmachine_clip_speed_tests
              COMMAND cutmachine_clip_speed_tests)
     set_tests_properties(cutmachine_clip_speed_tests
+                         PROPERTIES LABELS "portable")
+
+    # VFR-2026-11 -- docs/roadmap/VFR-2026-11.md. Which picture a frame
+    # number names: the rate a source is counted at, the rounding onto its
+    # grid, and the read the export and the verification share. Portable:
+    # no AppKit, no Metal.
+    add_executable(cutmachine_source_grid_tests tests/source_grid_tests.cc)
+    target_link_libraries(cutmachine_source_grid_tests PRIVATE cutmachine_model)
+    add_test(NAME cutmachine_source_grid_tests
+             COMMAND cutmachine_source_grid_tests)
+    set_tests_properties(cutmachine_source_grid_tests
                          PROPERTIES LABELS "portable")
 
     add_executable(cutmachine_timeline_sheets_tests
@@ -2408,6 +2441,8 @@ if(BUILD_TESTING)
         src/ReadAhead.cc
         src/PerformanceMetrics.cc
         src/MediaSource.mm
+        # VF2, VF3 -- the rate and the grid the decoder counts on.
+        src/SourceGrid.cc
         src/Ulid.cc
     )
     target_include_directories(cutmachine_decode_worker_tests PRIVATE

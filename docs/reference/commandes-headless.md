@@ -612,12 +612,17 @@ cut therefore cannot
 reuse a stale text. `--srt-from-media` uses the same transcription path to
 produce an SRT from a deliverable without creating a throwaway project.
 
-All three transcription commands also accept
-`--decoding-profile fr-hesitations-v1`, explicitly with French and
-`--verbatim`. This experimental profile requires the verified s075 weights;
-`default` keeps the usual decoding. The corresponding MCP argument is
+All three transcription commands accept `--decoding-profile`. Without it,
+French (`fr`) verbatim decodes with `fr-hesitations-v1` on the s075 weights
+when `CUTMACHINE_WHISPER_HESITATIONS_MODEL` names them, and everything else
+with `default` on the model; `--decoding-profile default` keeps the model
+even then, and `--decoding-profile fr-hesitations-v1` requires French,
+`--verbatim` and the s075 weights, as that setting or as the model. The
+answer says which profile ran (`decoding_profile`), on which weights
+(`whisper_model`), and whether the engine chose it
+(`decoding_profile_implicit`). The corresponding MCP argument is
 `decoding_profile` on `transcribe_media` and `transcribe_timeline`.
-See [the profile and cache provenance](transcription.md#experimental-french-hesitation-profile).
+See [the profile and cache provenance](transcription.md#french-hesitation-profile).
 
 SRT counts in milliseconds, and a frame at 24 or 29.97 fps almost never
 lands exactly on one. Writing an SRT (`--export-srt`, `--srt-from-media`, the

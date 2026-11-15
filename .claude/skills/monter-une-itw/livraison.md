@@ -17,18 +17,16 @@ fichier d'état.
   voulu. Reprends ce qui est involontaire et liste ce que tu gardes, avec
   sa raison.
 - **`check_timeline`** : sa politique par défaut interdit le fondu au noir
-  final (demandé par l'auteur) ; `final_black: "allowed"` seulement si le brief
-  en veut un. Quand la marque a sa charte dans la bibliothèque, crée le
-  style des cartons par `add_caption_style` avec `kit`, et passe `kit` dans
-  `policy`.
+  final ; `final_black: "allowed"` seulement si le brief en veut un. Quand
+  la marque a sa charte dans la bibliothèque, crée le style des cartons par
+  `add_caption_style` avec `kit`, et passe `kit` dans `policy`.
 
 ## Le bloc qui termine le compte rendu
 
-Le compte rendu final se termine par un bloc JSON à forme fixe
-(EPISODES-2026-09 EP4). Il ne remplace pas le texte : il garde ce que seul
-le chat gardait, et qui se perd avec la session. Le projet dit ce qui a
-changé, jamais pourquoi. Le panneau Agent le rend consultable derrière
-« Afficher le rapport technique » (ACP8).
+Le compte rendu final se termine par un bloc JSON à forme fixe. Il ne
+remplace pas le texte : il garde ce que seul le chat garde, et qui se perd
+avec la session. Le projet dit ce qui a changé, jamais pourquoi. Le panneau
+Agent le rend consultable derrière « Afficher le rapport technique ».
 
 ```json
 {

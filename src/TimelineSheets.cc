@@ -12,6 +12,7 @@
 #include "FfmpegBinary.h"
 #include "FrameCapture.h"
 #include "Json.h"
+#include "PersonMatte.h"
 #include "ShotDescriptions.h"
 #include "Ulid.h"
 
@@ -560,12 +561,17 @@ bool RenderTimelineSheet(const Document& document,
     // transform after the grid, as it always has; when they differ, each
     // cell takes its own before it is padded, one cube per input.
     std::map<std::string, std::filesystem::path> cellLuts;
+    // PA15 -- the matte of each cell cut out along its people, one picture
+    // each, read as inputs after the cells' own.
+    std::map<size_t, std::pair<int, std::filesystem::path>> cellMattes;
     const auto cleanup = [&]() {
         std::error_code ignored;
         std::filesystem::remove(imagePath, ignored);
         std::filesystem::remove(lutPath, ignored);
         for (const auto& [key, path] : cellLuts)
             std::filesystem::remove(path, ignored);
+        for (const auto& [cell, matte] : cellMattes)
+            std::filesystem::remove(matte.second, ignored);
     };
     bool mixedInputs = false;
     if (document.color_management.enabled && !plan.frames.empty()) {
@@ -645,6 +651,36 @@ bool RenderTimelineSheet(const Document& document,
         arguments.insert(
             arguments.end(),
             {"-ss", ExactSecondsString(frame.source_position), "-i", input});
+    }
+    for (size_t index = 0; index < plan.frames.size(); ++index) {
+        const DocumentClip* clip =
+            document.FindClip(plan.frames[index].clip_id);
+        if (clip == nullptr || !ClipHasPersonMask(*clip)) continue;
+        const LibraryMedia* media = FindMedia(document, clip->source_id);
+        std::string mattePath;
+        person_matte::Info info;
+        if (media == nullptr || !person_matte::MatteForMedia(
+                                    document, projectDirectory.string(),
+                                    clip->source_id, mattePath, info, error)) {
+            cleanup();
+            error = "clip '" + clip->id + "': " + error;
+            return false;
+        }
+        const std::filesystem::path picture =
+            temporaryDirectory / ("cutmachine-sheet-" + id + "-matte-" +
+                                  std::to_string(index) + ".pgm");
+        const int input =
+            static_cast<int>(plan.frames.size() + cellMattes.size());
+        cellMattes[index] = {input, picture};
+        if (!person_matte::WriteFramePgm(
+                mattePath,
+                person_matte::SourceFrameAt(plan.frames[index].source_position,
+                                            media->rate),
+                picture.string(), error)) {
+            cleanup();
+            return false;
+        }
+        arguments.insert(arguments.end(), {"-i", picture.string()});
     }
 
     const int32_t columns = std::min<int32_t>(
@@ -731,6 +767,17 @@ bool RenderTimelineSheet(const Document& document,
                                framing.source_width, framing.source_height,
                                displayedWidth, displayedHeight},
                 "c" + std::to_string(index));
+            // PA15 -- a cell cut out along its people takes its matte,
+            // read through the crop and the scale its picture went through.
+            const auto matte = cellMattes.find(index);
+            if (matte != cellMattes.end()) {
+                mask = person_matte::MatteFilter(
+                    matte->second.first, displayedWidth, displayedHeight,
+                    (crop.empty() ? std::string() : crop + ",") +
+                        "scale=w=" + std::to_string(framing.width) +
+                        ":h=" + std::to_string(framing.height),
+                    clip->mask.inverted, "c" + std::to_string(index));
+            }
             if (!mask.empty()) {
                 const LibraryMedia* media =
                     document.FindLibraryMedia(clip->source_id);

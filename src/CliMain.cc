@@ -352,8 +352,8 @@ std::optional<int> RunCliCommand(int argc, char* argv[], const CliHost& host) {
         std::string timelineId;
         std::string language = "auto";
         bool verbatim = false;
-        WhisperDecodingProfile profile = WhisperDecodingProfile::Default;
-        bool profileSeen = false;
+        // AL4 -- none named: the engine chooses (WhisperDecodingProfile.h).
+        WhisperDecodingRequest profile;
         for (int index = 3; index < argc; ++index) {
             const std::string option(argv[index]);
             if (option == "--timeline" && index + 1 < argc &&
@@ -362,11 +362,13 @@ std::optional<int> RunCliCommand(int argc, char* argv[], const CliHost& host) {
             } else if (option == "--language" && index + 1 < argc) {
                 language = argv[++index];
             } else if (option == "--decoding-profile" && index + 1 < argc &&
-                       !profileSeen) {
+                       !profile) {
                 std::string error;
-                if (!ParseWhisperDecodingProfile(argv[++index], profile, error))
+                WhisperDecodingProfile named = WhisperDecodingProfile::Default;
+                if (!ParseWhisperDecodingProfile(argv[++index], named, error)) {
                     return failCli("ValidationFailed", error, 2);
-                profileSeen = true;
+                }
+                profile = named;
             } else if (option == "--verbatim") {
                 verbatim = true;
             } else {
@@ -386,18 +388,20 @@ std::optional<int> RunCliCommand(int argc, char* argv[], const CliHost& host) {
     if (argc >= 4 && std::string(argv[1]) == "--srt-from-media") {
         std::string language = "auto";
         bool verbatim = false;
-        WhisperDecodingProfile profile = WhisperDecodingProfile::Default;
-        bool profileSeen = false;
+        // AL4 -- none named: the engine chooses (WhisperDecodingProfile.h).
+        WhisperDecodingRequest profile;
         for (int index = 4; index < argc; ++index) {
             const std::string option(argv[index]);
             if (option == "--language" && index + 1 < argc) {
                 language = argv[++index];
             } else if (option == "--decoding-profile" && index + 1 < argc &&
-                       !profileSeen) {
+                       !profile) {
                 std::string error;
-                if (!ParseWhisperDecodingProfile(argv[++index], profile, error))
+                WhisperDecodingProfile named = WhisperDecodingProfile::Default;
+                if (!ParseWhisperDecodingProfile(argv[++index], named, error)) {
                     return failCli("ValidationFailed", error, 2);
-                profileSeen = true;
+                }
+                profile = named;
             } else if (option == "--verbatim") {
                 verbatim = true;
             } else {
@@ -434,8 +438,8 @@ std::optional<int> RunCliCommand(int argc, char* argv[], const CliHost& host) {
         }
         std::string language = "auto";
         bool verbatim = false;
-        WhisperDecodingProfile profile = WhisperDecodingProfile::Default;
-        bool profileSeen = false;
+        // AL4 -- none named: the engine chooses (WhisperDecodingProfile.h).
+        WhisperDecodingRequest profile;
         bool includeSilent = false;
         // PRD40 -- install the new transcript even where it looks worse than
         // the cached one.
@@ -445,11 +449,13 @@ std::optional<int> RunCliCommand(int argc, char* argv[], const CliHost& host) {
         for (int index = 4; index < argc; ++index) {
             const std::string option(argv[index]);
             if (option == "--decoding-profile" && index + 1 < argc &&
-                !profileSeen) {
+                !profile) {
                 std::string error;
-                if (!ParseWhisperDecodingProfile(argv[++index], profile, error))
+                WhisperDecodingProfile named = WhisperDecodingProfile::Default;
+                if (!ParseWhisperDecodingProfile(argv[++index], named, error)) {
                     return failCli("ValidationFailed", error, 2);
-                profileSeen = true;
+                }
+                profile = named;
             } else if (option == "--verbatim") {
                 verbatim = true;
             } else if (option == "--include-silent") {

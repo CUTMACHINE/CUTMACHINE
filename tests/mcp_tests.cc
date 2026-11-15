@@ -361,6 +361,96 @@ void CheckChatTranscriptionParity(const std::filesystem::path& directory) {
           "an unnamed timeline is the one on screen: " + workerResult +
               workerMessage);
 
+    // AL4 -- a French verbatim call that names no decoding profile gets
+    // fr-hesitations-v1 on the hesitations weights when their setting names
+    // the evaluated ones, and reads that profile's own cache; otherwise, and
+    // with `default` named, the model and the original cache. Served from
+    // the caches, as above: the answer and the cache name the weights.
+    const auto seedVerbatimReading = [&](WhisperDecodingProfile profile,
+                                         const std::string& weights,
+                                         const std::string& word) {
+        TimelineAudioPlan plan;
+        std::string planError;
+        Check(BuildTimelineAudioPlan(project.MakeDocument(onScreen), path, plan,
+                                     planError),
+              "timeline audio plan: " + planError);
+        Transcript cached;
+        cached.media_id = plan.cache_identity;
+        cached.whisper_model = weights;
+        cached.language = "fr";
+        cached.verbatim = true;
+        cached.decoding_profile = profile;
+        cached.source_rate = {25, 1};
+        cached.words = {{"Euh,", {0, 25}, {5, 25}}, {word, {6, 25}, {20, 25}}};
+        Check(SaveAudioTranscript(
+                  TimelineTranscriptCachePath(cache, onScreen, true, profile)
+                      .string(),
+                  cached, planError),
+              "verbatim reading seeds: " + planError);
+    };
+    seedVerbatimReading(WhisperDecodingProfile::Default, "ggml-test.bin",
+                        "ordinaire");
+    seedVerbatimReading(WhisperDecodingProfile::FrenchHesitationsV1,
+                        "ggml-hesitations.bin", "hésitant");
+    const std::string frenchVerbatim = "{\"timeline_id\":\"" + onScreen +
+                                       "\",\"language\":\"fr\",\"verbatim\":"
+                                       "true";
+    const auto answersWith = [](const McpToolCallOutcome& outcome,
+                                const std::string& profile, bool implicit,
+                                const std::string& weights,
+                                const std::string& word) {
+        return outcome.ok &&
+               outcome.result_json.find("\"decoding_profile\":\"" + profile +
+                                        "\",\"decoding_profile_implicit\":" +
+                                        (implicit ? "true" : "false") +
+                                        ",\"whisper_model\":\"" + weights +
+                                        "\"") != std::string::npos &&
+               outcome.result_json.find(word) != std::string::npos;
+    };
+    const McpToolCallOutcome unset =
+        call(server, "transcribe_timeline", frenchVerbatim + "}");
+    Check(answersWith(unset, "default", true, "ggml-test.bin", "ordinaire"),
+          "without hesitations weights, the model and the original decoder, "
+          "chosen by the engine: " +
+              unset.result_json);
+    const std::filesystem::path weights = directory / "ggml-hesitations.bin";
+    std::ofstream(weights) << "s075 stand-in";
+    ::setenv("CUTMACHINE_WHISPER_HESITATIONS_MODEL", weights.c_str(), 1);
+    const McpToolCallOutcome other =
+        call(server, "transcribe_timeline", frenchVerbatim + "}");
+    Check(answersWith(other, "default", true, "ggml-test.bin", "ordinaire"),
+          "with other weights set, the same: " + other.result_json);
+    {
+        const ScopedEvaluatedWhisperModelForTesting evaluated(
+            13,
+            "ace03a337fa131a211dc57307bd24728672df958550d475584f623763945ad43");
+        const McpToolCallOutcome serverProfile =
+            call(server, "transcribe_timeline", frenchVerbatim + "}");
+        const McpToolCallOutcome liveProfile =
+            call(live, "transcribe_timeline", frenchVerbatim + "}");
+        Check(answersWith(serverProfile, "fr-hesitations-v1", true,
+                          "ggml-hesitations.bin", "hésitant") &&
+                  liveProfile.result_json == serverProfile.result_json,
+              "on the evaluated weights, the profile, chosen by the engine, "
+              "from both surfaces: " +
+                  serverProfile.result_json + " / " + liveProfile.result_json);
+        const McpToolCallOutcome named =
+            call(server, "transcribe_timeline",
+                 frenchVerbatim + ",\"decoding_profile\":\"default\"}");
+        Check(
+            answersWith(named, "default", false, "ggml-test.bin", "ordinaire"),
+            "default named keeps the model: " + named.result_json);
+        const McpToolCallOutcome profileNamed = call(
+            server, "transcribe_timeline",
+            frenchVerbatim + ",\"decoding_profile\":\"fr-hesitations-v1\"}");
+        Check(answersWith(profileNamed, "fr-hesitations-v1", false,
+                          "ggml-hesitations.bin", "hésitant"),
+              "the profile named runs on its own weights though the model is "
+              "not them: " +
+                  profileNamed.result_json);
+    }
+    ::unsetenv("CUTMACHINE_WHISPER_HESITATIONS_MODEL");
+
     // align_transcript reads and rewrites the transcript cache. A word Whisper
     // put on silence is moved onto the speech that follows it.
     SpeechOnsetReport envelope;

@@ -42,7 +42,10 @@ enum class MediaTaskKind {
     Ducking,
     // GN6a -- GENERATIF-2026-10. The local model saying a voice-over
     // (VoiceOver.h): a minute or more of computing per take.
-    VoiceOver
+    VoiceOver,
+    // PA15 -- PARITE-2026-11. Vision cutting out the people of a media,
+    // frame by frame (PersonMatte.h).
+    PersonMatte
 };
 enum class MediaTaskState { Queued, Running, Succeeded, Failed, Cancelled };
 

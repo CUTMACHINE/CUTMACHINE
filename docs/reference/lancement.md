@@ -43,6 +43,7 @@ repair (`repair`).
 |---|---|---|
 | `ffmpeg` | yes | the binary the engine retains and its capabilities, like `--check-ffmpeg` |
 | `whisper_model` | no | `CUTMACHINE_WHISPER_MODEL`: a file, readable, non-empty (the window's menu keeps its own model, which is not read) |
+| `whisper_hesitations_model` | no | `CUTMACHINE_WHISPER_HESITATIONS_MODEL`, the s075 weights French verbatim decodes with ([hesitation profile](transcription.md#french-hesitation-profile)): a readable file, and whether its SHA-256 is the evaluated one (`verified`, `evaluated`), read to verify it, about 10 s for 3 GB; `incomplete` for other weights, `optional_absent` unset |
 | `mfa` | no | MFA's Python, its `mfa` executable and `scripts/mfa_align.py`, found; Python is not launched |
 | `agent_key` | no | `ANTHROPIC_API_KEY` present or not, and from where — never its value; the Agent panel's Keychain is not consulted |
 | `archive_backup` | no | `CUTMACHINE_ARCHIVE_BACKUP_DIR`: the folder where the project archive is copied every day, absolute and existing; with no setting, no copy (DEC44, [SQL archive](archive-projets.md#the-backup-copy)) |

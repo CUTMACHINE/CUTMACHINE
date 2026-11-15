@@ -414,6 +414,34 @@ a float.
     mask and say so.
   - Not done: an animated mask, a free shape, a button in the Inspector,
     green-screen keying. Nothing has been seen on screen.
+  - **Roto, `shape: "person"`**
+    (PA15): the people the clip shows, cut
+    out frame by frame. A medium's matte is computed once by
+    `analyze_person_matte {media_id, quality}`: Vision's person
+    segmentation, on the Mac, free, nothing leaves the machine. `accurate`
+    (the default) keeps the hair, `balanced` and `fast` are coarser. It is
+    kept in the package (`.cutmachine/mattes/<media>.matte`, about 50 KB a
+    frame at 576×1024); a new computation replaces it once it is whole.
+    Measured on 5 seconds of a vertical source clip: 125 frames in 6
+    seconds.
+  - A `person` mask has no centre, no size and no feather; `inverted` keeps
+    everything but the people. `set_clip_mask` refuses it (`MatteMissing`)
+    as long as the medium has no matte, and on a graphic. A document that
+    carries one goes to version 27.
+  - **Vision keeps every person in the picture**, not a single one: on the
+    bench's source clip, the man in the background and a reflection in a
+    mirror are kept with the person in front.
+  - Every render reads the same file: the export and `read_frame` hand it to
+    FFmpeg as one more input, read through the clip's time (speed, ramp,
+    freeze frame), crop and scale, then set as alpha before the opacity and
+    the fades; Record samples it in its shader at the same point of the
+    picture. Between Record and the file, the roto adds at most 0.037
+    (unmanaged), 0.033 (cropped clip) and 0.120 (S-Log3, chrominance only)
+    of difference per pixel.
+  - Not done: choosing one person among several, cutting out an object or
+    an animal, softening or growing the edge, a person mask in the graded
+    reads (`read_frame` of a graded clip, graded sheets: PA8's mask is not
+    there either). Nothing has been seen on screen or on a film.
 - **Blur** (`set_clip_blur`, EFFETS-2026-10 EF3): a Gaussian blur of a video
   clip's image, `blur` being its standard deviation (sigma) in sequence pixels,
   from `0` (none: the blur is removed) to `200`. In sequence pixels so that a

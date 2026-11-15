@@ -91,7 +91,20 @@ using MetalDrawCommand = std::variant<MetalRect, MetalText, MetalIcon>;
 
 // PA8 -- docs/roadmap/PARITE-2026-11.md. A clip's mask as the renderer is
 // handed it: DocumentClip::mask's fractions turned into floats once, the
-// shape as shader.metal counts it (0 none, 1 rectangle, 2 ellipse).
+// shape as shader.metal counts it (0 none, 1 rectangle, 2 ellipse; PA15,
+// 3 the people, whose coverage is the matte the slot is handed).
+// PA15 -- docs/roadmap/PARITE-2026-11.md. The matte of the source frame a
+// slot shows when its clip is cut out along its people (PersonMatte.h):
+// 8-bit grey, rows packed, covering the whole displayed picture. The bytes
+// belong to the caller and live until the render returns. None (null) for
+// a slot whose mask is of shape 3 draws nothing of that clip: its matte is
+// missing, and the export refuses it too.
+struct MonitorMatte {
+    const uint8_t* bytes = nullptr;
+    int32_t width = 0;
+    int32_t height = 0;
+};
+
 struct MonitorMask {
     int32_t shape = 0;
     float center_x = 0.5f;
@@ -110,7 +123,9 @@ inline MonitorMask MonitorMaskOf(const ClipMask& mask) {
                                    static_cast<float>(value.den)
                              : 0.0f;
     };
-    out.shape = mask.shape == kClipMaskEllipse ? 2 : 1;
+    out.shape = mask.shape == kClipMaskPerson    ? 3
+                : mask.shape == kClipMaskEllipse ? 2
+                                                 : 1;
     out.center_x = fraction(mask.center_x);
     out.center_y = fraction(mask.center_y);
     out.width = fraction(mask.width);
@@ -291,6 +306,10 @@ struct TimelineRenderData {
     // opacity does, in the fragment that lays it (`clipMaskCoverage`,
     // shader.metal), on the rule ClipMask.h gives the export.
     std::vector<MonitorMask> video_masks;
+    // PA15 -- parallel to the frames as well: the matte of each slot whose
+    // mask is of shape 3 (MonitorMatte above), sampled where the shape's
+    // rule would be evaluated.
+    std::vector<MonitorMatte> video_mattes;
     // R6 -- docs/roadmap/REEL-2026-09.md. The sequence's look LUT, already
     // read from the project package and checked against its digest
     // (LookLutStorage.h): the renderer resolves nothing itself, as it

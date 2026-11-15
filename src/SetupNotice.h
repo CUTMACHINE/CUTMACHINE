@@ -52,7 +52,7 @@ struct WindowFacts {
 const char* StateLabel(setup::State state);
 
 // The name the window gives an item: « FFmpeg », « Modèle Whisper »,
-// « MFA », « Clé de l'agent »,
+// « Poids des hésitations », « MFA », « Clé de l'agent »,
 // « Copie de l'archive », « Voix off ». An identifier this version does not
 // know is shown as it is.
 std::string ItemTitle(const std::string& id);

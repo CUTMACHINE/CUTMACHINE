@@ -1,7 +1,6 @@
 # Piloter le moteur sans aller-retour
 
-Pièges rencontrés en conditions réelles. Ce fichier décrit le contrat actuel du
-moteur.
+Le contrat du moteur, et les pièges que ses réponses ne disent pas.
 
 ## Passer par le serveur
 
@@ -49,7 +48,7 @@ Une édition ailleurs dans le projet périme la première, pas la deuxième ; un
 `create_interview_short` nomme la nouvelle timeline dans sa réponse
 (`created_timeline_ids`) : passe cet ID en `timeline_id` à chaque appel qui
 suit. Si la création échoue, arrête ce qui en dépend : l'active est encore le
-dérushage, où 92 creux ont déjà été refermés par erreur.
+dérushage, et c'est lui qu'un resserrement refermerait.
 
 Deux spans séparés de plus qu'un souffle, que `create_interview_short`
 refuse de coller, sont souvent deux départs : prends le second et rallonge
@@ -58,10 +57,10 @@ voulait faire, en fait… »).
 
 ## Désigner le bon plan quand un rush en fournit plusieurs
 
-Un même rush alimente souvent trois blocs du montage : « le premier » ou « le
-dernier » vise à côté. Trie les plans du rush par `source_in` et nomme le rang.
-Applique les corrections de bordure **avant** le resserrement : après, le rush
-est éclaté en dix morceaux et le rang ne désigne plus rien.
+Un même rush alimente souvent plusieurs blocs du montage : « le premier » ou
+« le dernier » vise à côté. Trie les plans du rush par `source_in` et nomme le
+rang. Applique les corrections de bordure **avant** le resserrement : après, le
+rush est éclaté en morceaux et le rang ne désigne plus rien.
 
 ## Un refus arrête les opérations qui en dépendent
 

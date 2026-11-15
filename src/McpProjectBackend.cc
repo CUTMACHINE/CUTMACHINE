@@ -916,7 +916,7 @@ bool McpProjectBackend::ScanIsolatedFrames(bool analyze,
 bool McpProjectBackend::TranscribeSources(
     const std::vector<Ulid>& sourceIds, const std::string& language,
     bool verbatim, bool includeSilent, bool overwrite, std::string& resultJson,
-    std::string& message, WhisperDecodingProfile profile) {
+    std::string& message, const WhisperDecodingRequest& profile) {
     Project project;
     if (!LoadProject(project, message)) {
         return false;
@@ -933,12 +933,10 @@ bool McpProjectBackend::TranscribeSources(
                               message);
 }
 
-bool McpProjectBackend::TranscribeTimeline(const std::string& timelineId,
-                                           const std::string& language,
-                                           bool verbatim,
-                                           std::string& resultJson,
-                                           std::string& message,
-                                           WhisperDecodingProfile profile) {
+bool McpProjectBackend::TranscribeTimeline(
+    const std::string& timelineId, const std::string& language, bool verbatim,
+    std::string& resultJson, std::string& message,
+    const WhisperDecodingRequest& profile) {
     Project project;
     if (!LoadProject(project, message)) {
         return false;
@@ -988,6 +986,9 @@ bool McpProjectBackend::CaptureSourceFrame(const Ulid& sourceId,
     FrameCaptureSettings settings;
     // G3 -- the media read in its own declared input.
     settings.color_management = document.ColorManagementFor(sourceId);
+    // PA15 -- where a clip cut out along its people finds its matte.
+    settings.package_directory =
+        std::filesystem::absolute(project_path_).parent_path().string();
     if (!ApplyClipFramingToCapture(document, clipId, time, settings, message))
         return false;
     return ::CaptureSourceFrame(path.lexically_normal().string(), time,

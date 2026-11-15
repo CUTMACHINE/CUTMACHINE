@@ -166,6 +166,7 @@ constexpr ToolTitle kToolTitles[] = {
     {"align_transcript", "aligner les transcriptions"},
     {"align_words", "aligner les mots"},
     {"analyze_speakers", "distinguer les voix d'un rush"},
+    {"analyze_person_matte", "détourer les personnes d'un rush"},
     // Another program, or a server.
     {"after_create_project", "créer un projet After Effects"},
     {"after_open_project_copy", "ouvrir une copie de projet After Effects"},

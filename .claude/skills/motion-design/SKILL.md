@@ -15,9 +15,8 @@ l'écrit.
 de livraison sur la foi du JSON. Le moteur accepte une composition fausse
 tant qu'elle est bien formée ; seule l'image dit si c'est juste.
 
-Sur un habillage de septembre 2026, la planche a montré en une seconde trois
-défauts que le JSON cachait : entrées en retard, sorties trop tôt, texte en
-fantôme.
+La planche montre en une seconde ce que le JSON cache : une entrée en
+retard, une sortie trop tôt, un texte en fantôme.
 
 Regarde donc toujours, pour chaque moment, l'image **avant** la coupe, **la**
 coupe, l'image **après**, et les trois dernières images de la sortie.
@@ -33,18 +32,17 @@ coupe, l'image **après**, et les trois dernières images de la sortie.
    une grille refusée donne encore une période candidate à confronter aux
    coupes.
 3. Propose deux à quatre directions animées sur le même moment de 3 s, sur
-   la vraie image et avec le son : « je vois pas le mouvement, du coup dur
-   de juger ».
+   la vraie image et avec le son : un mouvement ne se juge pas sur une
+   planche fixe.
 4. Tiens un seul langage de mouvement : une famille de courbes, une unité
    de temps, une famille de transitions.
-5. Trois corps par rôle, déclarés une fois : dix cartons dimensionnés un par
-   un ont donné huit corps de 110 à 210.
+5. Trois corps par rôle, déclarés une fois : des cartons dimensionnés un
+   par un finissent avec presque autant de corps que de cartons.
 
-Refusés sur un habillage (29 septembre 2026) : les marie-louises (« mise en
-page print »), la pulsation au tempo, les volets plein écran, les
-apparitions par pop ou fondu, les planches fixes pour choisir. Ce qui a
-tenu : partir du principe graphique de la charte, chaque entrée sur une coupe et
-chaque sortie sur la suivante, des aplats.
+À éviter sans demande : les marie-louises (une mise en page d'imprimé), la
+pulsation au tempo, les volets plein écran, les apparitions par pop ou par
+fondu. Ce qui tient : partir du principe graphique de la charte, chaque
+entrée sur une coupe et chaque sortie sur la suivante, des aplats.
 
 Le détail (typographie, temps de lecture, son, liste de contrôle) est dans
 [references/direction.md](references/direction.md).
@@ -92,21 +90,20 @@ sa place.
    transparent n'a ni fond ni grain de composition ; en flat design, ni
    grain ni dégradé.
 6. Mouvement franc, immobilité, mouvement suivant ; jamais de pulsation au
-   tempo non demandée (« j'aime pas le battement de cœur »).
+   tempo non demandée.
 7. Un script écrit la composition : coupes et temps de la musique, couleurs,
    courbes, géométrie par format et textes par version y sont des tables ;
    aucun nombre magique dans les nœuds.
 
 ## Le temps de lecture se calcule
 
-Seul compte le temps où le texte est lisible en entier : un showreel aux
-cartons lisibles 1 à 1,8 s a été jugé « pas hyper lisible » (11 octobre
-2026). Lisible ne veut pas dire immobile : dans un film tout en texte, il
-vit pendant qu'on le lit (« beaucoup de textes manquent grave de
-mouvement ») ; sur un habillage, l'énergie reste à l'entrée et à la sortie.
-Le tempo ne raccourcit jamais une lecture : si le texte déborde la mesure,
-le carton prend la mesure suivante, ou le texte perd des mots. Calcul et
-planchers : [direction.md](references/direction.md), « Temps de lecture ».
+Seul compte le temps où le texte est lisible en entier : une à deux
+secondes ne suffisent pas à une phrase. Lisible ne veut pas dire immobile :
+dans un film tout en texte, il vit pendant qu'on le lit ; sur un habillage,
+l'énergie reste à l'entrée et à la sortie. Le tempo ne raccourcit jamais
+une lecture : si le texte déborde la mesure, le carton prend la mesure
+suivante, ou le texte perd des mots. Calcul et planchers :
+[direction.md](references/direction.md), « Temps de lecture ».
 
 ## Déroulé
 

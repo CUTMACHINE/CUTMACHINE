@@ -237,7 +237,8 @@ public:
         bool seen = false;
         // PRD40 -- the call asked to replace a cached transcript regardless.
         bool overwrite = false;
-        WhisperDecodingProfile profile = WhisperDecodingProfile::Default;
+        // AL4 -- none: the call named no profile, and the engine chooses.
+        WhisperDecodingRequest profile;
     };
     TranscriptionRequest transcription_request;
 
@@ -246,7 +247,7 @@ public:
         std::string language;
         bool verbatim = false;
         bool seen = false;
-        WhisperDecodingProfile profile = WhisperDecodingProfile::Default;
+        WhisperDecodingRequest profile;
     };
     TimelineTranscriptionRequest timeline_transcription_request;
 
@@ -254,7 +255,7 @@ public:
                            const std::string& language, bool verbatim,
                            bool includeSilent, bool overwrite,
                            std::string& resultJson, std::string& message,
-                           WhisperDecodingProfile profile) override {
+                           const WhisperDecodingRequest& profile) override {
         transcription_request = {mediaIds, language,  verbatim, includeSilent,
                                  true,     overwrite, profile};
         if (transcription_fails_) {
@@ -268,7 +269,7 @@ public:
     bool TranscribeTimeline(const std::string& timelineId,
                             const std::string& language, bool verbatim,
                             std::string& resultJson, std::string&,
-                            WhisperDecodingProfile profile) override {
+                            const WhisperDecodingRequest& profile) override {
         timeline_transcription_request = {timelineId, language, verbatim, true,
                                           profile};
         resultJson = "{\"ok\":true}";
@@ -5425,7 +5426,9 @@ int main() {
             // timeline.
             "propose_generation",
             // PA3 -- one rush's voices, by media_id.
-            "analyze_speakers", "list_speakers"};
+            "analyze_speakers", "list_speakers",
+            // PA15 -- one rush's people, by media_id.
+            "analyze_person_matte"};
         McpToolRegistry registry;
         for (const McpTool& tool : registry.Tools()) {
             mcp_json::Value schema;
@@ -9954,13 +9957,26 @@ int main() {
                   backend.transcription_request.language == "fr" &&
                   backend.transcription_request.verbatim,
               "media, language and verbatim reach the engine unchanged");
+        // AL4 -- an absent profile is not `default`: the engine chooses it
+        // from the language, the verbatim mode and the model.
+        Check(!backend.transcription_request.profile.has_value(),
+              "a call that names no profile leaves the choice to the engine");
+        Check(
+            call(
+                R"({"media_id":"01K30000000000000000000001","language":"fr","verbatim":true,"decoding_profile":"default"})")
+                    .ok &&
+                backend.transcription_request.profile ==
+                    WhisperDecodingRequest(WhisperDecodingProfile::Default),
+            "default named reaches the backend as a request, kept even "
+            "for French verbatim");
 
         Check(
             call(
                 R"({"media_id":"01K30000000000000000000001","language":"fr","verbatim":true,"decoding_profile":"fr-hesitations-v1"})")
                     .ok &&
                 backend.transcription_request.profile ==
-                    WhisperDecodingProfile::FrenchHesitationsV1,
+                    WhisperDecodingRequest(
+                        WhisperDecodingProfile::FrenchHesitationsV1),
             "the explicit decoding profile reaches the backend");
         for (
             const auto& bad :
@@ -10051,6 +10067,17 @@ int main() {
                   backend.timeline_transcription_request.verbatim,
               "timeline id, language and verbatim reach timeline "
               "transcription unchanged");
+        Check(!backend.timeline_transcription_request.profile.has_value(),
+              "a timeline call that names no profile leaves the choice to "
+              "the engine");
+        Check(
+            mcp_json::Value::Parse(
+                R"({"language":"fr","verbatim":true,"decoding_profile":"default"})",
+                arguments, parseError) &&
+                registry.Call(backend, "transcribe_timeline", arguments).ok &&
+                backend.timeline_transcription_request.profile ==
+                    WhisperDecodingRequest(WhisperDecodingProfile::Default),
+            "timeline transcription keeps default named");
 
         Check(
             mcp_json::Value::Parse(
@@ -10058,7 +10085,8 @@ int main() {
                 arguments, parseError) &&
                 registry.Call(backend, "transcribe_timeline", arguments).ok &&
                 backend.timeline_transcription_request.profile ==
-                    WhisperDecodingProfile::FrenchHesitationsV1,
+                    WhisperDecodingRequest(
+                        WhisperDecodingProfile::FrenchHesitationsV1),
             "timeline transcription carries the explicit profile too");
 
         arguments = mcp_json::Value::MakeObject();
@@ -11874,7 +11902,7 @@ int main() {
             bool TranscribeSources(const std::vector<Ulid>&, const std::string&,
                                    bool, bool, bool, std::string&,
                                    std::string& message,
-                                   WhisperDecodingProfile) override {
+                                   const WhisperDecodingRequest&) override {
                 return McpBackend::TranscribeSources(
                     {}, std::string(), false, false, false, message, message);
             }

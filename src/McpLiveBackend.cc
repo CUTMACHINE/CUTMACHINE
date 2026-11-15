@@ -937,7 +937,7 @@ bool McpLiveBackend::RunTranscribeSources(
     const CacheTarget& target, const std::vector<Ulid>& sourceIds,
     const std::string& language, bool verbatim, bool includeSilent,
     bool overwrite, std::string& resultJson, std::string& message,
-    WhisperDecodingProfile profile) {
+    const WhisperDecodingRequest& profile) {
     if (target.project_path.empty()) {
         message = "save the project before transcribing its rushes";
         return false;
@@ -957,7 +957,7 @@ bool McpLiveBackend::RunTranscribeSources(
 bool McpLiveBackend::RunTranscribeTimeline(
     const CacheTarget& target, const std::string& timelineId,
     const std::string& language, bool verbatim, std::string& resultJson,
-    std::string& message, WhisperDecodingProfile profile) {
+    std::string& message, const WhisperDecodingRequest& profile) {
     if (target.project_path.empty()) {
         message = "save the project before transcribing a timeline";
         return false;
@@ -1106,6 +1106,9 @@ bool McpLiveBackend::RunCaptureSourceFrame(
     FrameCaptureSettings settings;
     // G3 -- the media read in its own declared input.
     settings.color_management = target.document.ColorManagementFor(sourceId);
+    // PA15 -- where a clip cut out along its people finds its matte.
+    settings.package_directory =
+        std::filesystem::absolute(target.project_path).parent_path().string();
     if (!ApplyClipFramingToCapture(target.document, clipId, time, settings,
                                    message))
         return false;
@@ -1312,7 +1315,7 @@ bool McpLiveBackend::TranscribeSources(const std::vector<Ulid>& sourceIds,
                                        bool verbatim, bool includeSilent,
                                        bool overwrite, std::string& resultJson,
                                        std::string& message,
-                                       WhisperDecodingProfile profile) {
+                                       const WhisperDecodingRequest& profile) {
     return RunTranscribeSources(FreezeCacheTarget(), sourceIds, language,
                                 verbatim, includeSilent, overwrite, resultJson,
                                 message, profile);
@@ -1322,7 +1325,7 @@ bool McpLiveBackend::TranscribeTimeline(const std::string& timelineId,
                                         const std::string& language,
                                         bool verbatim, std::string& resultJson,
                                         std::string& message,
-                                        WhisperDecodingProfile profile) {
+                                        const WhisperDecodingRequest& profile) {
     return RunTranscribeTimeline(FreezeCacheTarget(), timelineId, language,
                                  verbatim, resultJson, message, profile);
 }

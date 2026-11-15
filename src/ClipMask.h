@@ -44,7 +44,8 @@
 // The coverage of `mask` at (u, v) of the displayed source: 1 where the
 // picture is kept, 0 where it is cut out. 1 everywhere for no mask.
 inline double ClipMaskCoverage(const ClipMask& mask, double u, double v) {
-    if (mask.shape.empty()) return 1.0;
+    // PA15 -- a mask of the people is a matte, not a rule (PersonMatte.h).
+    if (mask.shape.empty() || mask.shape == kClipMaskPerson) return 1.0;
     const auto fraction = [](const EffectParamValue& value) {
         return static_cast<double>(value.num) / static_cast<double>(value.den);
     };
@@ -78,13 +79,14 @@ struct ClipMaskRegion {
 // a chain after a format that carries an alpha: the alpha is taken out as
 // a grey plane, multiplied point by point (`geq`, the rule above in its
 // expression language, fractions spelled exactly) and put back. Empty for
-// no mask. `label` names the three pads the split needs; it must be unique
-// in the graph.
+// no mask, and for a mask of the people (PersonMatte.h, MatteFilter). `label`
+// names the three pads the split needs; it must be unique in the graph.
 inline std::string ClipMaskFilter(const ClipMask& mask,
                                   const ClipMaskRegion& region,
                                   const std::string& label) {
-    if (mask.shape.empty() || region.width <= 0 || region.height <= 0 ||
-        region.source_width <= 0 || region.source_height <= 0)
+    if (mask.shape.empty() || mask.shape == kClipMaskPerson ||
+        region.width <= 0 || region.height <= 0 || region.source_width <= 0 ||
+        region.source_height <= 0)
         return std::string();
     const auto fraction = [](const EffectParamValue& value) {
         return "(" + std::to_string(value.num) + "/" +

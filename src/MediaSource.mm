@@ -1,5 +1,7 @@
 #include "MediaSource.h"
 
+#include "SourceGrid.h"
+
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
@@ -222,18 +224,25 @@ bool MediaSource::Open(const std::string& path, int threadCount,
         return false;
     }
 
-    // Ingest persists avg_frame_rate as the exact source time basis. Using
-    // av_guess_frame_rate here can replace it with a nominal rate for VFR
-    // phone footage, making the same media fail its own reopen check.
-    impl_->frameRate = impl_->stream->avg_frame_rate;
-    if (impl_->frameRate.num <= 0 || impl_->frameRate.den <= 0) {
+    // VF2 -- docs/roadmap/VFR-2026-11.md. The rate ingest stored, chosen by
+    // the same function (SourceGrid.h), so that the media passes its own
+    // reopen check (DecodeWorkerMatchesSource): the average, except for a
+    // variable-rate stream counted on its nominal grid.
+    if (impl_->stream->avg_frame_rate.num <= 0 ||
+        impl_->stream->avg_frame_rate.den <= 0) {
         std::fprintf(stderr, "Unable to determine video frame rate\n");
         return false;
     }
+    const MediaRate counted = SourceCountingRate(
+        {impl_->stream->avg_frame_rate.num, impl_->stream->avg_frame_rate.den},
+        {impl_->stream->r_frame_rate.num, impl_->stream->r_frame_rate.den});
+    impl_->frameRate = AVRational{counted.num, counted.den};
 
-    if (impl_->stream->nb_frames > 0) {
-        impl_->frameCount = impl_->stream->nb_frames;
-    } else {
+    // VF2 -- the frames of the grid: on a variable-rate stream counted at
+    // its nominal rate there can be more grid frames than pictures (a hole
+    // is a grid frame showing the picture before it), and ingest counts its
+    // duration on the grid.
+    {
         int64_t duration = 0;
         AVRational durationTimeBase = {0, 1};
         if (impl_->stream->duration != AV_NOPTS_VALUE) {
@@ -243,13 +252,14 @@ bool MediaSource::Open(const std::string& path, int threadCount,
             duration = impl_->format->duration;
             durationTimeBase = AVRational{1, AV_TIME_BASE};
         }
-        impl_->frameCount =
+        const int64_t gridFrames =
             duration > 0 && durationTimeBase.num > 0
-                ? std::max<int64_t>(1,
-                                    av_rescale_q_rnd(duration, durationTimeBase,
-                                                     av_inv_q(impl_->frameRate),
-                                                     AV_ROUND_NEAR_INF))
-                : 1;
+                ? av_rescale_q_rnd(duration, durationTimeBase,
+                                   av_inv_q(impl_->frameRate),
+                                   AV_ROUND_NEAR_INF)
+                : 0;
+        impl_->frameCount = std::max<int64_t>(
+            1, std::max<int64_t>(impl_->stream->nb_frames, gridFrames));
     }
 
     if (impl_->format->pb != nullptr) {
@@ -296,11 +306,21 @@ bool MediaSource::DecodeFrame(int64_t frameIndex, const AVFrame*& outFrame,
 
     frameIndex = std::clamp<int64_t>(
         frameIndex, 0, std::max<int64_t>(0, impl_->frameCount - 1));
-    int64_t targetPts = av_rescale_q(frameIndex, av_inv_q(impl_->frameRate),
-                                     impl_->stream->time_base);
-    if (impl_->stream->start_time != AV_NOPTS_VALUE) {
-        targetPts += impl_->stream->start_time;
-    }
+    // VF3 -- docs/roadmap/VFR-2026-11.md. The first picture that falls on
+    // grid frame `frameIndex` or after it, by the rounding FrameIndexForPts
+    // names pictures with during playback and the export's `fps` resamples
+    // with (SourceGrid.h): the picture nearest the frame's time. Waiting for
+    // a picture at or after that time instead showed, on a phone's file
+    // whose pictures sit just before the grid, the picture one frame later
+    // than the one playback and the export show.
+    const int64_t origin = impl_->stream->start_time != AV_NOPTS_VALUE
+                               ? impl_->stream->start_time
+                               : 0;
+    const MediaRate timeBase{impl_->stream->time_base.num,
+                             impl_->stream->time_base.den};
+    const MediaRate rate{impl_->frameRate.num, impl_->frameRate.den};
+    const int64_t targetPts =
+        SourceGridFirstPts(frameIndex, origin, timeBase, rate);
 
     gSeeks.fetch_add(1);
     int result = av_seek_frame(impl_->format, impl_->streamIndex, targetPts,

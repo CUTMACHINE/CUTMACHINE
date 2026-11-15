@@ -41,43 +41,103 @@ transcript, and none of them could bring it into existence. `verbatim: true` is
 needed to be able to remove hesitations afterwards — the default decoding
 silently suppresses them, so they are no longer there to be cut.
 
-## Experimental French hesitation profile
+## French hesitation profile
 
-`fr-hesitations-v1` selects the decoding profile evaluated with the s075
-weights (AL4). It requires `language: "fr"` and `verbatim: true`. Before
-inference, the engine verifies the weights' SHA-256:
+`fr-hesitations-v1` is the decoding profile evaluated with the s075 weights
+(AL4). It only holds for `language: "fr"` and `verbatim: true`, and only for
+the weights whose SHA-256 is
 `5b05a0870a122a833e4c74fbc223e1acbb74875bab3e3682d9cef692e51e385e`.
-Other weights are refused even if renamed. The engine does not download
-weights or replace the shared local model setting automatically.
+Other weights never pass for them, even renamed: the engine checks the
+content. It does not download weights.
+
+The s075 weights serve French verbatim only, never as the model: on an
+English take they stopped mid-sentence where large-v3 went on. They have a
+setting of their own, read like the model's (the environment, then the
+settings file):
+
+```sh
+echo 'CUTMACHINE_WHISPER_HESITATIONS_MODEL=/path/to/ggml-large-v3-hesitations-s075.bin' \
+  >> ~/.config/cutmachine/.env
+```
+
+**It is the normal use.** A transcription that names no profile gets
+`fr-hesitations-v1`, on the hesitations weights, when it is French (`fr`;
+`auto` is not French, even if French is what Whisper detects), verbatim, and
+`CUTMACHINE_WHISPER_HESITATIONS_MODEL` names the evaluated weights. In every
+other case it gets `default` on the model, as without the setting. A profile
+named is kept: `default` keeps the model even for French verbatim, and
+`fr-hesitations-v1` named runs on the hesitations weights when they are the
+evaluated ones, on the model otherwise, and is refused outside French
+verbatim and, before inference, when neither is the evaluated weights. So an
+interview in French is transcribed with `language: "fr"` and
+`verbatim: true`, and the engine's settings choose the weights. A model path
+named on the `--transcribe` command line is the model of every pass: the
+hesitations setting is not read.
+
+The plain passes that follow a verbatim one keep the model and `default`:
+the plain fallback pass, and the plain pass without ellipses. The verbatim
+pass without ellipses decodes as the verbatim pass it repairs, on its
+weights. Each pass loads its model, as it did before.
+
+Each answer says which profile ran (`decoding_profile`), on which weights
+(`whisper_model`, the file name), and whether the engine chose the profile
+because the call named none (`decoding_profile_implicit`):
+`transcribe_media`, `transcribe_timeline`, `--transcribe`,
+`--transcribe-timeline` and `--srt-from-media`. `transcribe_media` adds
+`fallback_whisper_model` when its plain passes ran on other weights than its
+verbatim pass. A batch that skips every media as mute loads no model and
+reports the profile named, or `default`, without weights.
+
+Recognizing the weights reads them. A file of another size than the
+evaluated weights is told apart without being read; otherwise its SHA-256 is
+computed once per path, size and modification time and remembered for the
+life of the process: about 10 seconds for 3 GB, once per session for the MCP
+server and the application, once per call for a command line. The model
+itself is read only when `fr-hesitations-v1` named has to run on it. Weights
+replaced by others of the same size with the same modification time go
+unseen until the process ends.
+
+`--check-setup` reports the setting as `whisper_hesitations_model`, an
+optional item: absent, not a readable file, the evaluated weights
+(`verified` and `evaluated` true), or other weights (`incomplete`). It reads
+the weights to verify them. The window's diagnosis does not read them at
+launch, and says whether this session has already verified them.
 
 In the application, **Transcrire les hésitations (français)…** (Transcribe
 hesitations, French…) in a media item's context menu or the Timeline menu
-selects this profile and French verbatim decoding. First choose the s075
-weights in **CUTMACHINE → Modèle Whisper…** (Whisper model…). The existing
-transcription commands keep the `default` decoding policy.
+asks for the hesitations: it transcribes in French, verbatim, names
+`fr-hesitations-v1`, and runs on the hesitations weights only. When
+`CUTMACHINE_WHISPER_HESITATIONS_MODEL` is unset, names no readable file, or
+names other weights, it refuses with an alert that says which and names the
+setting to change; it never falls back to `default`. Weights this session
+has not verified yet are read by the transcription task, which refuses the
+same way. **Transcrire avec Whisper…** (Transcribe with Whisper…) detects the
+language and is not verbatim: it keeps `default`.
 
 ```sh
 ./build/cutmachine --transcribe ./Film.cutmachine-project/project.cutmachine.json \
-  '<media-id>' /path/to/ggml-large-v3-hesitations-s075.bin fr \
-  --verbatim --decoding-profile fr-hesitations-v1
+  '<media-id>' '' fr --verbatim
 ```
 
-The MCP tools `transcribe_media` and `transcribe_timeline` accept
-`decoding_profile: "fr-hesitations-v1"` with `language: "fr"` and
-`verbatim: true`. The CLI also accepts `--decoding-profile` for
-`--transcribe-timeline` and `--srt-from-media`.
+The MCP tools `transcribe_media` and `transcribe_timeline` take
+`decoding_profile` (`default` or `fr-hesitations-v1`); the three
+transcription commands take `--decoding-profile`.
 
-The cache records `decoding_profile`; an absent field means `default`.
-Caches from different profiles never match. Timeline transcription caches
-use separate files. For a media item, the new transcript replaces the usual
-cache file under the existing safeguards (`cache_kept` and `overwrite`);
-the reading tools report the stored transcript's actual profile. A plain
-fallback pass uses `default`; a merged transcript retains the verbatim
-profile's provenance together with `plain_pass_words`.
+The cache records `decoding_profile` and, as always, `whisper_model`; an
+absent `decoding_profile` means `default`. Caches from different profiles or
+weights never match, whether the profile was named or chosen. Timeline
+transcription caches use separate files per profile; the word check of
+`generate_captions` and `create_interview_short` reads the profile's verbatim
+reading first, the `default` one otherwise. For a media item, the new
+transcript replaces the usual cache file under the existing safeguards
+(`cache_kept` and `overwrite`); the reading tools report the stored
+transcript's actual profile. A transcript completed by the plain pass keeps
+the verbatim pass's provenance (`decoding_profile`, `whisper_model`), and
+`plain_pass_words` counts the words that come from the model.
 
-This profile is experimental. Its development controls do not establish
-precision or recall on unseen recordings. The measurements and human checks
-are recorded in AL4.
+The development controls of the profile do not establish precision or recall
+on unseen recordings. The measurements and human checks are recorded in
+AL4.
 MFA alignment and the decision to cut a hesitation remain separate steps.
 
 ## Reading and editing words

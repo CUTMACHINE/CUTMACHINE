@@ -7,7 +7,7 @@
 #include "ColorManagement.h"
 #include "Export.h"
 #include "FfmpegBinary.h"
-
+#include "PersonMatte.h"
 #include "Ulid.h"
 
 #include <algorithm>
@@ -160,6 +160,27 @@ bool ApplyClipFramingToCapture(const Document& document, const Ulid& clipId,
         ClipMaskRegion{framing.source_x, framing.source_y, framing.source_width,
                        framing.source_height, sourceWidth, sourceHeight},
         "0");
+    // PA15 -- the matte of the source frame read, found in the package.
+    settings.matte_path.clear();
+    if (ClipHasPersonMask(*clip)) {
+        if (settings.package_directory.empty() || media == nullptr) {
+            message = "clip '" + clip->id +
+                      "' is cut out along its people, and its matte is kept "
+                      "in a package this read was not told of";
+            return false;
+        }
+        person_matte::Info info;
+        if (!person_matte::MatteForMedia(document, settings.package_directory,
+                                         clip->source_id, settings.matte_path,
+                                         info, message)) {
+            message = "clip '" + clip->id + "': " + message;
+            settings.matte_path.clear();
+            return false;
+        }
+        settings.matte_frame =
+            person_matte::SourceFrameAt(sourceTime, media->rate);
+        settings.matte_inverted = clip->mask.inverted;
+    }
     settings.framed = true;
     settings.framing = framing;
     settings.source_width = sourceWidth;
@@ -246,6 +267,20 @@ bool CaptureSourceFrame(const std::string& inputPath, const RationalTime& time,
                       (settings.blur_rgb ? "gbrap16le" : "yuva444p16le") + ',' +
                       settings.mask_filter + ",premultiply=inplace=1";
         }
+        // PA15 -- the matte of the frame, the picture's second input, read
+        // through the crop and the scale the picture went through.
+        if (!settings.matte_path.empty()) {
+            const std::string matteChain =
+                (crop.empty() ? std::string() : crop + ",") +
+                "scale=w=" + std::to_string(settings.framing.width) +
+                ":h=" + std::to_string(settings.framing.height);
+            filter += std::string(",format=") +
+                      (settings.blur_rgb ? "gbrap16le" : "yuva444p16le") + ',' +
+                      person_matte::MatteFilter(
+                          1, settings.source_width, settings.source_height,
+                          matteChain, settings.matte_inverted, "0") +
+                      ",premultiply=inplace=1";
+        }
         filter += ",pad=" + std::to_string(settings.frame_width) + ':' +
                   std::to_string(settings.frame_height) + ':' +
                   std::to_string(settings.framing.x) + ':' +
@@ -275,7 +310,7 @@ bool CaptureSourceFrame(const std::string& inputPath, const RationalTime& time,
     }
     filter += ',';
     filter += kJpegFromVideoFilter;
-    const std::vector<std::string> arguments = {
+    std::vector<std::string> arguments = {
         settings.ffmpeg_path,
         "-hide_banner",
         "-loglevel",
@@ -289,20 +324,31 @@ bool CaptureSourceFrame(const std::string& inputPath, const RationalTime& time,
         FfmpegSeekSeconds(time),
         "-i",
         inputPath,
-        "-map",
-        "0:v:0",
-        "-an",
-        "-frames:v",
-        "1",
-        "-vf",
-        filter,
-        "-q:v",
-        std::to_string(settings.jpeg_quality),
-        "-y",
-        temporary.string(),
     };
+    // PA15 -- the matte of the frame as a second input: the graph then
+    // names its two inputs and its output.
+    const std::filesystem::path mattePicture =
+        std::filesystem::temp_directory_path() /
+        ("cutmachine-frame-matte-" + GenerateUlid() + ".pgm");
+    if (!settings.matte_path.empty()) {
+        if (!person_matte::WriteFramePgm(settings.matte_path,
+                                         settings.matte_frame,
+                                         mattePicture.string(), error)) {
+            std::filesystem::remove(lutPath, filesystemError);
+            return false;
+        }
+        arguments.insert(arguments.end(),
+                         {"-i", mattePicture.string(), "-filter_complex",
+                          "[0:v:0]" + filter + "[out]", "-map", "[out]"});
+    } else {
+        arguments.insert(arguments.end(), {"-map", "0:v:0", "-vf", filter});
+    }
+    arguments.insert(arguments.end(), {"-an", "-frames:v", "1", "-q:v",
+                                       std::to_string(settings.jpeg_quality),
+                                       "-y", temporary.string()});
     const bool rendered = RunFfmpeg(arguments, error);
     std::filesystem::remove(lutPath, filesystemError);
+    std::filesystem::remove(mattePicture, filesystemError);
     if (!rendered) {
         std::filesystem::remove(temporary, filesystemError);
         return false;

@@ -2419,6 +2419,27 @@ bool DispatchListSpeakers(McpBackend& backend, const IdResolver& resolver,
     return true;
 }
 
+// AL4 -- an absent decoding_profile is not `default`: the engine chooses
+// it (ResolveWhisperDecodingProfile), and `default` named is kept.
+bool ReadDecodingProfile(const Value& args, const std::string& tool,
+                         const std::string& language, bool verbatim,
+                         WhisperDecodingRequest& profile,
+                         std::string& message) {
+    profile.reset();
+    if (args.Find("decoding_profile") == nullptr) {
+        return true;
+    }
+    std::string name;
+    WhisperDecodingProfile named = WhisperDecodingProfile::Default;
+    if (!ReadString(args, "decoding_profile", tool, true, "", name, message) ||
+        !ParseWhisperDecodingProfile(name, named, message) ||
+        !ValidateWhisperDecodingRequest(named, language, verbatim, message)) {
+        return false;
+    }
+    profile = named;
+    return true;
+}
+
 bool DispatchTranscribeMedia(McpBackend& backend, const IdResolver& resolver,
                              const Value& args, std::string& resultJson,
                              std::string& errorName, std::string& message) {
@@ -2462,13 +2483,11 @@ bool DispatchTranscribeMedia(McpBackend& backend, const IdResolver& resolver,
         !ReadBool(args, "overwrite", "transcribe_media", false, overwrite,
                   message))
         return Fail(errorName, message, message);
-    std::string profileName;
-    WhisperDecodingProfile profile;
-    if (!ReadString(args, "decoding_profile", "transcribe_media", false,
-                    "default", profileName, message) ||
-        !ParseWhisperDecodingProfile(profileName, profile, message) ||
-        !ValidateWhisperDecodingRequest(profile, language, verbatim, message))
+    WhisperDecodingRequest profile;
+    if (!ReadDecodingProfile(args, "transcribe_media", language, verbatim,
+                             profile, message)) {
         return Fail(errorName, message, message);
+    }
     return backend.TranscribeSources(mediaIds, language, verbatim,
                                      includeSilent, overwrite, resultJson,
                                      message, profile)
@@ -2494,13 +2513,11 @@ bool DispatchTranscribeTimeline(McpBackend& backend, const IdResolver&,
                   message)) {
         return Fail(errorName, message, message);
     }
-    std::string profileName;
-    WhisperDecodingProfile profile;
-    if (!ReadString(args, "decoding_profile", "transcribe_timeline", false,
-                    "default", profileName, message) ||
-        !ParseWhisperDecodingProfile(profileName, profile, message) ||
-        !ValidateWhisperDecodingRequest(profile, language, verbatim, message))
+    WhisperDecodingRequest profile;
+    if (!ReadDecodingProfile(args, "transcribe_timeline", language, verbatim,
+                             profile, message)) {
         return Fail(errorName, message, message);
+    }
     return backend.TranscribeTimeline(timelineId, language, verbatim,
                                       resultJson, message, profile)
                ? true
@@ -3129,10 +3146,14 @@ void RegisterSpeechTools(const McpToolAdder& add) {
                    false)
             .Field("decoding_profile",
                    EnumSchema({"default", "fr-hesitations-v1"},
-                              "default (unchanged), or fr-hesitations-v1: "
-                              "experimental euh decoding for the evaluated "
-                              "s075 model only; requires language=fr and "
-                              "verbatim=true."),
+                              "Omit it: fr-hesitations-v1 (euh decoding) "
+                              "on the s075 weights when language is fr, "
+                              "verbatim is true and the hesitations "
+                              "weights setting names them; default on the "
+                              "model otherwise. default keeps the model "
+                              "even then. fr-hesitations-v1 requires fr "
+                              "and verbatim, and the s075 weights as that "
+                              "setting or as the model."),
                    false)
             .Field("verbatim",
                    BoolSchema("Keep hesitations and filler words. Required if "
@@ -3165,10 +3186,14 @@ void RegisterSpeechTools(const McpToolAdder& add) {
                    false)
             .Field("decoding_profile",
                    EnumSchema({"default", "fr-hesitations-v1"},
-                              "default (unchanged), or fr-hesitations-v1: "
-                              "experimental euh decoding for the evaluated "
-                              "s075 model only; requires language=fr and "
-                              "verbatim=true."),
+                              "Omit it: fr-hesitations-v1 (euh decoding) "
+                              "on the s075 weights when language is fr, "
+                              "verbatim is true and the hesitations "
+                              "weights setting names them; default on the "
+                              "model otherwise. default keeps the model "
+                              "even then. fr-hesitations-v1 requires fr "
+                              "and verbatim, and the s075 weights as that "
+                              "setting or as the model."),
                    false)
             .Field("verbatim", BoolSchema("Keep hesitations and filler words."),
                    false)

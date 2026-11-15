@@ -37,7 +37,7 @@ namespace {
 // refusal that says so (FormatVersion.h): the last of Document.h's
 // kDocumentVersionWith... constants, and the project file's own version. A
 // version added to the lists below moves these with it.
-constexpr int32_t kNewestDocumentVersion = kDocumentVersionWithClipMask;
+constexpr int32_t kNewestDocumentVersion = kDocumentVersionWithPersonMask;
 constexpr int32_t kNewestProjectVersion = 3;
 
 // MOTION-2026-09 M3 -- the root key under which a document or a project
@@ -1105,7 +1105,8 @@ bool ParseDocumentValue(const JsonValue& root, Document& output,
             storedVersion != kDocumentVersionWithDisabledClips &&
             storedVersion != kDocumentVersionWithTimelineEffects &&
             storedVersion != kDocumentVersionWithVoiceReference &&
-            storedVersion != kDocumentVersionWithClipMask) {
+            storedVersion != kDocumentVersionWithClipMask &&
+            storedVersion != kDocumentVersionWithPersonMask) {
             // PRD20 -- a version past the newest is not an unreadable
             // file: the build is what is out of date, and the refusal says
             // how far it reads.
@@ -1224,6 +1225,14 @@ bool ParseDocumentValue(const JsonValue& root, Document& output,
                 "document version " + std::to_string(storedVersion) +
                 " cannot hold a clip mask: it needs version " +
                 std::to_string(kDocumentVersionWithClipMask));
+        }
+        // PA15 -- nor can a version before 27 hold a mask of the people.
+        if (storedVersion < kDocumentVersionWithPersonMask &&
+            HoldsPersonMask(parsed.sequence)) {
+            throw std::runtime_error(
+                "document version " + std::to_string(storedVersion) +
+                " cannot hold a 'person' mask: it needs version " +
+                std::to_string(kDocumentVersionWithPersonMask));
         }
         ReadItems(Require(root, "library", JsonValue::Type::Array, "document"),
                   parsed.library, "library", rules);
@@ -1517,7 +1526,8 @@ std::string Project::SaveToString() const {
                                       HoldsClipBlur(timeline);
                            }),
                HoldsVoiceReference(rushes),
-               std::any_of(timelines.begin(), timelines.end(), HoldsClipMask))
+               std::any_of(timelines.begin(), timelines.end(), HoldsClipMask),
+               std::any_of(timelines.begin(), timelines.end(), HoldsPersonMask))
         << ",";
     output << "\n  \"id\":\"" << Escape(id) << "\",";
     output << "\n  \"name\":\"" << Escape(name) << "\",";
@@ -1606,7 +1616,7 @@ std::string Document::SaveToString() const {
                     !HoldsResolvePrimaries(sequence) &&
                     !HoldsDisabledClip(sequence) && !HoldsCrossFade(sequence) &&
                     !HoldsClipBlur(sequence) && !HoldsVoiceReference(library) &&
-                    !HoldsClipMask(sequence)
+                    !HoldsClipMask(sequence) && !HoldsPersonMask(sequence)
                 ? version
                 : DocumentFormatVersion(
                       !compositions.empty(), HoldsMotionClip(sequence),
@@ -1622,7 +1632,8 @@ std::string Document::SaveToString() const {
                       HoldsResolvePrimaries(sequence),
                       HoldsDisabledClip(sequence),
                       HoldsCrossFade(sequence) || HoldsClipBlur(sequence),
-                      HoldsVoiceReference(library), HoldsClipMask(sequence)))
+                      HoldsVoiceReference(library), HoldsClipMask(sequence),
+                      HoldsPersonMask(sequence)))
         << ",\n  \"sequence\":";
     WriteObject(output, sequence, 1);
     output << ",\n  \"color_management\":";

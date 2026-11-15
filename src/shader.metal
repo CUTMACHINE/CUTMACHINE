@@ -72,7 +72,8 @@ struct PresentationParameters {
     float sourceWidth;
     float sourceHeight;
     // PA8 -- docs/roadmap/PARITE-2026-11.md. The clip's mask (ClipMask.h):
-    // 0 for none, 1 a rectangle, 2 an ellipse; its centre, width and height
+    // 0 for none, 1 a rectangle, 2 an ellipse, 3 the people (PA15, the
+    // matte bound at texture 6); its centre, width and height
     // as fractions of the displayed picture, its feather, and whether what
     // is outside the shape is what is kept.
     int maskShape;
@@ -89,12 +90,21 @@ struct PresentationParameters {
 // tests/monitor_export_parity_tests.mm holds to the export's. The point is
 // the one presentationUV samples, before the turn: the mask is placed on
 // the picture as displayed.
-float clipMaskCoverage(float2 outputUV, constant PresentationParameters& p) {
+//
+// PA15 -- shape 3 is the people: the coverage is the matte of the frame
+// shown (PersonMatte.h), sampled at that same point of the displayed
+// picture, which the matte covers whole.
+float clipMaskCoverage(float2 outputUV, constant PresentationParameters& p,
+                       texture2d<float> matte, sampler matteSampler) {
     if (p.maskShape == 0) return 1.0;
     const float2 displayUV =
         float2(p.sourceLeft, p.sourceTop) +
         ((outputUV - float2(p.left, p.top)) / float2(p.width, p.height)) *
             float2(p.sourceWidth, p.sourceHeight);
+    if (p.maskShape == 3) {
+        const float people = matte.sample(matteSampler, displayUV).r;
+        return p.maskInverted != 0 ? 1.0 - people : people;
+    }
     const float2 offset =
         (displayUV - float2(p.maskCenterX, p.maskCenterY)) /
         (float2(p.maskWidth, p.maskHeight) * 0.5);
@@ -847,6 +857,7 @@ fragment float4 fragment_working(VertexOut in [[stage_in]],
                                  texture2d<float> vTexture [[texture(2)]],
                                  texture2d<float> alphaTexture [[texture(3)]],
                                  texture3d<float> ocioInputLut [[texture(4)]],
+                                 texture2d<float> matteTexture [[texture(6)]],
                                  sampler planeSampler [[sampler(0)]],
                                  constant PresentationParameters& parameters
                                  [[buffer(0)]],
@@ -871,7 +882,7 @@ fragment float4 fragment_working(VertexOut in [[stage_in]],
             : 1.0;
     return float4(color,
                   clamp(sourceAlpha * parameters.opacity *
-                            clipMaskCoverage(in.uv, parameters),
+                            clipMaskCoverage(in.uv, parameters, matteTexture, planeSampler),
                         0.0, 1.0));
 }
 
@@ -925,6 +936,7 @@ bool blurredLayerUV(float2 outputUV, constant PresentationParameters& p,
 fragment float4 fragment_working_blurred(
     VertexOut in [[stage_in]], texture2d<float> blurred [[texture(0)]],
     texture3d<float> ocioInputLut [[texture(4)]],
+    texture2d<float> matteTexture [[texture(6)]],
     sampler planeSampler [[sampler(0)]],
     constant PresentationParameters& parameters [[buffer(0)]],
     constant ClipGradeParameters& grade [[buffer(1)]]) {
@@ -934,7 +946,7 @@ fragment float4 fragment_working_blurred(
     return float4(
         workingColor(signal.rgb, ocioInputLut, planeSampler, parameters, grade),
         clamp(signal.a * parameters.opacity *
-                  clipMaskCoverage(in.uv, parameters),
+                  clipMaskCoverage(in.uv, parameters, matteTexture, planeSampler),
               0.0, 1.0));
 }
 
@@ -1335,6 +1347,7 @@ fragment float4 fragment_working_display_referred(
     texture2d<float> alphaTexture [[texture(3)]],
     texture3d<float> motionLut [[texture(4)]],
     texture3d<float> viewLut [[texture(5)]],
+    texture2d<float> matteTexture [[texture(6)]],
     sampler planeSampler [[sampler(0)]],
     constant PresentationParameters& parameters [[buffer(0)]],
     constant OutputParameters& view [[buffer(2)]]) {
@@ -1352,7 +1365,7 @@ fragment float4 fragment_working_display_referred(
                   parameters.sampleScale
             : 1.0;
     const float coverage = clamp(sourceAlpha * parameters.opacity *
-                                     clipMaskCoverage(in.uv, parameters),
+                                     clipMaskCoverage(in.uv, parameters, matteTexture, planeSampler),
                                  0.0, 1.0);
     if (coverage <= 0.0) return below;
     // DEC31, BH2 -- a media declared a graphic may be YCbCr (a ProRes 4444
@@ -1384,6 +1397,7 @@ fragment float4 fragment_blurred_display_referred(
     texture2d<float> blurred [[texture(0)]],
     texture3d<float> motionLut [[texture(4)]],
     texture3d<float> viewLut [[texture(5)]],
+    texture2d<float> matteTexture [[texture(6)]],
     sampler planeSampler [[sampler(0)]],
     constant PresentationParameters& parameters [[buffer(0)]],
     constant OutputParameters& view [[buffer(2)]]) {
@@ -1391,7 +1405,7 @@ fragment float4 fragment_blurred_display_referred(
     if (!blurredLayerUV(in.uv, parameters, uv)) return below;
     const float4 signal = blurred.sample(planeSampler, uv);
     const float coverage = clamp(signal.a * parameters.opacity *
-                                     clipMaskCoverage(in.uv, parameters),
+                                     clipMaskCoverage(in.uv, parameters, matteTexture, planeSampler),
                                  0.0, 1.0);
     if (coverage <= 0.0) return below;
     const float3 layer = parameters.inputIsRgb != 0

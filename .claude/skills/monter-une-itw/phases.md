@@ -1,14 +1,12 @@
 # Monter en phases : ce que chaque agent relit
 
 À chaque appel, le modèle relit tout son contexte, chaque réponse d'outil
-comprise : un run de 97 appels a relu 34,5 M de tokens. Ce qu'une phase a lu,
-la suivante n'en a besoin qu'en résumé.
+comprise. Ce qu'une phase a lu, la suivante n'en a besoin qu'en résumé.
 
 Un montage complet se fait donc en **quatre phases**, chacune repartant d'un
 contexte neuf avec un **fichier d'état** qui porte ce que la suivante doit
-savoir. Ce découpage est une hypothèse de coût, pas encore une mesure
-(CONTEXTE-2026-10, CX2) : signale dans `frictions` toute phase où le
-fichier d'état n'a pas suffi.
+savoir. Signale dans `frictions` toute phase où le fichier d'état n'a pas
+suffi.
 
 ## Les quatre phases
 
@@ -109,9 +107,9 @@ utilise le même serveur et le projet déjà ouvert : il ne le rouvre pas.
 
 Entre deux phases, le coordinateur lit le fichier d'état, pas le détail de
 ce qu'a fait le sous-agent. Après la phase 3, il lit le texte du montage
-(`get_timeline_transcript`, deux secondes) et refait le test de
-l'antécédent ; un défaut renvoie la phase 3 avec la demande précise écrite
-dans `a_faire`, sans la refaire en entier.
+(`get_timeline_transcript`) et refait le test de l'antécédent ; un défaut
+renvoie la phase 3 avec la demande précise écrite dans `a_faire`, sans la
+refaire en entier.
 
 ## Sans sous-agents
 

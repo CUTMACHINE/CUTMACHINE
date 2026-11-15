@@ -8,15 +8,16 @@ l'enveloppe. Ce fichier garde ce que les outils ne disent pas.
 
 - **Transcris un tournage étranger avec `language` forcée** : la détection
   se trompe sur un rush court (une remarque de l'équipe en français
-  suffit). L'anglais et l'espagnol n'ont pas été mesurés avec MFA.
+  suffit). En anglais et en espagnol, les frontières de MFA ne sont pas
+  éprouvées : vérifie-les avant de couper.
 - **Un mot manqué ne se trouve pas tout seul** : ni l'aligneur ni le
   contrôle du son hors des mots (`voice_without_words`) ne le voient ;
   `uncovered_speech`, la relance avec `texts` et l'écoute restent
   nécessaires.
 - **Pour un vrai trou, retranscris l'extrait seul**, du dernier mot couvert
   au premier après (`--srt-from-media --verbatim`), jamais le rush par
-  morceaux (large-v3 a encore sauté les 15 premières secondes d'un morceau
-  de 20 s), puis relance `align_words` avec `texts`.
+  morceaux (whisper saute le début d'un morceau court), puis relance
+  `align_words` avec `texts`.
 
 ## Poser les bornes
 
@@ -29,16 +30,15 @@ l'enveloppe. Ce fichier garde ce que les outils ne disent pas.
 
 - **Relis les premiers mots de chaque rush avant de les monter** : whisper
   y transcrit la question de l'intervieweur ou y épingle le premier mot à
-  l'image 0, et MFA aligne ce texte faux tel quel. Sur une série de huit
-  montages, six ouvraient sur la question.
+  l'image 0, et MFA aligne ce texte faux tel quel.
 - **Le niveau donne un candidat, pas une identité** (`dominant_onset` de
   `list_speech_onsets`) : une réponse douce peut être plus faible qu'une
   question. Confirme par le contexte, et par l'écoute si possible, avant de
   supprimer de la parole.
 - **Quand question et réponse ont le même niveau, c'est le creux qui les
   sépare.** `analyze_speech_onset` les fusionne si la personne enchaîne
-  vite (un bloc est entré 65 images trop tard) : baisse `group_gap_ms`, ou
-  lis les niveaux de la plage par `list_source_words` (`levels: true` avec
+  vite, et le bloc entre alors trop tard : baisse `group_gap_ms`, ou lis
+  les niveaux de la plage par `list_source_words` (`levels: true` avec
   `from_frame` et `to_frame`, dont `window_levels_dbfs` à 20 ms).
 - **Compare le début du premier bloc de chaque rush au début mesuré**
   (`list_speech_onsets`). Un morceau entièrement dans la question, fréquent

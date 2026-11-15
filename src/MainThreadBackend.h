@@ -857,23 +857,21 @@ public:
     // runs on the editor's own task manager, where the task bar shows it and
     // can cancel it (McpLiveBackend.h). The alignment pass has no Whisper in
     // it but reads and rewrites every cached transcript: same split.
-    bool TranscribeSources(const std::vector<Ulid>& sourceIds,
-                           const std::string& language, bool verbatim,
-                           bool includeSilent, bool overwrite,
-                           std::string& resultJson, std::string& message,
-                           WhisperDecodingProfile profile =
-                               WhisperDecodingProfile::Default) override {
+    bool TranscribeSources(
+        const std::vector<Ulid>& sourceIds, const std::string& language,
+        bool verbatim, bool includeSilent, bool overwrite,
+        std::string& resultJson, std::string& message,
+        const WhisperDecodingRequest& profile = std::nullopt) override {
         const McpLiveBackend::CacheTarget target = FreezeCacheTarget();
         return McpLiveBackend::RunTranscribeSources(
             target, sourceIds, language, verbatim, includeSilent, overwrite,
             resultJson, message, profile);
     }
 
-    bool TranscribeTimeline(const std::string& timelineId,
-                            const std::string& language, bool verbatim,
-                            std::string& resultJson, std::string& message,
-                            WhisperDecodingProfile profile =
-                                WhisperDecodingProfile::Default) override {
+    bool TranscribeTimeline(
+        const std::string& timelineId, const std::string& language,
+        bool verbatim, std::string& resultJson, std::string& message,
+        const WhisperDecodingRequest& profile = std::nullopt) override {
         const McpLiveBackend::CacheTarget target = FreezeCacheTarget();
         return McpLiveBackend::RunTranscribeTimeline(
             target, timelineId, language, verbatim, resultJson, message,

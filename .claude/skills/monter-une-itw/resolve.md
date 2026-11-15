@@ -50,8 +50,8 @@ marqueurs, cartons en sous-titres ; l'étalonnage en CDL avec
   défait ; ne renvoie pas par-dessus, regarde l'écart d'abord.
 - **Révision** : sans `name`, la timeline prend le nom de la séquence ou le
   suivant libre (« Film 2 ») ; un `name` donné et déjà pris est refusé
-  (jamais de « : »). Dans la fenêtre, le même geste est **Fichier ▸
-  Envoyer dans Resolve**.
+  (jamais de « : »). La fenêtre a le même geste : **Fichier ▸ Envoyer
+  dans Resolve**.
 - **Le style des cartons** ne voyage pas : greffe-le ensuite par le `.drt`
   (plus bas, « Reporter le style des sous-titres »).
 - **Les gestes à la main ci-dessous** restent pour ce que le renvoi ne fait
@@ -93,20 +93,19 @@ ne pas perdre son travail :
 
 - **construis à côté, jamais par-dessus** : une timeline sœur (`…_ST`), l'autre
   intacte tant que le relevé ne coïncide pas ;
-- **relève d'abord tout ce que la timeline porte**, pas seulement les plans. Sur
-  un film, onze plans portaient une transformation faite à la main (quatre
-  recadrages à 1,52× avec chacun son tilt, sept incrustations à 0,32×) : elles ne
-  survivent qu'à un `GetProperty` avant et un `SetProperty` après. Vérifie aussi
-  les marqueurs, les compositions Fusion et les versions d'étalonnage : ce qui
-  n'est pas relevé est perdu sans avertissement.
+- **relève d'abord tout ce que la timeline porte**, pas seulement les plans. Une
+  transformation faite à la main (un recadrage avec son tilt, une incrustation
+  réduite) ne survit qu'à un `GetProperty` avant et un `SetProperty` après.
+  Vérifie aussi les marqueurs, les compositions Fusion et les versions
+  d'étalonnage : ce qui n'est pas relevé est perdu sans avertissement.
 
 ## La voix va sur une piste mono
 
-**Consigne du monteur : toute piste stéréo qui porte de la voix passe en mono.**
+**Toute piste stéréo qui porte de la voix passe en mono.**
 
-La voix des rushes mesurés est en double mono (L − R à −63 dB) : le mono ne
-perd rien. Si les deux canaux diffèrent (micro-cravate d'un côté, micro
-caméra de l'autre), demande lequel garder.
+Une voix en double mono (L − R autour de −60 dB) ne perd rien au mono. Si
+les deux canaux diffèrent (micro-cravate d'un côté, micro caméra de
+l'autre), demande lequel garder.
 
 Ce que le scripting permet, mesuré en 20.3.1 :
 
@@ -116,7 +115,7 @@ Ce que le scripting permet, mesuré en 20.3.1 :
 - `AddTrack("audio", "mono")` crée une piste mono, et `AppendToTimeline` avec ce
   `trackIndex` et `mediaType: 2` y pose un rush stéréo : la piste reste mono, le
   plan garde un mapping source `stereo` `[1, 2]`. Un append **lié** V+A visant
-  une piste mono n'a pas été mesuré : relis `GetTrackSubType` après la pose ;
+  une piste mono n'est pas garanti : relis `GetTrackSubType` après la pose ;
 - dans le `.drt`, le format est le `<SubType>` de la `<Sm2TiTrack>` audio :
   **0 = stéréo, 1 = mono**. Ni le `<FieldsBlob>` de la piste ni le
   `<VirtualAudioTrackBA>` des plans ne changent. Une timeline importée avec
@@ -129,14 +128,14 @@ le faire dans l'interface, c'est un clic.
 
 ## Les bornes que Resolve rapporte
 
-Appelé avec `startFrame: X`, `GetSourceStartFrame()` rend parfois **X − 1** :
-42 plans sur 79 sur une reconstruction, sans motif visible (même rush, même
+Appelé avec `startFrame: X`, `GetSourceStartFrame()` rend parfois **X − 1**,
+sur une bonne part des plans et sans motif visible (même rush, même
 cadence, voisins conformes). Position et durée restent exactes, donc les coupes
 ne bougent pas.
 
 **Ne réinjecte pas l'écart.** L'écart n'est pas déterministe : demander `X + 1`
-ne rend pas `X` de façon fiable. Après deux réinjections, 29 plans étaient à +1
-et 13 à +2. Mesure toujours contre la borne d'origine, jamais contre la demande
+ne rend pas `X` de façon fiable, et chaque réinjection laisse des plans à +1
+puis à +2. Mesure toujours contre la borne d'origine, jamais contre la demande
 courante. Si la première passe donne position et durée exactes, **arrête-toi
 là** : c'est la version qui porte les bornes voulues.
 
@@ -145,8 +144,8 @@ là** : c'est la version qui porte les bornes voulues.
 **Réécrire un `.srt` sur le disque ne rafraîchit pas l'élément du Media Pool** :
 `ImportMedia` rend l'ancien, et la timeline repart avec les cues de la version
 précédente. Ça ne se voit pas dans le retour de l'API, et pas toujours dans la
-durée : sur huit montages renvoyés, sept portaient l'ancien sous-titrage, et
-seuls trois avaient une durée aberrante.
+durée : une timeline qui porte l'ancien sous-titrage garde souvent une durée
+normale.
 
 `send_to_resolve` (et `resolve_bridge.py --send … --srt`) s'en charge :
 
@@ -179,7 +178,7 @@ ou écris-la dans le descripteur (`--export-resolve-timeline`, un plan
 doit être celui de l'élément du Media Pool.
 
 - **Resolve conforme par la durée** : N images source occupent
-  `N × 25 / cadence_source` images de séquence (vérifié sur 137 plans).
+  `N × 25 / cadence_source` images de séquence.
 - **Et il tronque, il n'arrondit pas** : la durée rendue vaut le plancher de ce
   produit. Dimensionner à l'arrondi laisse la coupe une image trop courte, donc
   une image d'interview qui clignote dessous. Choisis la longueur source dont le
@@ -193,7 +192,7 @@ doit être celui de l'élément du Media Pool.
 Quand le monteur a stylé les cartons d'une timeline et demande ce look sur les
 autres, aucune API ne le donne : `timelineItem.GetProperty()` sur un carton ne
 rend que le bloc de transformation (Pan, Tilt, ZoomX…), identique entre une
-timeline stylée et une timeline nue, et les 157 réglages de
+timeline stylée et une timeline nue, et les réglages de
 `timeline.GetSetting()` sont identiques aussi.
 
 **Le look est dans le `FieldsBlob` de la piste de sous-titres.** Une piste nue y
@@ -217,10 +216,10 @@ Le seul chemin est un aller-retour `.drt`, une archive zip contenant
   blob** à celui de la source. Rien d'autre ne le montre, surtout pas l'API.
 
 Le style maison se lit dans les projets récents du monteur. Prends-le sur
-une piste que le monteur a réglée dans le même
-projet, ou sur une piste active (`Flags` = 0) d'un projet récent du même
-client, jamais sur une piste désactivée : un style copié apporte sa taille
-et sa position.
+une piste
+que le monteur a réglée dans le même projet, ou sur une piste active
+(`Flags` = 0) d'un projet récent du même client, jamais sur une piste
+désactivée : un style copié apporte sa taille et sa position.
 
 Comme la timeline doit de toute façon être reconstruite pour changer les cues,
 fais les deux d'un coup : reconstruis avec le nouveau SRT, puis greffe le blob à
@@ -239,8 +238,8 @@ manquants dans S1 et S2, réimporte à côté, contrôle, remplace.
   position qu'avait le carton **à sa création** : un carton déplacé ou
   copié-collé garde l'ancienne. N'importe quelle valeur passe ; prends la
   position neuve.
-- Relève d'abord ce qui a bougé : un copier-coller avait laissé un carton en
-  double par-dessus les mots nouveaux.
+- Relève d'abord ce qui a bougé : un copier-coller peut avoir laissé un carton
+  en double par-dessus les mots nouveaux.
 - Recale ensuite les frontières sur les cuts **de l'état relevé** (voir
   [sous-titres.md](sous-titres.md)) : les coupes du monteur en ont créé de
   nouveaux.
@@ -249,8 +248,7 @@ manquants dans S1 et S2, réimporte à côté, contrôle, remplace.
 
 Quand le monteur a étalonné et recadré, ne reconstruis rien et ne supprime
 rien : l'étalonnage vit dans les plans de la timeline et dans leurs groupes
-couleur, et aucune API ne le relit pour le reposer. Fait le 1er octobre 2026
-sur huit plans, sans rien perdre :
+couleur, et aucune API ne le relit pour le reposer. Ce chemin ne perd rien :
 
 - **relève d'abord** chaque plan des pistes vidéo (`GetProperty()` pour la
   géométrie, `GetNodeGraph().GetNumNodes()` et `GetToolsInNode`,
@@ -281,8 +279,8 @@ sur huit plans, sans rien perdre :
   rapporte, pas telles que tu les as demandées : la troncature de conformation et
   l'`endFrame` exclusif se voient là.
 - Le nombre d'éléments de sous-titres vaut le nombre de cues du SRT. Sinon : le
-  piège du cache. Le pont le vérifie désormais lui-même à l'envoi ; recompte
-  après toute retouche faite hors du pont (`.drt`, second SRT).
+  piège du cache. Le pont le vérifie lui-même à l'envoi ; recompte après
+  toute retouche faite hors du pont (`.drt`, second SRT).
 - Le premier élément de sous-titre part de zéro, à une image ou deux près selon
   la première cue.
 - **Chaque piste de voix se relit `mono`** par `GetTrackSubType`.
@@ -295,7 +293,7 @@ sur huit plans, sans rien perdre :
 
 ## La transcription de Resolve
 
-Elle ne sert plus de juge : MFA pose de meilleures frontières. Les
+Elle ne sert pas de juge : MFA pose de meilleures frontières. Les
 frontières que le monteur reprend à la main sont du goût, pas de la dérive :
 ne cherche pas à le modéliser.
 
@@ -342,8 +340,8 @@ regardant) ; le fond noir de l'interface masque les bandes.
 ### Choisis les plans sur un recadrage, pas sur l'image entière
 
 Choisis les plans 16:9 sur leur recadrage 9:16 (`crop=ih*9/16:ih`), pas sur
-l'image entière : sur une série, un tiers des plans retenus en entier ne
-survivaient pas au recadrage.
+l'image entière : beaucoup de plans retenus en entier ne survivent pas au
+recadrage.
 
 ### Les cadences non entières faussent le calcul d'images
 
@@ -353,8 +351,8 @@ secondes, et l'arrondi coûte parfois une image sur la durée : sans conséquenc
 sur un plan isolé, jamais acceptable entre deux plans jointifs (voir l'`endFrame`
 exclusif plus haut).
 
-Le cas le plus traître est la **cadence variable** (une capture d'écran à
-120 i/s annoncée 60 par Resolve, 57,7 en moyenne réelle) : la numérotation
+Le cas le plus traître est la **cadence variable** (une capture d'écran
+annoncée à 60 i/s par Resolve, à 57,7 en moyenne réelle) : la numérotation
 d'images de Resolve ne correspond plus à `secondes × cadence`, et le plan posé ne
 joue pas ce qu'on visait. Il n'y a pas de calcul fiable : **pose, capture,
 regarde, corrige**.

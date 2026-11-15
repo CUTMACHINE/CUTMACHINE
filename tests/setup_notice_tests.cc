@@ -19,6 +19,7 @@
 #include <functional>
 #include <iostream>
 #include <map>
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -61,6 +62,8 @@ constexpr const char* kSettingsFile = "/machine/.config/cutmachine/.env";
 constexpr const char* kShownSettingsFile = "~/.config/cutmachine/.env";
 constexpr const char* kFfmpegPath = "/opt/ffmpeg/bin/ffmpeg";
 constexpr const char* kModelPath = "/models/ggml-large-v3.bin";
+constexpr const char* kHesitationsPath =
+    "/models/ggml-large-v3-hesitations-s075.bin";
 constexpr const char* kBackupFolder = "/Shared/OneDrive/Copies";
 // Not a key: as plain as the other suites' "sk-test-key".
 constexpr const char* kKeyValue = "sk-test-key-notice";
@@ -80,6 +83,8 @@ struct FakeMachine {
     MfaSearch mfa;
     std::set<std::string> directories;
     VoiceOverSearch voice_over;
+    // AL4 -- the paths whose SHA-256 was verified, and the verdict.
+    std::map<std::string, bool> verified_weights;
 
     void AddFile(const std::string& path, std::uintmax_t size = 1024,
                  bool readable = true) {
@@ -108,6 +113,14 @@ struct FakeMachine {
             return directories.count(path) != 0;
         };
         machine.voice_over = voice_over;
+        machine.hesitations_weights =
+            [this](const std::string& path) -> std::optional<bool> {
+            const auto found = verified_weights.find(path);
+            if (found == verified_weights.end()) {
+                return std::nullopt;
+            }
+            return found->second;
+        };
         return setup::CheckSetup(machine);
     }
 };
@@ -187,6 +200,10 @@ FakeMachine CompleteMachine() {
     machine.Set("CUTMACHINE_WHISPER_MODEL", kModelPath,
                 setup::SettingOrigin::kSettingsFile);
     machine.AddFile(kModelPath, 3095033483ULL);
+    machine.Set("CUTMACHINE_WHISPER_HESITATIONS_MODEL", kHesitationsPath,
+                setup::SettingOrigin::kSettingsFile);
+    machine.AddFile(kHesitationsPath, 3095033483ULL);
+    machine.verified_weights[kHesitationsPath] = true;
     machine.mfa = CheckoutSearch();
     machine.AddFile(kBuildPython);
     machine.AddFile(kBuildAligner);
@@ -246,6 +263,8 @@ void TestLabelsAndTitles() {
         setup_notice::ItemTitle(ffmpeg::kDiagnosisKey) == "FFmpeg" &&
             setup_notice::ItemTitle(setup::kWhisperModelItem) ==
                 "Modèle Whisper" &&
+            setup_notice::ItemTitle(setup::kWhisperHesitationsModelItem) ==
+                "Poids des hésitations" &&
             setup_notice::ItemTitle(setup::kMfaItem) == "MFA" &&
             setup_notice::ItemTitle(setup::kAgentKeyItem) == "Clé de l'agent" &&
             setup_notice::ItemTitle(setup::kArchiveBackupItem) ==
@@ -575,6 +594,7 @@ void TestText() {
     const std::vector<std::string> expected = {
         "FFmpeg : absent\n",
         "Modèle Whisper : absent\n",
+        "Poids des hésitations : " + optional,
         "MFA : absent\n",
         "Clé de l'agent : " + optional,
         "Copie de l'archive : " + optional,
@@ -635,6 +655,14 @@ void TestText() {
               !Contains(ready, "À faire") && !Contains(ready, "relancer") &&
               Contains(ready, "Clé de l'agent : prêt\n"),
           "everything ready: no repair, no word on the file: " + ready);
+    // AL4 -- the hesitations weights say whether their digest is verified.
+    Check(Contains(ready, "Poids des hésitations : prêt\n") &&
+              Contains(ready, "dont l'empreinte est vérifiée"),
+          "the hesitations weights, verified: " + ready);
+    complete.verified_weights.clear();
+    Check(Contains(setup_notice::DiagnosticText(complete.Report(), Facts()),
+                   "son empreinte n'a pas encore été vérifiée"),
+          "and not yet verified, said so");
 }
 
 // GN6a -- the local voice-over model, worded from the report's roles and

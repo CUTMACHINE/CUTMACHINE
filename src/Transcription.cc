@@ -1062,6 +1062,39 @@ bool TranscriptCacheMatches(const Transcript& transcript,
            transcript.decoding_profile == settings.decoding_profile;
 }
 
+bool ResolveWhisperSettings(const WhisperDecodingRequest& request,
+                            const std::string& hesitationsModel,
+                            MediaTaskContext& context,
+                            WhisperSettings& settings,
+                            WhisperDecodingChoice& choice, std::string& error) {
+    if (!ResolveWhisperDecodingProfile(
+            request, settings.language.empty() ? "auto" : settings.language,
+            settings.verbatim, settings.whisper_model_path, hesitationsModel,
+            context, choice, error)) {
+        return false;
+    }
+    settings.decoding_profile = choice.profile;
+    settings.whisper_model_path = choice.model_path;
+    return true;
+}
+
+WhisperSettings PlainFallbackSettings(const WhisperSettings& configured) {
+    WhisperSettings plain = configured;
+    plain.verbatim = false;
+    plain.decoding_profile = WhisperDecodingProfile::Default;
+    return plain;
+}
+
+WhisperSettings EllipsisRedoSettings(const WhisperSettings& resolved,
+                                     const WhisperSettings& configured,
+                                     bool verbatim) {
+    WhisperSettings redo =
+        verbatim ? resolved : PlainFallbackSettings(configured);
+    redo.verbatim = verbatim;
+    redo.suppress_ellipsis = true;
+    return redo;
+}
+
 bool LoadAudioTranscript(const std::string& path, Transcript& transcript,
                          std::string& error) {
     error.clear();
@@ -1781,6 +1814,10 @@ bool ResolveWhisperModel(
     path = configured;
     reason.clear();
     return true;
+}
+
+std::string ConfiguredWhisperHesitationsModel() {
+    return local_env::Value(kWhisperHesitationsModelVariable);
 }
 
 bool ResolveConfiguredWhisperModel(std::string& path, std::string& reason) {

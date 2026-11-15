@@ -11,11 +11,11 @@
 
 - **C'est le creux le plus long qui compte, pas le total** : douze
   respirations de 0,2 s ne s'entendent pas, un trou de 0,6 s s'entend. Vise
-  aucun creux au-delà de ~0,3 s (`analyze_timeline_audio`) ; un montage a
-  été refusé pour « tu laisses des silences ».
-- **Ne descends pas `tighten_pauses` sous 300 ms** : à 250 ms, il a refermé
-  le creux qu'une occlusive laisse à l'intérieur de « notre ». Un mot aligné
-  est protégé, un rush non aligné ne l'est pas (`words_checked: false`).
+  aucun creux au-delà de ~0,3 s (`analyze_timeline_audio`).
+- **Ne descends pas `tighten_pauses` sous 300 ms** : à 250 ms, il referme
+  le creux qu'une occlusive laisse à l'intérieur d'un mot (« notre »). Un
+  mot aligné est protégé, un rush non aligné ne l'est pas
+  (`words_checked: false`).
 - **`cut_words` ne voit que les mots que MFA a placés** : relis le texte
   monté après chaque changement de réglage.
 - **Chaque creux refermé coupe le plan en deux** : autant de sauts à
@@ -34,8 +34,8 @@ Pour déplacer un raccord entre deux plans contigus du même rush, c'est
 ## Les « heu » que personne n'a écrits
 
 Un « heu » que personne n'a écrit survit au resserrement, seul entre deux
-coupes (un plan de 19 images relevé par le monteur) : aucun contrôle par le
-texte ne le voit, `transcribe_timeline` passant par le même whisper.
+coupes, dans un plan de quelques images : aucun contrôle par le texte ne le
+voit, `transcribe_timeline` passant par le même whisper.
 `list_timeline_words` le trouve, avec les autres défauts, en un appel :
 
 - un plan `silent` ou sans mot se supprime ; un `head_cut`/`tail_cut` se
@@ -50,16 +50,17 @@ texte ne le voit, `transcribe_timeline` passant par le même whisper.
   où une occlusive fait le creux (« spectateurs », « traditionnel »), et sa
   `suggested_cut` les couperait en deux. Un mot court répété, ou une
   répétition que la transcription montre, se coupe ;
-- **ne coupe pas la liste des candidats en bloc** : sur un montage réel,
-  4 sur 15 étaient des fausses alertes ou des hésitations gardées.
+- **ne coupe pas la liste des candidats en bloc** : une part d'entre eux
+  sont de fausses alertes, ou des hésitations à garder.
 
 Un candidat laissé (une hésitation gardée, un redémarrage qui n'en est pas
 un) se dit dans le compte rendu.
 
 ## Relire le texte monté
 
-Relire le texte monté trouve ce que rien d'autre ne voit : « On l'a
-**mis** » pour « On l'a remis », un bloc sorti 124 images trop tôt.
+Relire le texte monté trouve ce que rien d'autre ne voit : un mot amputé
+par une coupe (« On l'a **mis** » pour « On l'a remis »), un bloc sorti
+trop tôt.
 
 - **Texte choisi** : relis le script retenu sans les rushes (antécédents,
   causes, fidélité à ce que la personne voulait dire).
@@ -74,6 +75,6 @@ Relire le texte monté trouve ce que rien d'autre ne voit : « On l'a
 ou des « et » en tête de plan ; un mot qu'il est seul à entendre peut être
 un artefact, examine le raccord avant de le couper.
 
-Les seuils de `review_cuts` n'ont été vérifiés que sur des médias
-synthétiques : sur une parole continue, l'ambiance d'un côté peut être la
+Les seuils de `review_cuts` sont réglés sur des médias synthétiques : sur
+une parole continue, ce qu'il prend pour l'ambiance d'un côté peut être la
 voix.

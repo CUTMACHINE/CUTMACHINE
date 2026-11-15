@@ -153,6 +153,57 @@ int main() {
     Check(variableRateSource.ActiveThreadType() == FF_THREAD_FRAME,
           "a long-GOP stream keeps frame threading");
 
+    // VF2, VF3 -- docs/roadmap/VFR-2026-11.md. A phone's rush: its first
+    // picture at zero, a hole of 1.6 frames, then a picture every 1/30 s
+    // give or take 3 ms. Ingest counts it at the nominal 30/1 its timestamps
+    // are written on, not at its average; the decoder reports the same rate,
+    // holds every frame ingest declares, and decodes frame k as the picture
+    // nearest k/30 -- the one playback names and the export shows.
+    const std::filesystem::path phonePath = root / "phone.mp4";
+    const std::string generatePhone =
+        Quote(FFMPEG_EXECUTABLE) +
+        " -hide_banner -loglevel error "
+        "-f lavfi -i 'testsrc2=size=64x32:rate=30:duration=10' "
+        "-vf \"settb=1/90000,setpts='if(eq(N,0),0,N*3000+4800+"
+        "(mod(N*37,7)-3)*90)'\" -fps_mode passthrough -enc_time_base 1/90000 "
+        "-video_track_timescale 90000 -c:v libx264 -g 12 -bf 0 "
+        "-pix_fmt yuv420p " +
+        Quote(phonePath);
+    Check(std::system(generatePhone.c_str()) == 0,
+          "FFmpeg must generate the phone-like media fixture");
+    LibraryMedia phone;
+    Check(ProbeMediaMetadata(phonePath.string(), phone, error),
+          "the phone-like media is probed: " + error);
+    Check(phone.rate.num == 30 && phone.rate.den == 1,
+          "a phone's variable rate is counted at its nominal 30/1 (" +
+              std::to_string(phone.rate.num) + "/" +
+              std::to_string(phone.rate.den) + ")");
+    MediaSource phoneSource;
+    Check(phoneSource.Open(phonePath.string()), "the phone-like media opens");
+    Check(phoneSource.FrameRateNumerator() == 30 &&
+              phoneSource.FrameRateDenominator() == 1 &&
+              phoneSource.FrameCount() >=
+                  phone.duration.to_frames(phone.rate.num, phone.rate.den),
+          "the decoder counts it on the same grid, every declared frame "
+          "included");
+    const auto ticks = [](int64_t picture) -> int64_t {
+        return picture == 0 ? 0
+                            : (picture * 3000) + 4800 +
+                                  ((((picture * 37) % 7) - 3) * 90);
+    };
+    const AVFrame* phoneFrame = nullptr;
+    int64_t phonePts = AV_NOPTS_VALUE;
+    // Picture 8 sits at 9.6 frames, 0.4 frame before grid frame 10; picture
+    // 9 sits 0.6 frame after it. Waiting for a picture at or after 10/30 s
+    // decoded picture 9.
+    Check(phoneSource.DecodeFrame(10, phoneFrame, phonePts) &&
+              phonePts == ticks(8),
+          "frame 10 is the picture nearest 10/30 s (pts " +
+              std::to_string(phonePts) + ", picture 8 is " +
+              std::to_string(ticks(8)) + ")");
+    Check(phoneSource.FrameIndexForPts(phonePts) == 10,
+          "playback names that picture frame 10 too");
+
     // FI14 -- docs/roadmap/FIABILITE-2026-10.md. A song with its cover art
     // is a sound: the attached picture is neither its picture nor a reason
     // to refuse it.

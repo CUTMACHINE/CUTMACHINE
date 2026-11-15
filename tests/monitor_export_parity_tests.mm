@@ -56,6 +56,7 @@
 #include "MotionClipPreview.h"
 #include "MotionClipPreviewRender.h"
 #include "PerformanceMetrics.h"
+#include "PersonMatte.h"
 #include "Renderer.h"
 #include "Timeline.h"
 #include "TransitionRender.h"
@@ -392,6 +393,10 @@ bool RenderMonitor(const Document& document, Renderer& renderer,
     PerformanceMetrics metrics;
     MonitorFrames monitor;
     monitor.motion.reserve(tracks.size());
+    // PA15 -- the mattes handed to the renderer, alive until it returns;
+    // reserved so that no pointer handed over moves.
+    std::vector<std::vector<uint8_t>> mattes;
+    mattes.reserve(tracks.size() * 4);
     TimelineRenderData data;
     data.color_management = document.color_management;
     data.display_sdr_preview = true;
@@ -543,6 +548,28 @@ bool RenderMonitor(const Document& document, Renderer& renderer,
             // PA8 -- and its mask, as main.mm hands it.
             data.video_masks.push_back(
                 clip != nullptr ? MonitorMaskOf(clip->mask) : MonitorMask{});
+            // PA15 -- and the matte of the source frame shown, read from
+            // the package as main.mm reads it.
+            MonitorMatte matte;
+            if (clip != nullptr && ClipHasPersonMask(*clip)) {
+                std::string path;
+                person_matte::Info info;
+                person_matte::Reader reader;
+                mattes.emplace_back();
+                if (!person_matte::MatteForMedia(document, directory.string(),
+                                                 clip->source_id, path, info,
+                                                 error) ||
+                    !reader.Open(path, error) ||
+                    !reader.Frame(layer.frame.source_frame, mattes.back(),
+                                  error)) {
+                    error = "matte: " + error;
+                    return false;
+                }
+                matte.bytes = mattes.back().data();
+                matte.width = info.width;
+                matte.height = info.height;
+            }
+            data.video_mattes.push_back(matte);
         }
     }
     // R6 -- docs/roadmap/REEL-2026-09.md. The same one call main.mm makes
@@ -696,6 +723,13 @@ ClipMask SoftEllipse() {
     mask.width = {1, 2};
     mask.height = {3, 4};
     mask.feather = {1, 2};
+    return mask;
+}
+
+// PA15 -- the people of the shot, cut out by the matte RunCase writes.
+ClipMask PersonMask() {
+    ClipMask mask;
+    mask.shape = kClipMaskPerson;
     return mask;
 }
 
@@ -860,6 +894,34 @@ void RunCase(const Case& test, const std::filesystem::path& directory,
         media.duration = {50, 25};
         media.color_input = test.media_input;
         document.library.push_back(media);
+    }
+    // PA15 -- a clip cut out along its people: a matte written where the
+    // export and the monitor look for it, a soft ellipse that moves from
+    // frame to frame, so that a side reading the matte of another frame
+    // would be caught.
+    if (test.mask.shape == kClipMaskPerson) {
+        person_matte::Writer writer;
+        std::string matteError;
+        bool written = writer.Open(
+            person_matte::MattePath(directory.string(), document.sources[0].id),
+            kWidth, kHeight, {25, 1}, "accurate", matteError);
+        std::vector<uint8_t> frame(static_cast<size_t>(kWidth) * kHeight);
+        for (int index = 0; written && index < 50; ++index) {
+            const double cx = 0.25 + 0.01 * index;
+            for (int y = 0; y < kHeight; ++y) {
+                for (int x = 0; x < kWidth; ++x) {
+                    const double dx = ((x + 0.5) / kWidth - cx) / 0.2;
+                    const double dy = ((y + 0.5) / kHeight - 0.5) / 0.35;
+                    const double inside = std::clamp(
+                        (1.0 - std::sqrt(dx * dx + dy * dy)) / 0.3, 0.0, 1.0);
+                    frame[static_cast<size_t>(y) * kWidth + x] =
+                        static_cast<uint8_t>(std::lround(inside * 255.0));
+                }
+            }
+            written = writer.Add(frame.data(), matteError);
+        }
+        Check(written && writer.Finish(matteError),
+              label + ": the matte is written: " + matteError);
     }
     if (test.framed) {
         // Half of the first patch, the whole second, half of the third,
@@ -1488,6 +1550,29 @@ int Run() {
                     Case test = Masked("S-Log3, graphisme masqué", Slog3(),
                                        OffCentreWindow());
                     test.media_input = {"", "", "auto", "auto", true};
+                    return test;
+                }(),
+                // PA15 -- the people's matte, a soft shape that moves from
+                // frame to frame: unmanaged, managed, and on a framed
+                // board whose fill shows part of the picture.
+                Masked("sans gestion, détourage", Unmanaged(), PersonMask()),
+                [] {
+                    Case test = Masked("S-Log3 vers Rec.709, détourage",
+                                       Slog3(), PersonMask());
+                    // As for the feathered ellipse, and steeper: the
+                    // matte's edge is narrower (19 pixels), so the file's
+                    // 4:2:0 chroma spreads more of the board's saturated
+                    // blue over its black, and the display transform makes
+                    // much of it. Measured 0.120 on 13 November 2026 at a
+                    // pixel where the luma agrees (0.063 in Record, 0.065
+                    // in the file) and the chroma alone parts.
+                    test.mask_largest_tolerance = 0.13;
+                    return test;
+                }(),
+                [] {
+                    Case test = Framed("sans gestion, plan recadré détouré",
+                                       Unmanaged());
+                    test.mask = PersonMask();
                     return test;
                 }(),
             };

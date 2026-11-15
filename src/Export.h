@@ -239,6 +239,18 @@ struct ExportMotionAsset {
     std::string audio_path;
 };
 
+// PA15 -- docs/roadmap/PARITE-2026-11.md. The matte of one clip cut out
+// along its people (PersonMatte.h): frames [first_frame, first_frame +
+// count) of the media's matte, written raw to `raw_path` before FFmpeg
+// starts and read by it as one more input. The worker owns the file's
+// lifetime, like the other derived assets.
+struct ExportMatteAsset {
+    std::string matte_path;
+    std::string raw_path;
+    int64_t first_frame = 0;
+    int64_t count = 0;
+};
+
 struct ExportPlan {
     ExportSettings settings;
     Ulid timeline_id;
@@ -259,6 +271,8 @@ struct ExportPlan {
     ExportLutAsset display_shaper;
     // MOTION-2026-09 M4 -- the motion clips, in input order.
     std::vector<ExportMotionAsset> motion_assets;
+    // PA15 -- the mattes of the clips cut out along their people.
+    std::vector<ExportMatteAsset> matte_assets;
     // Rendering by segments (ExportSettings::max_inputs_per_pass): when not
     // empty, these windows are rendered first, losslessly, into
     // segment_directory, listed in segment_list_path, and `arguments` is the

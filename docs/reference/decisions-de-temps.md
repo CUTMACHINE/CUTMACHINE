@@ -20,6 +20,23 @@ triggers no decoding and is rendered black.
   `RationalTime` is an integer timebase. So a frame at `30000/1001` lasts
   `1001` ticks in a `30000` timebase; this convention is necessary because
   `RationalTime::rate` cannot itself hold a quotient.
+- A source frame number names a picture through the source's grid
+  (`SourceGrid.h`): frame `k` is the picture on screen `k / rate` after the
+  source's first picture, as FFmpeg's `fps` filter resamples the stream
+  anchored on that picture — the latest picture whose time, in grid steps
+  and rounded to the nearest step (halves away from zero), is `k` or less.
+  On a constant-rate file it is the file's `k`-th picture; on a phone's
+  variable-rate file it is the picture nearest `k / rate`, so the picture
+  stays with the sound, which is placed by time. The export and
+  `verify_export` read a source on this grid through the same function; the
+  monitor decodes frame `k` as the first picture whose rounded step reaches
+  `k`, the rounding it names pictures with during playback.
+- The rate a source is counted at (`sources[].rate`) is chosen once, at
+  ingest, by `SourceCountingRate`: the stream's average rate, except for a
+  variable-rate stream whose average is no standard cadence, whose nominal
+  rate (`r_frame_rate`) is one, and which stays within 2 % of it — then the
+  nominal rate, the grid the camera recorded on. A genuine `24000/1001`
+  file is never counted at `24`. A media keeps the rate read at its import.
 - The playhead has two grids, toggled by `Alt+Shift+M`. In Image mode, its
   position is rounded to the nearest frame according to the rational
   reference rate (that of the sequence; failing that, the first source),

@@ -319,12 +319,12 @@ public:
         const CacheTarget& target, const std::vector<Ulid>& sourceIds,
         const std::string& language, bool verbatim, bool includeSilent,
         bool overwrite, std::string& resultJson, std::string& message,
-        WhisperDecodingProfile profile = WhisperDecodingProfile::Default);
+        const WhisperDecodingRequest& profile = std::nullopt);
     static bool RunTranscribeTimeline(
         const CacheTarget& target, const std::string& timelineId,
         const std::string& language, bool verbatim, std::string& resultJson,
         std::string& message,
-        WhisperDecodingProfile profile = WhisperDecodingProfile::Default);
+        const WhisperDecodingRequest& profile = std::nullopt);
     static bool RunAlignSourceTranscripts(const CacheTarget& target, bool apply,
                                           std::string& resultJson,
                                           std::string& message);
@@ -531,17 +531,15 @@ public:
                         const audio_dsp::DuckingSettings& settings,
                         std::string& resultJson, std::string& errorName,
                         std::string& message) override;
-    bool TranscribeSources(const std::vector<Ulid>& sourceIds,
-                           const std::string& language, bool verbatim,
-                           bool includeSilent, bool overwrite,
-                           std::string& resultJson, std::string& message,
-                           WhisperDecodingProfile profile =
-                               WhisperDecodingProfile::Default) override;
-    bool TranscribeTimeline(const std::string& timelineId,
-                            const std::string& language, bool verbatim,
-                            std::string& resultJson, std::string& message,
-                            WhisperDecodingProfile profile =
-                                WhisperDecodingProfile::Default) override;
+    bool TranscribeSources(
+        const std::vector<Ulid>& sourceIds, const std::string& language,
+        bool verbatim, bool includeSilent, bool overwrite,
+        std::string& resultJson, std::string& message,
+        const WhisperDecodingRequest& profile = std::nullopt) override;
+    bool TranscribeTimeline(
+        const std::string& timelineId, const std::string& language,
+        bool verbatim, std::string& resultJson, std::string& message,
+        const WhisperDecodingRequest& profile = std::nullopt) override;
     bool AlignSourceTranscripts(bool apply, std::string& resultJson,
                                 std::string& message) override;
     bool AlignSourceWords(const std::vector<Ulid>& mediaIds,

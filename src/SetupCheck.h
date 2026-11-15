@@ -15,6 +15,10 @@
 //   whisper_model    CUTMACHINE_WHISPER_MODEL, resolved as Transcription.h
 //                    resolves it, and the file there readable and not empty.
 //                    The window's menus use it too since DEC23.
+//   whisper_hesitations_model
+//                    CUTMACHINE_WHISPER_HESITATIONS_MODEL, the s075 weights
+//                    French verbatim decodes with (AL4), and whether their
+//                    SHA-256 is the evaluated one. Optional.
 //   mfa              the three files of MFA's installation, searched as
 //                    MfaAlignment.h searches them. Python is not started.
 //   agent_key        ANTHROPIC_API_KEY: present or not, and from where.
@@ -45,6 +49,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -54,6 +59,8 @@ namespace setup {
 // The first is ffmpeg::kDiagnosisKey, "ffmpeg", the key PRD2's diagnosis
 // already goes by.
 inline constexpr const char* kWhisperModelItem = "whisper_model";
+inline constexpr const char* kWhisperHesitationsModelItem =
+    "whisper_hesitations_model";
 inline constexpr const char* kMfaItem = "mfa";
 inline constexpr const char* kAgentKeyItem = "agent_key";
 inline constexpr const char* kArchiveBackupItem = "archive_backup";
@@ -162,6 +169,10 @@ struct Machine {
     // GN6a -- the voice-over's search, with everything it reads. A null
     // `is_file` is `file` above, a null `is_folder` is `directory`.
     VoiceOverSearch voice_over;
+    // AL4 -- whether the file at a path is the evaluated s075 weights, or no
+    // value when that was not verified. Unset: never verified.
+    std::function<std::optional<bool>(const std::string& path)>
+        hesitations_weights;
 };
 
 // This process's machine: its environment and settings file, the file
@@ -169,8 +180,10 @@ struct Machine {
 Machine CurrentMachine();
 
 // The report for `machine`, its items in the order above. On the current
-// machine it probes FFmpeg (three short launches, remembered per binary) and
-// may read the Keychain once: call it off the main thread.
+// machine it probes FFmpeg (three short launches, remembered per binary),
+// may read the Keychain once, and reads the hesitations weights once per
+// process to verify them (about 10 s for 3 GB, WhisperDecodingProfile.h):
+// call it off the main thread.
 Report CheckSetup(const Machine& machine);
 
 // {"ok":…,"items":[…]}. When !Ok(), the missing required item's `error` and

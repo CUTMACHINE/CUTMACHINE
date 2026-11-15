@@ -161,17 +161,15 @@ public:
     bool AlignSourceWords(const std::vector<Ulid>& mediaIds,
                           const std::string& textsJson, std::string& resultJson,
                           std::string& message) override;
-    bool TranscribeSources(const std::vector<Ulid>& sourceIds,
-                           const std::string& language, bool verbatim,
-                           bool includeSilent, bool overwrite,
-                           std::string& resultJson, std::string& message,
-                           WhisperDecodingProfile profile =
-                               WhisperDecodingProfile::Default) override;
-    bool TranscribeTimeline(const std::string& timelineId,
-                            const std::string& language, bool verbatim,
-                            std::string& resultJson, std::string& message,
-                            WhisperDecodingProfile profile =
-                                WhisperDecodingProfile::Default) override;
+    bool TranscribeSources(
+        const std::vector<Ulid>& sourceIds, const std::string& language,
+        bool verbatim, bool includeSilent, bool overwrite,
+        std::string& resultJson, std::string& message,
+        const WhisperDecodingRequest& profile = std::nullopt) override;
+    bool TranscribeTimeline(
+        const std::string& timelineId, const std::string& language,
+        bool verbatim, std::string& resultJson, std::string& message,
+        const WhisperDecodingRequest& profile = std::nullopt) override;
     bool RunAfterRequest(const std::string& requestJson,
                          std::string& resultJson, std::string& errorName,
                          std::string& message) override;

@@ -690,6 +690,7 @@ int main() {
               "--check-setup with FFmpeg answers ok:true, status 0: " +
                   found.output.substr(0, 400));
         Check(order == std::vector<std::string>{"ffmpeg", "whisper_model",
+                                                "whisper_hesitations_model",
                                                 "mfa", "agent_key",
                                                 "archive_backup", "voice_over"},
               "--check-setup lists its items in order");
@@ -1693,6 +1694,161 @@ int main() {
           "headless transcription refuses an empty batch with a reason");
     Check(Read(createdPath) == createdBytes,
           "refused transcription leaves the project byte-identical");
+
+    // AL4 -- the command line tells a profile it was not given from
+    // `default` named, and the answer says which ran, on which weights, and
+    // whether the engine chose it. No model runs: a rush measured mute is
+    // skipped, and the timeline is served from its caches. The binary has
+    // no test identity for the weights, so the hesitations setting names
+    // other weights here, and an unnamed profile resolves to `default` on
+    // the model (transcription_tests and mcp_tests cover the evaluated
+    // weights).
+    {
+        const Ulid rush = "01K3A000000000000000000001";
+        const Ulid timeline = "01K3A000000000000000000010";
+        Document spoken;
+        spoken.sequence.id = timeline;
+        spoken.sources = {{rush, "voice.wav", {25, 1}, {1000, 25}}};
+        LibraryMedia voice;
+        voice.id = rush;
+        voice.path = "voice.wav";
+        voice.filename = "voice.wav";
+        voice.codec = "pcm_s16le";
+        voice.has_video = false;
+        voice.orientation = "audio";
+        voice.rate = {25, 1};
+        voice.duration = {1000, 25};
+        voice.has_audio = true;
+        voice.audio_rate = 48000;
+        voice.audio_channels = 1;
+        voice.audio_level_measured = true;
+        voice.audio_level = 200;
+        spoken.library = {voice};
+        spoken.sequence.tracks = {{"01K3A000000000000000000011",
+                                   "audio",
+                                   0,
+                                   {{"01K3A000000000000000000012",
+                                     rush,
+                                     {0, 25},
+                                     {100, 25},
+                                     {0, 25}}}}};
+        std::string spokenPath;
+        Check(CreatePortableProject(
+                  (directory / "Profile.cutmachine-project").string(),
+                  Project::FromDocument(spoken, "Profile"), spokenPath, error),
+              "profile package saves: " + error);
+        const std::filesystem::path cache =
+            std::filesystem::path(spokenPath).parent_path() / ".cutmachine";
+        Project stored;
+        TimelineAudioPlan plan;
+        Check(Project::Load(spokenPath, stored, error) &&
+                  BuildTimelineAudioPlan(stored.MakeDocument(timeline),
+                                         spokenPath, plan, error),
+              "profile timeline audio plan: " + error);
+        for (const auto profile :
+             {WhisperDecodingProfile::Default,
+              WhisperDecodingProfile::FrenchHesitationsV1}) {
+            Transcript reading;
+            reading.media_id = plan.cache_identity;
+            reading.whisper_model = "ggml-test.bin";
+            reading.language = "fr";
+            reading.verbatim = true;
+            reading.decoding_profile = profile;
+            reading.source_rate = {25, 1};
+            reading.words = {{profile == WhisperDecodingProfile::Default
+                                  ? "ordinaire"
+                                  : "hésitant",
+                              {0, 25},
+                              {10, 25}}};
+            Check(SaveAudioTranscript(TimelineTranscriptCachePath(
+                                          cache, timeline, true, profile)
+                                          .string(),
+                                      reading, error),
+                  "profile reading seeds: " + error);
+        }
+        const std::filesystem::path model = directory / "ggml-test.bin";
+        Write(model, "not a model");
+        const std::filesystem::path weights =
+            directory / "ggml-hesitations.bin";
+        Write(weights, "s075 stand-in");
+        const std::vector<std::string> environment = {
+            "CUTMACHINE_WHISPER_MODEL=" + model.string(),
+            "CUTMACHINE_WHISPER_HESITATIONS_MODEL=" + weights.string(),
+            "CUTMACHINE_ENV_FILE=" + (directory / "absent.env").string(),
+            "CUTMACHINE_PROJECT_ARCHIVE=off", "CUTMACHINE_LOG=0"};
+        const auto answer = [&](std::vector<std::string> arguments) {
+            arguments.insert(arguments.begin() + 1, spokenPath);
+            const CliRun run = RunCutmachineIn(environment, arguments);
+            Check(run.exited && run.status == 0,
+                  arguments[0] + " succeeds: " + run.output);
+            return run.output;
+        };
+        const std::vector<std::string> frenchVerbatim = {"--language", "fr",
+                                                         "--verbatim"};
+        std::vector<std::string> timelineCall = {"--transcribe-timeline"};
+        timelineCall.insert(timelineCall.end(), frenchVerbatim.begin(),
+                            frenchVerbatim.end());
+        std::string output = answer(timelineCall);
+        Check(Contains(output,
+                       "\"decoding_profile\":\"default\","
+                       "\"decoding_profile_implicit\":true,"
+                       "\"whisper_model\":\"ggml-test.bin\"") &&
+                  Contains(output, "ordinaire"),
+              "--transcribe-timeline without a profile lets the engine "
+              "choose, on the model: " +
+                  output);
+        timelineCall.insert(timelineCall.end(),
+                            {"--decoding-profile", "default"});
+        output = answer(timelineCall);
+        Check(Contains(output,
+                       "\"decoding_profile\":\"default\","
+                       "\"decoding_profile_implicit\":false") &&
+                  Contains(output, "ordinaire"),
+              "--decoding-profile default is a request: " + output);
+        timelineCall.back() = "fr-hesitations-v1";
+        output = answer(timelineCall);
+        Check(Contains(output,
+                       "\"decoding_profile\":\"fr-hesitations-v1\","
+                       "\"decoding_profile_implicit\":false") &&
+                  Contains(output, "hésitant"),
+              "the profile named reads its own cache: " + output);
+        output = answer({"--transcribe", rush, "", "fr", "--verbatim"});
+        Check(Contains(output,
+                       "\"decoding_profile\":\"default\","
+                       "\"decoding_profile_implicit\":true") &&
+                  Contains(output, "\"skipped_count\":1"),
+              "--transcribe without a profile says so: " + output);
+        output = answer({"--transcribe", rush, "", "fr", "--verbatim",
+                         "--decoding-profile", "default"});
+        Check(Contains(output,
+                       "\"decoding_profile\":\"default\","
+                       "\"decoding_profile_implicit\":false"),
+              "--transcribe keeps default named: " + output);
+        const CliRun setupRun = RunCutmachineIn(environment, {"--check-setup"});
+        mcp_json::Value report;
+        std::string parseError;
+        const mcp_json::Value* hesitations = nullptr;
+        if (mcp_json::Value::Parse(setupRun.output, report, parseError) &&
+            report.Find("items") != nullptr &&
+            report.Find("items")->IsArray()) {
+            for (const mcp_json::Value& item :
+                 report.Find("items")->AsArray()) {
+                const mcp_json::Value* id = item.Find("id");
+                if (id != nullptr && id->IsString() &&
+                    id->AsString() == "whisper_hesitations_model") {
+                    hesitations = &item;
+                }
+            }
+        }
+        Check(hesitations != nullptr &&
+                  hesitations->Find("state")->AsString() == "incomplete" &&
+                  !hesitations->Find("required")->AsBool() &&
+                  Contains(hesitations->Dump(), "\"verified\":true") &&
+                  Contains(hesitations->Dump(), "\"evaluated\":false"),
+              "--check-setup says the hesitations weights are not the "
+              "evaluated ones, without failing for it: " +
+                  setupRun.output);
+    }
 
     Project fixtureProject = Project::FromDocument(Fixture(), "CLI fixture");
     std::string fixturePath;
@@ -4622,7 +4778,7 @@ int main() {
     {
         const int32_t newestDocument = DocumentFormatVersion(
             true, true, true, true, true, true, true, true, true, true, true,
-            true, true, true, true, true, true, true, true);
+            true, true, true, true, true, true, true, true, true);
         const std::string written =
             "): the project was written by a more recent CUTMACHINE";
         const std::string newerDocument =

@@ -345,6 +345,9 @@ MediaTaskKind KindOf(const std::string& tool) {
     if (tool == "analyze_speakers") {
         return MediaTaskKind::SpeakerDiarization;
     }
+    if (tool == "analyze_person_matte") {
+        return MediaTaskKind::PersonMatte;
+    }
     if (tool == "measure_audio_offset") {
         return MediaTaskKind::AudioOffset;
     }

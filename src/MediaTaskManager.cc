@@ -47,6 +47,8 @@ const char* MediaTaskKindName(MediaTaskKind kind) {
             return "Ducking";
         case MediaTaskKind::VoiceOver:
             return "VoiceOver";
+        case MediaTaskKind::PersonMatte:
+            return "PersonMatte";
     }
     return "Probe";
 }

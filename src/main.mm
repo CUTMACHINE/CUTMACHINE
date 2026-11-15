@@ -5,6 +5,7 @@
 #include "CliMain.h"
 #include "Generation.h"
 #include "LinkGroupRepair.h"
+#include "PersonMatte.h"
 #include "ProcessLauncher.h"
 #include "ProjectSwitch.h"
 #include "ResolveSend.h"
@@ -473,7 +474,12 @@ NSImage* SystemSymbol(NSString* name, NSString* description,
 // reads: the window has no model of its own to add.
 SetupNoticeResult GatherSetupNotice() {
     SetupNoticeResult result;
-    const setup::Machine machine = setup::CurrentMachine();
+    setup::Machine machine = setup::CurrentMachine();
+    // AL4 -- the window does not read 3 GB at each launch to verify the
+    // hesitations weights: it says what this process already knows.
+    machine.hesitations_weights = [](const std::string& path) {
+        return KnownWhisperDecodingModel(path);
+    };
     result.report = setup::CheckSetup(machine);
     NSString* settings = CMStringFromUtf8(machine.settings_file);
     if (settings.length > 0)
@@ -9420,45 +9426,80 @@ static ui::agent_window::Rect CMAgentRect(NSRect rect) {
 
 - (void)transcribeSelectedMedia:(id)sender {
     (void)sender;
-    [self transcribeSelectedMediaWithProfile:WhisperDecodingProfile::Default];
+    [self transcribeSelectedMediaFrenchVerbatim:NO];
 }
 
 - (void)transcribeSelectedMediaHesitations:(id)sender {
     (void)sender;
-    [self transcribeSelectedMediaWithProfile:WhisperDecodingProfile::
-                                                 FrenchHesitationsV1];
+    [self transcribeSelectedMediaFrenchVerbatim:YES];
 }
 
-- (void)transcribeSelectedMediaWithProfile:(WhisperDecodingProfile)profile {
+// AL4 -- docs/roadmap/ALIGNEMENT-2026-11.md. « Transcrire avec Whisper… »
+// names no profile and is neither French nor verbatim: `default`. « Transcrire
+// les hésitations (français)… » asks for the euh: it names fr-hesitations-v1
+// on the hesitations weights, and refuses with an alert without them, never
+// a silent `default` (whisper_model_setting::HesitationsWeightsProblem).
+- (void)transcribeSelectedMediaFrenchVerbatim:(BOOL)frenchVerbatim {
     NSString* identifier = [self selectedMediaId];
     if (!identifier || !self.state) return;
+    if (frenchVerbatim && ![self hesitationsWeightsAllowed]) return;
     NSString* modelPath = [self transcriptionModelPath];
     if (!modelPath) return;
     WhisperSettings settings;
     settings.whisper_model_path = modelPath.UTF8String ?: "";
-    settings.decoding_profile = profile;
-    if (profile == WhisperDecodingProfile::FrenchHesitationsV1) {
+    if (frenchVerbatim) {
         settings.language = "fr";
         settings.verbatim = true;
     }
     [self enqueueTranscriptionForMediaIdentifier:identifier
                                         settings:settings
-                                         batchId:Ulid{}];
+                                         batchId:Ulid()
+                                      reuseCache:NO
+                                     hesitations:frenchVerbatim];
+}
+
+// AL4 -- what the main thread can tell without reading the weights: unset,
+// unreadable or known as other weights refuse here; weights not read yet in
+// this process are read by the task, which refuses the same way.
+- (BOOL)hesitationsWeightsAllowed {
+    const whisper_model_setting::HesitationsFacts facts =
+        whisper_model_setting::CurrentHesitationsFacts();
+    const whisper_model_setting::HesitationsProblem problem =
+        whisper_model_setting::HesitationsWeightsProblem(facts);
+    if (problem == whisper_model_setting::HesitationsProblem::kNone ||
+        problem == whisper_model_setting::HesitationsProblem::kUnverified)
+        return YES;
+    [self showHesitationsRefusal:whisper_model_setting::RefuseHesitations(
+                                     problem, facts)
+                                     .detail];
+    return NO;
+}
+
+- (void)showHesitationsRefusal:(const std::string&)detail {
+    self.binSummaryLabel.stringValue = CMStringFromUtf8(detail);
+    NSAlert* alert = [NSAlert new];
+    alert.alertStyle = NSAlertStyleWarning;
+    alert.messageText = @"Transcription des hésitations impossible";
+    alert.informativeText = CMStringFromUtf8(detail);
+    if (self.window.attachedSheet == nil)
+        [alert beginSheetModalForWindow:self.window completionHandler:nil];
+    else
+        NSBeep();
 }
 
 - (void)transcribeTimeline:(id)sender {
     (void)sender;
-    [self transcribeTimelineWithProfile:WhisperDecodingProfile::Default];
+    [self transcribeTimelineFrenchVerbatim:NO];
 }
 
 - (void)transcribeTimelineHesitations:(id)sender {
     (void)sender;
-    [self transcribeTimelineWithProfile:WhisperDecodingProfile::
-                                            FrenchHesitationsV1];
+    [self transcribeTimelineFrenchVerbatim:YES];
 }
 
-- (void)transcribeTimelineWithProfile:(WhisperDecodingProfile)profile {
+- (void)transcribeTimelineFrenchVerbatim:(BOOL)frenchVerbatim {
     if (!self.state) return;
+    if (frenchVerbatim && ![self hesitationsWeightsAllowed]) return;
     NSString* modelPath = [self transcriptionModelPath];
     if (!modelPath) return;
 
@@ -9496,24 +9537,42 @@ static ui::agent_window::Rect CMAgentRect(NSRect rect) {
     const Ulid batchId = GenerateUlid();
     PendingTimelineTranscription batch;
     batch.timeline_id = self.state->activeTimelineId;
+    batch.hesitations = frenchVerbatim;
     const std::filesystem::path projectPath = std::filesystem::absolute(
         std::filesystem::path(self.documentPath.UTF8String ?: ""));
     const std::filesystem::path transcriptDirectory =
         projectPath.parent_path() / ".cutmachine" / "transcripts";
     WhisperSettings requestedSettings;
     requestedSettings.whisper_model_path = modelPath.UTF8String ?: "";
-    requestedSettings.decoding_profile = profile;
-    if (profile == WhisperDecodingProfile::FrenchHesitationsV1) {
+    if (frenchVerbatim) {
         requestedSettings.language = "fr";
         requestedSettings.verbatim = true;
+    }
+    // AL4 -- the profile is part of the cache identity. When only reading
+    // the weights tells it, the main thread does not: each task does,
+    // then reuses the cache that matches.
+    const WhisperDecodingRequest request =
+        frenchVerbatim ? WhisperDecodingRequest(
+                             WhisperDecodingProfile::FrenchHesitationsV1)
+                       : WhisperDecodingRequest();
+    const std::optional<WhisperDecodingChoice> known =
+        KnownWhisperDecodingChoice(request, requestedSettings.language,
+                                   requestedSettings.verbatim,
+                                   requestedSettings.whisper_model_path,
+                                   ConfiguredWhisperHesitationsModel());
+    WhisperSettings knownSettings = requestedSettings;
+    if (known) {
+        knownSettings.decoding_profile = known->profile;
+        knownSettings.whisper_model_path = known->model_path;
     }
     for (const Ulid& mediaId : mediaIds) {
         const std::filesystem::path cachedPath =
             transcriptDirectory / (mediaId + ".json");
         Transcript cached;
         std::string cacheError;
-        if (LoadAudioTranscript(cachedPath.string(), cached, cacheError) &&
-            TranscriptCacheMatches(cached, mediaId, requestedSettings)) {
+        if (known &&
+            LoadAudioTranscript(cachedPath.string(), cached, cacheError) &&
+            TranscriptCacheMatches(cached, mediaId, knownSettings)) {
             batch.transcript_paths.emplace(mediaId, cachedPath);
             continue;
         }
@@ -9521,7 +9580,9 @@ static ui::agent_window::Rect CMAgentRect(NSRect rect) {
         const Ulid taskId =
             [self enqueueTranscriptionForMediaIdentifier:identifier
                                                 settings:requestedSettings
-                                                 batchId:batchId];
+                                                 batchId:batchId
+                                              reuseCache:!known
+                                             hesitations:frenchVerbatim];
         if (taskId.empty()) {
             batch.error = "unable to enqueue every timeline source";
             break;
@@ -9550,7 +9611,9 @@ static ui::agent_window::Rect CMAgentRect(NSRect rect) {
 
 - (Ulid)enqueueTranscriptionForMediaIdentifier:(NSString*)identifier
                                       settings:(const WhisperSettings&)settings
-                                       batchId:(const Ulid&)batchId {
+                                       batchId:(const Ulid&)batchId
+                                    reuseCache:(BOOL)reuseCache
+                                   hesitations:(BOOL)hesitations {
     if (!identifier || settings.whisper_model_path.empty() || !self.state)
         return {};
     const Ulid mediaId(identifier.UTF8String ?: "");
@@ -9573,17 +9636,41 @@ static ui::agent_window::Rect CMAgentRect(NSRect rect) {
     input = input.lexically_normal();
     const std::filesystem::path output =
         base / ".cutmachine" / "transcripts" / (mediaId + ".json");
+    const bool reuse = reuseCache;
+    const bool euh = hesitations;
+    const whisper_model_setting::HesitationsFacts facts =
+        whisper_model_setting::CurrentHesitationsFacts();
     const Ulid taskId = self.state->mediaTasks->Enqueue(
         MediaTaskKind::Transcription, "Whisper " + media->filename,
-        [input, output, mediaId, rate = source->rate, settings](
-            MediaTaskContext& context, std::string& taskError) {
+        [input, output, mediaId, rate = source->rate, settings, reuse, euh,
+         facts](MediaTaskContext& context, std::string& taskError) {
+            // AL4 -- off the main thread: recognizing the weights reads them.
+            // The hesitations action runs on its weights or not at all.
+            if (euh && !whisper_model_setting::HesitationsWeightsReady(
+                           facts, context, taskError))
+                return false;
+            WhisperSettings resolved = settings;
+            WhisperDecodingChoice choice;
+            const WhisperDecodingRequest request =
+                euh ? WhisperDecodingRequest(
+                          WhisperDecodingProfile::FrenchHesitationsV1)
+                    : WhisperDecodingRequest();
+            if (!ResolveWhisperSettings(request, facts.path, context, resolved,
+                                        choice, taskError))
+                return false;
+            Transcript cached;
+            std::string cacheError;
+            if (reuse &&
+                LoadAudioTranscript(output.string(), cached, cacheError) &&
+                TranscriptCacheMatches(cached, mediaId, resolved))
+                return true;
             return GenerateAudioTranscript(input.string(), output.string(),
-                                           mediaId, rate, settings, context,
+                                           mediaId, rate, resolved, context,
                                            taskError);
         });
     self.state->pendingTranscriptions.emplace(
         taskId, PendingTranscription{mediaId, self.state->activeTimelineId,
-                                     batchId, output});
+                                     batchId, output, hesitations == YES});
     self.binSummaryLabel.stringValue =
         [NSString stringWithFormat:@"Transcription de %@ en arrière-plan…",
                                    CMStringFromUtf8(media->filename)];
@@ -16051,6 +16138,10 @@ static constexpr CGFloat kTrimMonitorPointsPerFrame = 6.0;
             self.binSummaryLabel.stringValue = [NSString
                 stringWithFormat:@"Échec de la transcription : %@",
                                  CMStringFromUtf8(task->second.error)];
+            // AL4 -- the weights the task found unusable: why, and what to
+            // set.
+            if (pending.hesitations)
+                [self showHesitationsRefusal:task->second.error];
             continue;
         }
 
@@ -16146,6 +16237,9 @@ static constexpr CGFloat kTrimMonitorPointsPerFrame = 6.0;
             self.binSummaryLabel.stringValue = [NSString
                 stringWithFormat:@"Transcription de la timeline échouée : %@",
                                  CMStringFromUtf8(batch.error)];
+            if (batch.hesitations &&
+                batch.error != "timeline transcription cancelled")
+                [self showHesitationsRefusal:batch.error];
             continue;
         }
         if (batch.timeline_id != self.state->activeTimelineId) {
@@ -17446,6 +17540,54 @@ static constexpr CGFloat kTrimMonitorPointsPerFrame = 6.0;
 // that is not the film's: it is reported, once per digest, because there is
 // nothing else the monitor can draw and silence would be the worse of the
 // two.
+// PA15 -- docs/roadmap/PARITE-2026-11.md. The matte of `frame` of a media
+// for Record's slot `slot` (PersonMatte.h): the reader is kept open per
+// media and opened again when its file is rewritten; the frame's bytes
+// stay in matteFrames[slot] until the next render. Empty when the media
+// has no usable matte, which is said once in the log.
+- (MonitorMatte)personMatteForMedia:(const Ulid&)mediaId
+                              frame:(int64_t)frame
+                               slot:(size_t)slot
+                            package:(const std::string&)package {
+    MonitorMatte none;
+    std::string path;
+    person_matte::Info info;
+    std::string error;
+    if (!person_matte::MatteForMedia(self.state->document, package, mediaId,
+                                     path, info, error)) {
+        if (self.state->reportedMattes.insert(mediaId + error).second)
+            std::fprintf(stderr, "Record: %s\n", error.c_str());
+        self.state->personMattes.erase(mediaId);
+        return none;
+    }
+    std::error_code timeError;
+    const auto written = std::filesystem::last_write_time(path, timeError);
+    auto& open = self.state->personMattes[mediaId];
+    if (!open.reader || open.path != path || open.written != written) {
+        open.reader = std::make_unique<person_matte::Reader>();
+        open.path = path;
+        open.written = written;
+        if (!open.reader->Open(path, error)) {
+            if (self.state->reportedMattes.insert(mediaId + error).second)
+                std::fprintf(stderr, "Record: %s\n", error.c_str());
+            self.state->personMattes.erase(mediaId);
+            return none;
+        }
+    }
+    if (slot >= self.state->matteFrames.size()) return none;
+    std::vector<uint8_t>& bytes = self.state->matteFrames[slot];
+    if (!open.reader->Frame(frame, bytes, error)) {
+        if (self.state->reportedMattes.insert(mediaId + error).second)
+            std::fprintf(stderr, "Record: %s\n", error.c_str());
+        return none;
+    }
+    MonitorMatte matte;
+    matte.bytes = bytes.data();
+    matte.width = open.reader->info().width;
+    matte.height = open.reader->info().height;
+    return matte;
+}
+
 - (void)refreshSequenceLookLut {
     if (!self.state) return;
     const SequenceLut& look = self.state->document.sequence.look_lut;
@@ -18790,6 +18932,10 @@ static constexpr CGFloat kTrimMonitorPointsPerFrame = 6.0;
         programData.video_blurs.resize(candidates.size(), 0.0f);
         // PA8 -- docs/roadmap/PARITE-2026-11.md. And its clip's mask.
         programData.video_masks.resize(candidates.size(), MonitorMask{});
+        // PA15 -- and, for a clip cut out along its people, the matte of
+        // the source frame shown.
+        programData.video_mattes.resize(candidates.size(), MonitorMatte{});
+        self.state->matteFrames.resize(candidates.size());
         // R6 -- docs/roadmap/REEL-2026-09.md. The look of the whole
         // sequence, read from the package and checked against its digest
         // by LoadSequenceLookLut: Record shows the film with the look the
@@ -18830,6 +18976,17 @@ static constexpr CGFloat kTrimMonitorPointsPerFrame = 6.0;
                         static_cast<float>(clip->blur.num) /
                         static_cast<float>(clip->blur.den);
                 programData.video_masks[slot] = MonitorMaskOf(clip->mask);
+                // PA15 -- the matte of the frame this slot shows, read from
+                // the package as the export reads it. A missing one leaves
+                // the slot without a matte, and the clip shows nothing.
+                if (ClipHasPersonMask(*clip) && candidates[slot].frame >= 0 &&
+                    !motionDirectory.empty()) {
+                    programData.video_mattes[slot] =
+                        [self personMatteForMedia:clip->source_id
+                                            frame:candidates[slot].frame
+                                             slot:slot
+                                          package:motionDirectory];
+                }
                 if (!bypassGrade)
                     programData.video_color_grades[slot] = ResolveColorGrade(
                         ui::inspector::DisplayedEffects(
@@ -19508,6 +19665,8 @@ int main(int argc, char* argv[]) {
     host.install_renderers = [] {
         InstallMotionFrameRenderer();
         InstallFaceFinder();
+        // PA15 -- and the roto's matte is Vision's person segmentation.
+        person_matte::InstallVisionSegmenter();
         generation::InstallGenerationTransport();
     };
     host.require_explicit_timeline = [] {
