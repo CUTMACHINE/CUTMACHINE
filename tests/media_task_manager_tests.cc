@@ -29,6 +29,11 @@ int main() {
             if (task.state == MediaTaskState::Succeeded) ++completions;
         });
     check(manager.WaitForIdle(1000), "successful task reaches idle");
+    // Idle is signalled under the manager's lock, the completion runs once
+    // it is released: it may still be running when WaitForIdle returns.
+    for (int waited = 0; completions.load() == 0 && waited < 1000; ++waited) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
     auto snapshot = manager.Snapshot();
     check(snapshot.size() == 1 && snapshot[0].id == first &&
               snapshot[0].state == MediaTaskState::Succeeded &&

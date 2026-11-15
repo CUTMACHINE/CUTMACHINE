@@ -136,11 +136,24 @@ int main() {
         session.Shutdown();
     }
     {
+        // The agent is gone, but the engine server it started may still be
+        // closing and hold the project's lock for a moment: on a loaded
+        // runner it lost the race (PID still listed). Wait for it, a few
+        // seconds at most, rather than open at once.
         McpProjectBackend reader;
         std::string opened;
         std::string errorName;
-        Check(reader.OpenProject(projectPath, opened, errorName, error),
-              "the project opens once the agent is gone: " + error);
+        bool open = false;
+        const auto deadline =
+            std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        do {
+            error.clear();
+            open = reader.OpenProject(projectPath, opened, errorName, error);
+            if (!open) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            }
+        } while (!open && std::chrono::steady_clock::now() < deadline);
+        Check(open, "the project opens once the agent is gone: " + error);
         std::string described;
         std::string message;
         Check(reader.Describe(described, message) &&
