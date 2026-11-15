@@ -6,6 +6,7 @@
 #include "RationalTime.h"
 #include "SpeechOnset.h"
 #include "Ulid.h"
+#include "WhisperDecodingProfile.h"
 
 #include <cstdint>
 #include <functional>
@@ -57,6 +58,8 @@ struct Transcript {
     // repetitions and false starts. Keep it in the cache identity so a
     // standard transcript is never silently substituted for one.
     bool verbatim = false;
+    // AL4 -- distinct decoding policies must never reuse each other's cache.
+    WhisperDecodingProfile decoding_profile = WhisperDecodingProfile::Default;
     // ITW9 -- docs/roadmap/ITW-2026-09.md. How many of a verbatim
     // transcript's words come from a pass made without the verbatim prompt
     // (CompleteVerbatimWithPlainPass): the verbatim pass came out
@@ -67,6 +70,11 @@ struct Transcript {
     // A reader that says `verbatim` says this beside it: those words carry
     // no hesitation the verbatim pass did not keep.
     size_t plain_pass_words = 0;
+    // ITW9 -- how many words FillEllipsesFromPass put where whisper had
+    // answered "..." over measured speech: they come from a pass made with
+    // the ellipsis forbidden. Zero, and never written, for every other
+    // transcript, which keeps its bytes; not part of the cache identity.
+    size_t ellipsis_pass_words = 0;
     // QC-2026-09 (A1) -- true once AlignTranscriptToSpeech has been applied to
     // this cache file, so a reader can tell a boundary Whisper claimed from
     // one the signal confirmed. It is not a guarantee that every word moved
@@ -115,6 +123,13 @@ struct WhisperSettings {
     // ISO 639-1 code, or "auto" to let whisper.cpp detect the language.
     std::string language = "auto";
     bool verbatim = false;
+    // ITW9 -- docs/roadmap/ITW-2026-09.md. Forbids the tokens made only of
+    // dots or ellipsis characters. Set by the transcription command alone,
+    // on the pass it makes again over speech that came out as an ellipsis
+    // (EllipsisOverSpeech); never part of what a caller asks.
+    bool suppress_ellipsis = false;
+    // AL4 -- distinct decoding policies must never reuse each other's cache.
+    WhisperDecodingProfile decoding_profile = WhisperDecodingProfile::Default;
 };
 
 // ITW9 -- docs/roadmap/ITW-2026-09.md. Adds `words` decoded in `language`
@@ -204,6 +219,21 @@ struct TranscriptionOutcome {
     size_t plain_pass_words = 0;
     size_t kept_verbatim_words = 0;
     std::string plain_pass_detail;
+    // ITW9 -- the transcript answered "..." over measured speech
+    // (EllipsisOverSpeech at least kEllipsisRepairMinSpeechCentis) and the
+    // pass was made again with the ellipsis forbidden: how much speech the
+    // ellipses covered, how many of them were filled, how many stay because
+    // what was decoded under them was refused (FillEllipsesFromPass), the
+    // words put in their place, and how many of those came from the plain
+    // pass asked after a verbatim one.
+    bool ellipsis_pass_tried = false;
+    RationalTime ellipsis_speech{0, 1};
+    size_t ellipsis_spans = 0;
+    size_t ellipsis_spans_filled = 0;
+    size_t ellipsis_spans_refused = 0;
+    size_t ellipsis_pass_words = 0;
+    size_t ellipsis_plain_words = 0;
+    std::string ellipsis_pass_detail;
 };
 
 struct TranscriptSpeechAssessment {
@@ -269,6 +299,58 @@ bool TakePlainPassOverIncompleteVerbatim(Transcript& transcript,
 // pass has met: the French fillers FindDisfluencies removes, and "uh",
 // "um", "er", "eh", "ah", "mm" and their held forms.
 bool IsHesitationToken(const std::string& text);
+
+// ITW9 -- docs/roadmap/ITW-2026-09.md, measured on 15 November 2026. What
+// emptied a take is an ellipsis: whisper answers "..." alone, with
+// confidence, over speech it hears badly (a far microphone, a room), and
+// the segment's end timestamp carries the decoding past that speech. The
+// plain pass does it; the verbatim pass more, because its prompt ends in
+// "...": on 45 rushes of two series, it left 399 s of measured speech under
+// ellipses where the plain pass left 158 s (none on the 12 drawn at
+// random). Forbidding the token gives the words back -- 40 to 55 words on
+// three conference takes both passes had emptied -- and, where nothing
+// intelligible is said, makes whisper fall back on its caption credits or
+// loop on a phrase.
+//
+// Whether `text` is made only of dots, ellipsis characters and spaces.
+bool IsEllipsisOnlyWord(const std::string& text);
+
+// The measured speech (in the envelope's rate) that the transcript's
+// ellipsis-only words cover, each word counted for its overlap with the
+// speech groups. Zero for a transcript and envelope of different media.
+RationalTime EllipsisOverSpeech(const Transcript& transcript,
+                                const SpeechOnsetReport& envelope);
+
+// Below this much covered speech in a transcript, no pass is made again:
+// a sentence ending on "..." covers a few tenths of a second.
+inline constexpr int64_t kEllipsisRepairMinSpeechCentis = 200;
+// An ellipsis covering less speech than this is left as it is.
+inline constexpr int64_t kEllipsisSpanMinSpeechCentis = 50;
+
+struct EllipsisRepair {
+    size_t spans = 0;
+    size_t filled = 0;
+    size_t refused = 0;
+    size_t words = 0;
+};
+
+// Puts in place of each ellipsis-only word of `transcript` that covers at
+// least kEllipsisSpanMinSpeechCentis of measured speech the words of
+// `redo` -- the same media, the same pass, made with
+// WhisperSettings::suppress_ellipsis -- whose middle falls inside it. The
+// words of one ellipsis are refused together, and the ellipsis stays, when
+// they hold a known caption credit (the phrases of
+// known_hallucination_phrase), loop (four words or more, fewer than half
+// of them distinct), or are too few for the speech the ellipsis covers
+// (below kSparseTranscriptMinWordsPerMinute, the floor of
+// likely_incomplete: one "Merci." over 25 s of voice): that is what
+// whisper says when it may not say "..." and hears nothing it can decode. A
+// word of `redo` that would overlap a word kept from `transcript` is dropped.
+// `ellipsis_pass_words` counts the words put in place; speech assessment is
+// left to the caller. True when at least one ellipsis was filled.
+bool FillEllipsesFromPass(Transcript& transcript, const Transcript& redo,
+                          const SpeechOnsetReport& envelope,
+                          EllipsisRepair& repair);
 
 // PRD40 -- ROADMAP.md. Whether a transcription just made may take the place
 // of the one cached for the same media. Every agent of a series reads the

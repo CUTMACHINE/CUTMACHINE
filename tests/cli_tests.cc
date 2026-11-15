@@ -4278,6 +4278,23 @@ int main() {
                   "unknown --transcribe-timeline option '--frob'" +
                       usageOf("--transcribe-timeline"),
               "another command's refusal gains its own usage");
+        Check(UsageRefusal({"--transcribe-timeline", "p", "--decoding-profile",
+                            "typo"}) ==
+                  "unknown Whisper decoding_profile 'typo'" +
+                      usageOf("--transcribe-timeline"),
+              "an unknown decoding profile is a CLI validation error");
+        Check(UsageRefusal({"--transcribe", "p", "m", "--decoding-profile"}) ==
+                  "--transcribe option '--decoding-profile' needs a value" +
+                      usageOf("--transcribe"),
+              "a missing profile cannot become a model path");
+        Check(
+            UsageRefusal({"--srt-from-media", "m.wav", "out.srt",
+                          "--decoding-profile", "default", "--decoding-profile",
+                          "default"}) ==
+                "--srt-from-media option '--decoding-profile' is given twice" +
+                    usageOf("--srt-from-media"),
+            "duplicate profile options are refused on direct SRT too");
+
         // Refused where main.mm had no branch for the arguments: the end of
         // its chain, which used to answer "invalid command line".
         Check(UsageRefusal({"--describe", "p", "--frob", "x"}) ==

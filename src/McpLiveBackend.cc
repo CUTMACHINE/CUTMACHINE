@@ -936,7 +936,8 @@ McpLiveBackend::CacheTarget McpLiveBackend::FreezeCacheTarget() const {
 bool McpLiveBackend::RunTranscribeSources(
     const CacheTarget& target, const std::vector<Ulid>& sourceIds,
     const std::string& language, bool verbatim, bool includeSilent,
-    bool overwrite, std::string& resultJson, std::string& message) {
+    bool overwrite, std::string& resultJson, std::string& message,
+    WhisperDecodingProfile profile) {
     if (target.project_path.empty()) {
         message = "save the project before transcribing its rushes";
         return false;
@@ -947,18 +948,16 @@ bool McpLiveBackend::RunTranscribeSources(
     std::string output;
     const int result = TranscribeMediaCommand(
         target.project_path, sourceIds, "", language, verbatim, includeSilent,
-        output, target.runner, nullptr, overwrite);
+        output, target.runner, nullptr, overwrite, profile);
     std::string errorName;
     return ReadCliCommandResult(output, result == 0, resultJson, errorName,
                                 message);
 }
 
-bool McpLiveBackend::RunTranscribeTimeline(const CacheTarget& target,
-                                           const std::string& timelineId,
-                                           const std::string& language,
-                                           bool verbatim,
-                                           std::string& resultJson,
-                                           std::string& message) {
+bool McpLiveBackend::RunTranscribeTimeline(
+    const CacheTarget& target, const std::string& timelineId,
+    const std::string& language, bool verbatim, std::string& resultJson,
+    std::string& message, WhisperDecodingProfile profile) {
     if (target.project_path.empty()) {
         message = "save the project before transcribing a timeline";
         return false;
@@ -967,7 +966,7 @@ bool McpLiveBackend::RunTranscribeTimeline(const CacheTarget& target,
     const int result = TranscribeTimelineCommand(
         target.project_path,
         timelineId.empty() ? target.timeline_id : timelineId, language,
-        verbatim, output, target.runner);
+        verbatim, output, target.runner, nullptr, profile);
     std::string errorName;
     return ReadCliCommandResult(output, result == 0, resultJson, errorName,
                                 message);
@@ -1312,18 +1311,20 @@ bool McpLiveBackend::TranscribeSources(const std::vector<Ulid>& sourceIds,
                                        const std::string& language,
                                        bool verbatim, bool includeSilent,
                                        bool overwrite, std::string& resultJson,
-                                       std::string& message) {
+                                       std::string& message,
+                                       WhisperDecodingProfile profile) {
     return RunTranscribeSources(FreezeCacheTarget(), sourceIds, language,
                                 verbatim, includeSilent, overwrite, resultJson,
-                                message);
+                                message, profile);
 }
 
 bool McpLiveBackend::TranscribeTimeline(const std::string& timelineId,
                                         const std::string& language,
                                         bool verbatim, std::string& resultJson,
-                                        std::string& message) {
+                                        std::string& message,
+                                        WhisperDecodingProfile profile) {
     return RunTranscribeTimeline(FreezeCacheTarget(), timelineId, language,
-                                 verbatim, resultJson, message);
+                                 verbatim, resultJson, message, profile);
 }
 
 bool McpLiveBackend::AlignSourceTranscripts(bool apply, std::string& resultJson,

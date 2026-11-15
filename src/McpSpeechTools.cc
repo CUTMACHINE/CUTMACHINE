@@ -409,12 +409,20 @@ bool DispatchListSourceWords(McpBackend& backend, const IdResolver& resolver,
     root.Set("rate", std::move(rate));
     root.Set("word_timing", Value::MakeString(transcript.word_timing));
     root.Set("verbatim", Value::MakeBool(transcript.verbatim));
+    root.Set("decoding_profile", Value::MakeString(WhisperDecodingProfileName(
+                                     transcript.decoding_profile)));
     // ITW9 -- the words a plain pass gave a likely_incomplete verbatim one:
     // they carry no hesitation the verbatim pass did not keep.
     if (transcript.plain_pass_words > 0) {
         root.Set(
             "plain_pass_words",
             Value::MakeInt(static_cast<int64_t>(transcript.plain_pass_words)));
+    }
+    // ITW9 -- words put where whisper had answered "..." over measured
+    // speech, from a pass made with the ellipsis forbidden.
+    if (transcript.ellipsis_pass_words > 0) {
+        root.Set("ellipsis_pass_words", Value::MakeInt(static_cast<int64_t>(
+                                            transcript.ellipsis_pass_words)));
     }
     root.Set("likely_hallucinated",
              Value::MakeBool(transcript.likely_hallucinated));
@@ -864,6 +872,8 @@ bool DispatchListDisfluencies(McpBackend& backend, const IdResolver& resolver,
     // default decoding drops most fillers before they are written down, so an
     // empty result on a non-verbatim transcript says nothing about the take.
     root.Set("verbatim", Value::MakeBool(transcript.verbatim));
+    root.Set("decoding_profile", Value::MakeString(WhisperDecodingProfileName(
+                                     transcript.decoding_profile)));
     // ITW9 -- nor on the words a plain pass gave a likely_incomplete
     // verbatim one (CompleteVerbatimWithPlainPass).
     if (transcript.plain_pass_words > 0) {
@@ -1436,6 +1446,8 @@ bool DispatchCleanDisfluencies(McpBackend& backend, const IdResolver& resolver,
     Value root = Value::MakeObject();
     root.Set("clip_id", Value::MakeString(clip->id));
     root.Set("verbatim", Value::MakeBool(transcript.verbatim));
+    root.Set("decoding_profile", Value::MakeString(WhisperDecodingProfileName(
+                                     transcript.decoding_profile)));
     // ITW9 -- what a plain pass completed carries no hesitation to clean.
     if (transcript.plain_pass_words > 0) {
         root.Set(
@@ -2411,8 +2423,8 @@ bool DispatchTranscribeMedia(McpBackend& backend, const IdResolver& resolver,
                              const Value& args, std::string& resultJson,
                              std::string& errorName, std::string& message) {
     static const std::vector<std::string> kAllowed = {
-        "media_id", "media_ids",      "language",
-        "verbatim", "include_silent", "overwrite"};
+        "media_id",       "media_ids", "language",        "verbatim",
+        "include_silent", "overwrite", "decoding_profile"};
     if (!CheckKnownKeys(args, kAllowed, "transcribe_media", message))
         return Fail(errorName, message, message);
     // QC-2026-09 A3 -- one media or a list, never both. The single form stays
@@ -2450,9 +2462,16 @@ bool DispatchTranscribeMedia(McpBackend& backend, const IdResolver& resolver,
         !ReadBool(args, "overwrite", "transcribe_media", false, overwrite,
                   message))
         return Fail(errorName, message, message);
+    std::string profileName;
+    WhisperDecodingProfile profile;
+    if (!ReadString(args, "decoding_profile", "transcribe_media", false,
+                    "default", profileName, message) ||
+        !ParseWhisperDecodingProfile(profileName, profile, message) ||
+        !ValidateWhisperDecodingRequest(profile, language, verbatim, message))
+        return Fail(errorName, message, message);
     return backend.TranscribeSources(mediaIds, language, verbatim,
                                      includeSilent, overwrite, resultJson,
-                                     message)
+                                     message, profile)
                ? true
                : Fail(errorName, message, message);
 }
@@ -2460,8 +2479,8 @@ bool DispatchTranscribeMedia(McpBackend& backend, const IdResolver& resolver,
 bool DispatchTranscribeTimeline(McpBackend& backend, const IdResolver&,
                                 const Value& args, std::string& resultJson,
                                 std::string& errorName, std::string& message) {
-    static const std::vector<std::string> kAllowed = {"timeline_id", "language",
-                                                      "verbatim"};
+    static const std::vector<std::string> kAllowed = {
+        "timeline_id", "language", "verbatim", "decoding_profile"};
     if (!CheckKnownKeys(args, kAllowed, "transcribe_timeline", message))
         return Fail(errorName, message, message);
     std::string timelineId;
@@ -2475,8 +2494,15 @@ bool DispatchTranscribeTimeline(McpBackend& backend, const IdResolver&,
                   message)) {
         return Fail(errorName, message, message);
     }
+    std::string profileName;
+    WhisperDecodingProfile profile;
+    if (!ReadString(args, "decoding_profile", "transcribe_timeline", false,
+                    "default", profileName, message) ||
+        !ParseWhisperDecodingProfile(profileName, profile, message) ||
+        !ValidateWhisperDecodingRequest(profile, language, verbatim, message))
+        return Fail(errorName, message, message);
     return backend.TranscribeTimeline(timelineId, language, verbatim,
-                                      resultJson, message)
+                                      resultJson, message, profile)
                ? true
                : Fail(errorName, message, message);
 }
@@ -3083,7 +3109,9 @@ void RegisterSpeechTools(const McpToolAdder& add) {
         "list_source_words gives the words with their frames. A verbatim pass "
         "found likely_incomplete (analyze_speech_onset first) is redone plain, "
         "keeping its hesitations where the plain pass heard nothing "
-        "(`plain_pass`).",
+        "(`plain_pass`); speech that came out as \"...\" is decoded again "
+        "with the ellipsis forbidden and its words take the ellipses' place "
+        "(`ellipsis_pass`).",
         SchemaBuilder()
             .Field("media_id", IdSchema("One media to transcribe."), false)
             .Field("media_ids",
@@ -3098,6 +3126,13 @@ void RegisterSpeechTools(const McpToolAdder& add) {
             .Field("language",
                    StringSchema("ISO 639-1 code such as \"fr\", or \"auto\" "
                                 "to detect it. Defaults to \"auto\"."),
+                   false)
+            .Field("decoding_profile",
+                   EnumSchema({"default", "fr-hesitations-v1"},
+                              "default (unchanged), or fr-hesitations-v1: "
+                              "experimental euh decoding for the evaluated "
+                              "s075 model only; requires language=fr and "
+                              "verbatim=true."),
                    false)
             .Field("verbatim",
                    BoolSchema("Keep hesitations and filler words. Required if "
@@ -3127,6 +3162,13 @@ void RegisterSpeechTools(const McpToolAdder& add) {
             .Field("language",
                    StringSchema("ISO 639-1 code such as \"fr\", or \"auto\" "
                                 "to detect it. Defaults to \"auto\"."),
+                   false)
+            .Field("decoding_profile",
+                   EnumSchema({"default", "fr-hesitations-v1"},
+                              "default (unchanged), or fr-hesitations-v1: "
+                              "experimental euh decoding for the evaluated "
+                              "s075 model only; requires language=fr and "
+                              "verbatim=true."),
                    false)
             .Field("verbatim", BoolSchema("Keep hesitations and filler words."),
                    false)

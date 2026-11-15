@@ -54,9 +54,13 @@ struct AudioInput {
 
 std::filesystem::path TimelineTranscriptCachePath(
     const std::filesystem::path& cacheDirectory, const Ulid& timelineId,
-    bool verbatim) {
+    bool verbatim, WhisperDecodingProfile profile) {
+    const std::string suffix =
+        profile == WhisperDecodingProfile::Default
+            ? ""
+            : "." + std::string(WhisperDecodingProfileName(profile));
     return cacheDirectory / "timeline-transcripts" /
-           (timelineId + (verbatim ? ".verbatim.json" : ".json"));
+           (timelineId + suffix + (verbatim ? ".verbatim.json" : ".json"));
 }
 
 bool BuildTimelineAudioPlan(const Document& document,
@@ -228,6 +232,10 @@ bool TranscribeTimelineAudio(const Document& document,
                              const WhisperSettings& settings,
                              MediaTaskContext& context, Transcript& transcript,
                              bool& cacheHit, std::string& error) {
+    if (!ValidateWhisperDecodingRequest(settings.decoding_profile,
+                                        settings.language, settings.verbatim,
+                                        error))
+        return false;
     TimelineAudioPlan plan;
     if (!BuildTimelineAudioPlan(document, projectPath, plan, error))
         return false;

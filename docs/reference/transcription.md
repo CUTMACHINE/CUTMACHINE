@@ -41,6 +41,47 @@ transcript, and none of them could bring it into existence. `verbatim: true` is
 needed to be able to remove hesitations afterwards — the default decoding
 silently suppresses them, so they are no longer there to be cut.
 
+## Experimental French hesitation profile
+
+`fr-hesitations-v1` selects the decoding profile evaluated with the s075
+weights (AL4). It requires `language: "fr"` and `verbatim: true`. Before
+inference, the engine verifies the weights' SHA-256:
+`5b05a0870a122a833e4c74fbc223e1acbb74875bab3e3682d9cef692e51e385e`.
+Other weights are refused even if renamed. The engine does not download
+weights or replace the shared local model setting automatically.
+
+In the application, **Transcrire les hésitations (français)…** (Transcribe
+hesitations, French…) in a media item's context menu or the Timeline menu
+selects this profile and French verbatim decoding. First choose the s075
+weights in **CUTMACHINE → Modèle Whisper…** (Whisper model…). The existing
+transcription commands keep the `default` decoding policy.
+
+```sh
+./build/cutmachine --transcribe ./Film.cutmachine-project/project.cutmachine.json \
+  '<media-id>' /path/to/ggml-large-v3-hesitations-s075.bin fr \
+  --verbatim --decoding-profile fr-hesitations-v1
+```
+
+The MCP tools `transcribe_media` and `transcribe_timeline` accept
+`decoding_profile: "fr-hesitations-v1"` with `language: "fr"` and
+`verbatim: true`. The CLI also accepts `--decoding-profile` for
+`--transcribe-timeline` and `--srt-from-media`.
+
+The cache records `decoding_profile`; an absent field means `default`.
+Caches from different profiles never match. Timeline transcription caches
+use separate files. For a media item, the new transcript replaces the usual
+cache file under the existing safeguards (`cache_kept` and `overwrite`);
+the reading tools report the stored transcript's actual profile. A plain
+fallback pass uses `default`; a merged transcript retains the verbatim
+profile's provenance together with `plain_pass_words`.
+
+This profile is experimental. Its development controls do not establish
+precision or recall on unseen recordings. The measurements and human checks
+are recorded in AL4.
+MFA alignment and the decision to cut a hesitation remain separate steps.
+
+## Reading and editing words
+
 `list_source_words` (AGENT-2026-09 A4) reads a source clip's words as the
 aligner placed them (`word_timing` says who: `mfa`, `nemo` for a source clip
 aligned by NeMo, or `whisper`) and, for each, the frame to come in on and the
@@ -163,6 +204,21 @@ hesitations of the verbatim pass that fall in its silences. The cache stays
 verbatim and says `plain_pass_words`: those words carry no hesitation, which
 only signal analysis then finds (see "The hesitations nobody transcribed").
 The detail is in [Commandes headless](commandes-headless.md).
+
+What empties a take is an ellipsis: whisper answers "..." alone, with
+confidence, over speech it hears badly (a distant microphone, a room), and the
+segment carries the decoding past that speech. The ordinary pass does it too;
+the verbatim pass more often, because its prompt ends in "..." (ITW9, measured
+on 15 November 2026). When the "..." words of a transcription cover at least
+2 s of measured speech, `--transcribe` and `transcribe_media` redo the pass
+that gave the words with that token forbidden, and put its words in place of
+each ellipsis laid over at least half a second of speech. An ellipsis whose
+words are a known subtitle credit, a looping phrase or too few words for the
+speech it covers stays as it is: that is what whisper says when it may not say
+"..." and hears nothing it can decode. The cache says `ellipsis_pass_words`,
+the words that came from that pass. Each media item is decoded on a whisper
+state of its own: the same clip returns the same words, whatever batch it is
+in.
 
 Cleanup is then done in two steps, and never by a model:
 

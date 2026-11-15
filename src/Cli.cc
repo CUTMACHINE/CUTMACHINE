@@ -2193,7 +2193,12 @@ int TranscribeTimelineCommand(const std::string& projectPath,
                               const std::string& language, bool verbatim,
                               std::string& output,
                               const MediaTaskRunner& runner,
-                              const Project* stored) {
+                              const Project* stored,
+                              WhisperDecodingProfile profile) {
+    std::string profileError;
+    if (!ValidateWhisperDecodingRequest(profile, language, verbatim,
+                                        profileError))
+        return FailCliCommand("ValidationFailed", profileError, output);
     Project parsed;
     std::string error;
     if (stored == nullptr && !LoadStoredProject(projectPath, parsed, error)) {
@@ -2213,10 +2218,11 @@ int TranscribeTimelineCommand(const std::string& projectPath,
     settings.whisper_model_path = modelPath;
     settings.language = language.empty() ? "auto" : language;
     settings.verbatim = verbatim;
+    settings.decoding_profile = profile;
     const std::filesystem::path base =
         std::filesystem::absolute(projectPath).parent_path();
-    const std::filesystem::path cache =
-        TimelineTranscriptCachePath(base / ".cutmachine", selected, verbatim);
+    const std::filesystem::path cache = TimelineTranscriptCachePath(
+        base / ".cutmachine", selected, verbatim, profile);
     Transcript transcript;
     bool cacheHit = false;
     const MediaTaskSnapshot task = RunCommandMediaTask(
@@ -2237,6 +2243,8 @@ int TranscribeTimelineCommand(const std::string& projectPath,
         text << transcript.words[index].text;
     }
     output = "{\"ok\":true,\"timeline_id\":\"" + EscapeJson(selected) +
+             "\",\"decoding_profile\":\"" +
+             WhisperDecodingProfileName(transcript.decoding_profile) +
              "\",\"cached\":" + (cacheHit ? "true" : "false") +
              ",\"words\":" + std::to_string(transcript.words.size()) +
              ",\"text\":\"" + EscapeJson(text.str()) + "\"}\n";
@@ -2246,7 +2254,11 @@ int TranscribeTimelineCommand(const std::string& projectPath,
 int SrtFromMediaCommand(const std::string& mediaPath,
                         const std::string& outputPath,
                         const std::string& language, bool verbatim,
-                        std::string& output) {
+                        std::string& output, WhisperDecodingProfile profile) {
+    std::string profileError;
+    if (!ValidateWhisperDecodingRequest(profile, language, verbatim,
+                                        profileError))
+        return FailCliCommand("ValidationFailed", profileError, output);
     if (!std::filesystem::is_regular_file(mediaPath)) {
         return FailCliCommand(
             "IoError", "media is not a regular file: '" + mediaPath + "'",
@@ -2266,6 +2278,7 @@ int SrtFromMediaCommand(const std::string& mediaPath,
     settings.whisper_model_path = modelPath;
     settings.language = language.empty() ? "auto" : language;
     settings.verbatim = verbatim;
+    settings.decoding_profile = profile;
     const std::filesystem::path cache =
         std::filesystem::temp_directory_path() /
         ("cutmachine-srt-" + GenerateUlid() + ".json");
@@ -2330,7 +2343,11 @@ int TranscribeMediaCommand(const std::string& projectPath,
                            const std::string& language, bool verbatim,
                            bool includeSilent, std::string& output,
                            const MediaTaskRunner& runner, const Project* stored,
-                           bool overwrite) {
+                           bool overwrite, WhisperDecodingProfile profile) {
+    std::string profileError;
+    if (!ValidateWhisperDecodingRequest(profile, language, verbatim,
+                                        profileError))
+        return FailCliCommand("ValidationFailed", profileError, output);
     Project parsed;
     std::string error;
     if (stored == nullptr && !LoadStoredProject(projectPath, parsed, error)) {
@@ -2439,6 +2456,7 @@ int TranscribeMediaCommand(const std::string& projectPath,
     settings.whisper_model_path = modelPath;
     settings.language = language.empty() ? "auto" : language;
     settings.verbatim = verbatim;
+    settings.decoding_profile = profile;
     if (!jobs.empty()) {
         std::string batchError;
         const MediaTaskSnapshot task = RunCommandMediaTask(
@@ -2576,6 +2594,7 @@ int TranscribeMediaCommand(const std::string& projectPath,
     if (!plainJobs.empty()) {
         WhisperSettings plainSettings = settings;
         plainSettings.verbatim = false;
+        plainSettings.decoding_profile = WhisperDecodingProfile::Default;
         std::vector<TranscriptionOutcome> plainOutcomes;
         std::string batchError;
         const MediaTaskSnapshot task = RunCommandMediaTask(
@@ -2633,6 +2652,148 @@ int TranscribeMediaCommand(const std::string& projectPath,
         }
     }
 
+    // ITW9 -- docs/roadmap/ITW-2026-09.md. Speech that came out as "..."
+    // (EllipsisOverSpeech, at least kEllipsisRepairMinSpeechCentis of it) is
+    // decoded again with the ellipsis forbidden, by the pass that made the
+    // words now standing: verbatim, or plain when no verbatim was asked or
+    // the plain pass took the verbatim one's place. Its words take the
+    // ellipses' place where they are neither a caption credit, a loop nor
+    // too sparse (FillEllipsesFromPass). What a verbatim pass leaves under
+    // ellipses is then asked of the plain pass, the ellipsis still
+    // forbidden: on three conference takes of 15 November 2026, the
+    // verbatim pass only had a caption credit to say where the plain one
+    // gave 35 to 63 words. The answer says what was tried either way.
+    const RationalTime ellipsisFloor{kEllipsisRepairMinSpeechCentis, 100};
+    const auto redoWithoutEllipses = [&](bool verbatimRedo, bool fallback) {
+        const std::string key = fallback ? "#ellipsis-plain" : "#ellipsis";
+        std::vector<TranscriptionJob> ellipsisJobs;
+        for (TranscriptionOutcome& outcome : outcomes) {
+            const auto item = made.find(outcome.media_id);
+            if (!outcome.ok || item == made.end() ||
+                !item->second.has_envelope) {
+                continue;
+            }
+            const Transcript& standing = item->second.transcript;
+            const bool standsVerbatim =
+                standing.verbatim && standing.plain_pass_words == 0;
+            if (fallback ? !(standsVerbatim && outcome.ellipsis_pass_tried)
+                         : standsVerbatim != verbatimRedo) {
+                continue;
+            }
+            const RationalTime covered =
+                EllipsisOverSpeech(standing, item->second.envelope);
+            if (covered < ellipsisFloor) continue;
+            if (!fallback) {
+                outcome.ellipsis_pass_tried = true;
+                outcome.ellipsis_speech = covered;
+            }
+            for (const TranscriptionJob& job : jobs) {
+                if (job.media_id != outcome.media_id) continue;
+                const std::filesystem::path staging =
+                    std::filesystem::temp_directory_path() /
+                    ("cutmachine-transcript-" + job.media_id + "-ellipsis-" +
+                     GenerateUlid() + ".json");
+                staged[job.media_id + key] = staging;
+                ellipsisJobs.push_back({job.media_id, job.input_path,
+                                        staging.string(), job.source_rate});
+            }
+        }
+        if (ellipsisJobs.empty()) return;
+        WhisperSettings ellipsisSettings = settings;
+        ellipsisSettings.verbatim = verbatimRedo;
+        ellipsisSettings.suppress_ellipsis = true;
+        // AL4 -- a decoding profile holds for the verbatim pass it was
+        // evaluated on; the plain pass decodes as the plain fallback does.
+        if (!verbatimRedo) {
+            ellipsisSettings.decoding_profile = WhisperDecodingProfile::Default;
+        }
+        std::vector<TranscriptionOutcome> ellipsisOutcomes;
+        std::string batchError;
+        const MediaTaskSnapshot task = RunCommandMediaTask(
+            runner, MediaTaskKind::Transcription,
+            "Whisper " + std::to_string(ellipsisJobs.size()) +
+                (verbatimRedo ? " media sans points de suspension"
+                              : " media sans points de suspension ni "
+                                "verbatim"),
+            [&ellipsisJobs, &ellipsisOutcomes, &batchError, ellipsisSettings](
+                MediaTaskContext& context, std::string& taskError) {
+                const bool started = GenerateAudioTranscripts(
+                    ellipsisJobs, ellipsisSettings, context, ellipsisOutcomes,
+                    batchError);
+                if (!started) taskError = batchError;
+                return started;
+            });
+        const std::string taskFailure =
+            task.state == MediaTaskState::Succeeded
+                ? std::string()
+                : MediaTaskFailure(task, "the pass without ellipses");
+        for (const TranscriptionJob& job : ellipsisJobs) {
+            const auto outcome =
+                std::find_if(outcomes.begin(), outcomes.end(),
+                             [&](const TranscriptionOutcome& candidate) {
+                                 return candidate.media_id == job.media_id;
+                             });
+            const auto item = made.find(job.media_id);
+            if (outcome == outcomes.end() || item == made.end()) continue;
+            const auto redoOutcome =
+                std::find_if(ellipsisOutcomes.begin(), ellipsisOutcomes.end(),
+                             [&](const TranscriptionOutcome& candidate) {
+                                 return candidate.media_id == job.media_id;
+                             });
+            if (!taskFailure.empty() || redoOutcome == ellipsisOutcomes.end() ||
+                !redoOutcome->ok) {
+                outcome->ellipsis_pass_detail =
+                    "the pass without ellipses failed: " +
+                    (!taskFailure.empty() ? taskFailure
+                     : redoOutcome == ellipsisOutcomes.end()
+                         ? std::string("no outcome")
+                         : redoOutcome->error);
+                continue;
+            }
+            Transcript redo;
+            std::string redoError;
+            if (!LoadAudioTranscript(job.output_path, redo, redoError)) {
+                outcome->ellipsis_pass_detail =
+                    "the pass without ellipses cannot be read: " + redoError;
+                continue;
+            }
+            Made& standing = item->second;
+            Transcript repaired = standing.transcript;
+            EllipsisRepair repair;
+            const bool filled =
+                FillEllipsesFromPass(repaired, redo, standing.envelope, repair);
+            if (!fallback) outcome->ellipsis_spans = repair.spans;
+            outcome->ellipsis_spans_refused = repair.refused;
+            if (!filled) {
+                if (outcome->ellipsis_spans_filled == 0) {
+                    outcome->ellipsis_pass_detail =
+                        repair.refused > 0
+                            ? "what it decoded under the ellipses was a "
+                              "caption credit, a loop or too few words"
+                            : "it decoded no word under the ellipses";
+                }
+                continue;
+            }
+            std::string assessmentError;
+            if (!assessMade(*outcome, repaired, standing.envelope,
+                            assessmentError)) {
+                outcome->ellipsis_pass_detail =
+                    "the filled transcript cannot be assessed: " +
+                    assessmentError;
+                continue;
+            }
+            outcome->ellipsis_pass_detail.clear();
+            outcome->ellipsis_spans_filled += repair.filled;
+            outcome->ellipsis_pass_words += repair.words;
+            if (fallback) outcome->ellipsis_plain_words += repair.words;
+            standing.transcript = std::move(repaired);
+            describeMade(*outcome, standing.transcript);
+        }
+    };
+    redoWithoutEllipses(true, false);
+    redoWithoutEllipses(false, false);
+    redoWithoutEllipses(false, true);
+
     // PRD40 -- ROADMAP.md. The cache every agent of a series reads is not
     // replaced by a transcription that looks worse than it, unless the call
     // says so; the answer says which one the cache holds. A transcript that
@@ -2655,7 +2816,8 @@ int TranscribeMediaCommand(const std::string& projectPath,
     size_t succeeded = 0;
     std::ostringstream json;
     json << "{\"ok\":true,\"verbatim\":" << (verbatim ? "true" : "false")
-         << ",\"results\":[";
+         << ",\"decoding_profile\":\"" << WhisperDecodingProfileName(profile)
+         << "\",\"results\":[";
     bool first = true;
     for (const TranscriptionOutcome& outcome : outcomes) {
         if (!first) json << ',';
@@ -2707,6 +2869,25 @@ int TranscribeMediaCommand(const std::string& projectPath,
             } else {
                 json << ",\"detail\":\""
                      << EscapeJson(outcome.plain_pass_detail) << "\"";
+            }
+            json << "}";
+        }
+        // ITW9 -- speech that came out as "..." was decoded again with the
+        // ellipsis forbidden: how much, and what took the ellipses' place.
+        if (outcome.ellipsis_pass_tried) {
+            json << ",\"ellipsis_pass\":{\"speech_under_ellipses\":{\"value\":"
+                 << outcome.ellipsis_speech.value
+                 << ",\"rate\":" << outcome.ellipsis_speech.rate << "}"
+                 << ",\"ellipses\":" << outcome.ellipsis_spans
+                 << ",\"filled\":" << outcome.ellipsis_spans_filled
+                 << ",\"refused\":" << outcome.ellipsis_spans_refused
+                 << ",\"words\":" << outcome.ellipsis_pass_words;
+            if (outcome.ellipsis_plain_words > 0) {
+                json << ",\"plain_words\":" << outcome.ellipsis_plain_words;
+            }
+            if (!outcome.ellipsis_pass_detail.empty()) {
+                json << ",\"detail\":\""
+                     << EscapeJson(outcome.ellipsis_pass_detail) << "\"";
             }
             json << "}";
         }

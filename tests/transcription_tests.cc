@@ -1822,6 +1822,168 @@ int main() {
         std::filesystem::remove_all(root, cleanup);
     });
 
+    Test("ellipses over speech are filled from a pass without them", [] {
+        for (const char* ellipsis : {"...", "…", " ... ", "....", "……", ".."}) {
+            Check(IsEllipsisOnlyWord(ellipsis),
+                  std::string("'") + ellipsis + "' is an ellipsis");
+        }
+        for (const char* word : {".", "Et...", "a.b", "", " ", "voilà."}) {
+            Check(!IsEllipsisOnlyWord(word),
+                  std::string("'") + word + "' is not an ellipsis");
+        }
+
+        const auto at = [](int64_t centis) {
+            return RationalTime{centis, 100}.rescale(50);
+        };
+        const auto word = [&](const std::string& text, int64_t start,
+                              int64_t end) {
+            return TranscriptWord{text, at(start), at(end)};
+        };
+        // A conference take as measured on 15 November 2026: whisper heard
+        // the first word, then answered "..." over 14.5 s of voice.
+        Transcript standing;
+        standing.media_id = "01K300000000000000000000E1";
+        standing.whisper_model = "ggml-large-v3.bin";
+        standing.verbatim = true;
+        standing.source_rate = {50, 1};
+        standing.words = {
+            word("Alors,", 100, 150),
+            word("...", 150, 1600),
+            word("merci.", 1600, 1650),
+            // Over no measured speech: a sentence trailing off, left alone.
+            word("...", 1700, 1720),
+        };
+        SpeechOnsetReport envelope;
+        envelope.media_id = standing.media_id;
+        envelope.windows_per_second = 50;
+        envelope.decode_sample_rate = 16000;
+        envelope.groups = {{{50, 50}, {500, 50}, -30, -20},
+                           {{600, 50}, {800, 50}, -31, -21}};
+        Check(EllipsisOverSpeech(standing, envelope) == RationalTime{1250, 100},
+              "the first ellipsis covers 8.5 s and 4 s of the two speech "
+              "groups, the second none");
+        SpeechOnsetReport other = envelope;
+        other.media_id = "01K300000000000000000000E2";
+        Check(EllipsisOverSpeech(standing, other) == RationalTime{0, 100},
+              "nothing is counted against another media's envelope");
+
+        Transcript redo = standing;
+        redo.words = {
+            word("Alors,", 100, 150),
+            // Its middle falls under the ellipsis, but it overlaps a kept
+            // word: dropped.
+            word("et", 140, 170),
+            word("on", 170, 200),
+            word("a", 200, 220),
+            word("fait", 220, 260),
+            word("un", 260, 300),
+            word("décor", 300, 400),
+            word("pour", 400, 450),
+            word("le", 450, 480),
+            word("film.", 480, 560),
+            // Its middle is past the ellipsis: not taken.
+            word("voilà", 1580, 1660),
+        };
+        Transcript filled = standing;
+        filled.speech_assessed = true;
+        filled.likely_incomplete = true;
+        EllipsisRepair repair;
+        Check(FillEllipsesFromPass(filled, redo, envelope, repair) &&
+                  repair.spans == 1 && repair.filled == 1 &&
+                  repair.refused == 0 && repair.words == 8 &&
+                  filled.ellipsis_pass_words == 8 &&
+                  filled.words.size() == 11 && !filled.speech_assessed &&
+                  !filled.likely_incomplete,
+              "eight words take the ellipsis' place, the trailing one stays, "
+              "and the transcript is left to be assessed again");
+        bool ordered = true;
+        size_t ellipses = 0;
+        for (size_t index = 0; index < filled.words.size(); ++index) {
+            if (index > 0 &&
+                filled.words[index].start < filled.words[index - 1].end)
+                ordered = false;
+            if (IsEllipsisOnlyWord(filled.words[index].text)) ++ellipses;
+        }
+        Check(ordered && ellipses == 1 && filled.words[1].text == "on" &&
+                  filled.words[9].text == "merci.",
+              "the words are in order, none overlapping another");
+
+        Transcript credit = standing;
+        Transcript credited = redo;
+        credited.words = {word("Sous-titrage", 200, 600), word("ST'", 600, 700),
+                          word("501", 700, 900)};
+        Check(!FillEllipsesFromPass(credit, credited, envelope, repair) &&
+                  repair.spans == 1 && repair.refused == 1 &&
+                  credit.words.size() == standing.words.size() &&
+                  credit.ellipsis_pass_words == 0,
+              "a caption credit under the ellipsis is refused, and the "
+              "ellipsis stays");
+        Transcript looped = redo;
+        looped.words.clear();
+        for (int64_t start = 200; start < 1200; start += 200)
+            looped.words.push_back(word("Merci.", start, start + 150));
+        Transcript loop = standing;
+        Check(!FillEllipsesFromPass(loop, looped, envelope, repair) &&
+                  repair.refused == 1 &&
+                  loop.words.size() == standing.words.size(),
+              "so is a phrase repeated over it");
+        Transcript thanked = redo;
+        thanked.words = {word("Merci.", 600, 700)};
+        Transcript sparse = standing;
+        Check(!FillEllipsesFromPass(sparse, thanked, envelope, repair) &&
+                  repair.refused == 1 &&
+                  sparse.words.size() == standing.words.size(),
+              "and one word over 12.5 s of voice, below the floor of "
+              "likely_incomplete");
+        Transcript empty = standing;
+        Transcript silent = redo;
+        silent.words = {word("Alors,", 100, 150)};
+        Check(!FillEllipsesFromPass(empty, silent, envelope, repair) &&
+                  repair.spans == 1 && repair.refused == 0 &&
+                  repair.filled == 0,
+              "a pass that decoded nothing under it leaves the ellipsis");
+        Transcript mismatched = standing;
+        Check(!FillEllipsesFromPass(mismatched, redo, other, repair) &&
+                  repair.spans == 0,
+              "nor is anything filled against another media's envelope");
+
+        // "Sous-titrage" alone is a known credit now: large-v3 signs its
+        // credits with other names than Radio-Canada's.
+        Transcript creditWords = standing;
+        creditWords.words = {word("Sous-titrage", 100, 400),
+                             word("ST'", 400, 500), word("501", 500, 700)};
+        TranscriptSpeechAssessment assessment;
+        std::string error;
+        Check(AssessTranscriptAgainstSpeech(creditWords, envelope, assessment,
+                                            error) &&
+                  assessment.known_hallucination_phrase &&
+                  !assessment.likely_hallucinated,
+              "'Sous-titrage ST' 501' is known, evidence only: " + error);
+
+        // The cache says it, and only then.
+        const std::filesystem::path root =
+            std::filesystem::temp_directory_path() /
+            ("cutmachine-itw9-ellipsis-" + std::to_string(::getpid()));
+        std::filesystem::create_directories(root);
+        const std::string cache = (root / "media.json").string();
+        Transcript read;
+        Check(SaveAudioTranscript(cache, filled, error) &&
+                  LoadAudioTranscript(cache, read, error) &&
+                  read.ellipsis_pass_words == 8 && read.words.size() == 11,
+              "ellipsis_pass_words survives the cache: " + error);
+        Check(SaveAudioTranscript(cache, standing, error) &&
+                  LoadAudioTranscript(cache, read, error) &&
+                  read.ellipsis_pass_words == 0,
+              "a transcript nothing filled reads back without it");
+        std::ifstream bare(cache);
+        std::stringstream bareText;
+        bareText << bare.rdbuf();
+        Check(bareText.str().find("ellipsis_pass_words") == std::string::npos,
+              "and keeps the bytes it always had");
+        std::error_code cleanup;
+        std::filesystem::remove_all(root, cleanup);
+    });
+
     Test("hesitations are told apart in the verbatim pass's languages", [] {
         for (const char* hesitation : {"euh", "Euuuh,", "heu", "uh", "Um.",
                                        "umm", "eh", "Ah...", "mm", "erm"}) {
@@ -1833,6 +1995,118 @@ int main() {
             Check(!IsHesitationToken(other),
                   std::string(other) + " is not a hesitation");
         }
+    });
+
+    // AL4 -- old bytes and new provenance coexist without a cache hit across
+    // policies; malformed requests fail before model loading or audio decode.
+    Test("French hesitation decoding has explicit, bounded cache identity", [] {
+        const auto profile = WhisperDecodingProfile::FrenchHesitationsV1;
+        WhisperDecodingProfile parsed = WhisperDecodingProfile::Default;
+        std::string error;
+        Check(ParseWhisperDecodingProfile("fr-hesitations-v1", parsed, error) &&
+                  parsed == profile,
+              "the public profile name resolves");
+        Check(!ParseWhisperDecodingProfile("fr-hesitations-v2", parsed, error),
+              "an unknown policy cannot silently become default");
+        Check(
+            ValidateWhisperDecodingRequest(profile, "fr", true, error) &&
+                !ValidateWhisperDecodingRequest(profile, "auto", true, error) &&
+                !ValidateWhisperDecodingRequest(profile, "en", true, error) &&
+                !ValidateWhisperDecodingRequest(profile, "fr", false, error),
+            "the evaluated scope is explicit French verbatim");
+        const auto root =
+            std::filesystem::temp_directory_path() / GenerateUlid();
+        const auto cache = root / "media.json";
+        Transcript transcript;
+        transcript.media_id = GenerateUlid();
+        transcript.whisper_model = "ggml-large-v3.bin";
+        transcript.language = "fr";
+        transcript.verbatim = true;
+        transcript.source_rate = {25, 1};
+        transcript.words = {{"Euh,", {0, 25}, {5, 25}}};
+        Check(SaveAudioTranscript(cache.string(), transcript, error),
+              "legacy policy writes: " + error);
+        const auto readBytes = [&] {
+            std::ifstream input(cache);
+            return std::string(std::istreambuf_iterator<char>(input), {});
+        };
+        const auto legacyBytes = readBytes();
+        Check(legacyBytes.find("decoding_profile") == std::string::npos,
+              "the default writes no extra metadata");
+        Transcript loaded;
+        Check(LoadAudioTranscript(cache.string(), loaded, error) &&
+                  loaded.decoding_profile == WhisperDecodingProfile::Default,
+              "absent metadata means the original decoder");
+        WhisperSettings settings;
+        settings.whisper_model_path = transcript.whisper_model;
+        settings.language = "fr";
+        settings.verbatim = true;
+        settings.decoding_profile = profile;
+        Check(!TranscriptCacheMatches(loaded, transcript.media_id, settings),
+              "an old cache cannot satisfy the new profile");
+        transcript.decoding_profile = profile;
+        Check(SaveAudioTranscript(cache.string(), transcript, error) &&
+                  LoadAudioTranscript(cache.string(), loaded, error) &&
+                  loaded.decoding_profile == profile &&
+                  TranscriptCacheMatches(loaded, transcript.media_id, settings),
+              "new provenance survives a cache round-trip: " + error);
+        const auto profileBytes = readBytes();
+        Transcript plain = transcript;
+        plain.verbatim = false;
+        plain.decoding_profile = WhisperDecodingProfile::Default;
+        plain.words = {{"bonjour", {10, 25}, {20, 25}}};
+        size_t kept = 0;
+        const auto completed =
+            CompleteVerbatimWithPlainPass(transcript, plain, kept);
+        Check(completed.decoding_profile == profile &&
+                  completed.plain_pass_words == 1 && kept == 1 &&
+                  completed.words.size() == 2,
+              "a plain fallback preserves both decoder provenance and the "
+              "filler");
+        settings.decoding_profile = WhisperDecodingProfile::Default;
+        Check(!TranscriptCacheMatches(loaded, transcript.media_id, settings),
+              "the new profile cannot masquerade as the original decoder");
+        loaded.decoding_profile = WhisperDecodingProfile::Default;
+        Check(SaveAudioTranscript(cache.string(), loaded, error) &&
+                  readBytes() == legacyBytes,
+              "returning to the legacy policy restores its exact bytes");
+        std::string unknown = profileBytes;
+        unknown.replace(unknown.find("fr-hesitations-v1"), 17,
+                        "unknown-profile");
+        std::ofstream(cache) << unknown;
+        Check(!LoadAudioTranscript(cache.string(), loaded, error),
+              "unknown provenance is refused");
+        transcript.language = "en";
+        Check(!SaveAudioTranscript(cache.string(), transcript, error),
+              "a cache writer cannot label English as this French profile");
+        const auto timeline = GenerateUlid();
+        Check(
+            TimelineTranscriptCachePath(root, timeline, true) ==
+                    root / "timeline-transcripts" /
+                        (timeline + ".verbatim.json") &&
+                TimelineTranscriptCachePath(root, timeline, true, profile) !=
+                    TimelineTranscriptCachePath(root, timeline, true),
+            "timeline policies have separate files, with the old path intact");
+        // Verify the hash guard before allowing an arbitrary model to load.
+        const auto fakeModel = root / "ggml-large-v3-hesitations-s075.bin";
+        std::ofstream(fakeModel) << "not the evaluated weights";
+        bool refusedModel = false;
+        {
+            MediaTaskManager manager;
+            manager.Enqueue(
+                MediaTaskKind::Transcription, "profile guard",
+                [&](MediaTaskContext& context, std::string& taskError) {
+                    refusedModel =
+                        !ValidateWhisperDecodingModel(
+                            profile, fakeModel.string(), context, taskError) &&
+                        taskError.find("SHA-256") != std::string::npos;
+                    return refusedModel;
+                });
+            Check(manager.WaitForIdle(30000), "model guard terminates");
+        }
+        Check(refusedModel,
+              "a plausible filename cannot bypass model identity");
+        std::filesystem::remove_all(root);
     });
 
     if (failures > 0) {

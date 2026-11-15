@@ -1893,6 +1893,9 @@ DeleteGapOperation GapDeleteOperationForSelection(
     [timeline addItem:[self menuItem:@"Transcrire la timeline avec Whisper…"
                               action:@selector(transcribeTimeline:)
                                  key:@""]];
+    [timeline addItem:[self menuItem:@"Transcrire les hésitations (français)…"
+                              action:@selector(transcribeTimelineHesitations:)
+                                 key:@""]];
     // D2 -- docs/roadmap/DIALOGUE-2026-10.md.
     [timeline addItem:NSMenuItem.separatorItem];
     [timeline addItem:[self shortcutMenuItem:@"Poser un marqueur"
@@ -4433,6 +4436,10 @@ static NSString* CMNewProjectName(CMFormPanel* panel) {
     [mediaContext addItem:[self menuItem:@"Transcrire avec Whisper…"
                                   action:@selector(transcribeSelectedMedia:)
                                      key:@""]];
+    [mediaContext
+        addItem:[self menuItem:@"Transcrire les hésitations (français)…"
+                        action:@selector(transcribeSelectedMediaHesitations:)
+                           key:@""]];
     [mediaContext addItem:NSMenuItem.separatorItem];
     [mediaContext addItem:[self menuItem:@"Générer / recréer le proxy"
                                   action:@selector(generateSelectedMediaProxy:)
@@ -7900,7 +7907,8 @@ static NSString* CMNewProjectName(CMFormPanel* panel) {
     if (action == @selector(batchRelinkOfflineMedia:))
         return self.state && !self.state->offlineSourceIds.empty() &&
                self.state->pendingBatchRelinks.empty();
-    if (action == @selector(transcribeTimeline:)) {
+    if (action == @selector(transcribeTimeline:) ||
+        action == @selector(transcribeTimelineHesitations:)) {
         if (!self.state) return NO;
         for (const auto& batch : self.state->pendingTimelineTranscriptions)
             if (batch.second.timeline_id == self.state->activeTimelineId)
@@ -7910,7 +7918,8 @@ static NSString* CMNewProjectName(CMFormPanel* panel) {
         // negative caused by stale library probe metadata.
         return YES;
     }
-    if (action == @selector(transcribeSelectedMedia:)) {
+    if (action == @selector(transcribeSelectedMedia:) ||
+        action == @selector(transcribeSelectedMediaHesitations:)) {
         const LibraryMedia* media =
             self.state ? self.state->document.FindLibraryMedia(
                              [self selectedMediaId].UTF8String ?: "")
@@ -9411,18 +9420,44 @@ static ui::agent_window::Rect CMAgentRect(NSRect rect) {
 
 - (void)transcribeSelectedMedia:(id)sender {
     (void)sender;
+    [self transcribeSelectedMediaWithProfile:WhisperDecodingProfile::Default];
+}
+
+- (void)transcribeSelectedMediaHesitations:(id)sender {
+    (void)sender;
+    [self transcribeSelectedMediaWithProfile:WhisperDecodingProfile::
+                                                 FrenchHesitationsV1];
+}
+
+- (void)transcribeSelectedMediaWithProfile:(WhisperDecodingProfile)profile {
     NSString* identifier = [self selectedMediaId];
     if (!identifier || !self.state) return;
-
     NSString* modelPath = [self transcriptionModelPath];
     if (!modelPath) return;
+    WhisperSettings settings;
+    settings.whisper_model_path = modelPath.UTF8String ?: "";
+    settings.decoding_profile = profile;
+    if (profile == WhisperDecodingProfile::FrenchHesitationsV1) {
+        settings.language = "fr";
+        settings.verbatim = true;
+    }
     [self enqueueTranscriptionForMediaIdentifier:identifier
-                                       modelPath:modelPath
+                                        settings:settings
                                          batchId:Ulid{}];
 }
 
 - (void)transcribeTimeline:(id)sender {
     (void)sender;
+    [self transcribeTimelineWithProfile:WhisperDecodingProfile::Default];
+}
+
+- (void)transcribeTimelineHesitations:(id)sender {
+    (void)sender;
+    [self transcribeTimelineWithProfile:WhisperDecodingProfile::
+                                            FrenchHesitationsV1];
+}
+
+- (void)transcribeTimelineWithProfile:(WhisperDecodingProfile)profile {
     if (!self.state) return;
     NSString* modelPath = [self transcriptionModelPath];
     if (!modelPath) return;
@@ -9467,6 +9502,11 @@ static ui::agent_window::Rect CMAgentRect(NSRect rect) {
         projectPath.parent_path() / ".cutmachine" / "transcripts";
     WhisperSettings requestedSettings;
     requestedSettings.whisper_model_path = modelPath.UTF8String ?: "";
+    requestedSettings.decoding_profile = profile;
+    if (profile == WhisperDecodingProfile::FrenchHesitationsV1) {
+        requestedSettings.language = "fr";
+        requestedSettings.verbatim = true;
+    }
     for (const Ulid& mediaId : mediaIds) {
         const std::filesystem::path cachedPath =
             transcriptDirectory / (mediaId + ".json");
@@ -9480,7 +9520,7 @@ static ui::agent_window::Rect CMAgentRect(NSRect rect) {
         NSString* identifier = [NSString stringWithUTF8String:mediaId.c_str()];
         const Ulid taskId =
             [self enqueueTranscriptionForMediaIdentifier:identifier
-                                               modelPath:modelPath
+                                                settings:requestedSettings
                                                  batchId:batchId];
         if (taskId.empty()) {
             batch.error = "unable to enqueue every timeline source";
@@ -9509,9 +9549,10 @@ static ui::agent_window::Rect CMAgentRect(NSRect rect) {
 }
 
 - (Ulid)enqueueTranscriptionForMediaIdentifier:(NSString*)identifier
-                                     modelPath:(NSString*)modelPath
+                                      settings:(const WhisperSettings&)settings
                                        batchId:(const Ulid&)batchId {
-    if (!identifier || !modelPath || !self.state) return {};
+    if (!identifier || settings.whisper_model_path.empty() || !self.state)
+        return {};
     const Ulid mediaId(identifier.UTF8String ?: "");
     const LibraryMedia* media = self.state->document.FindLibraryMedia(mediaId);
     const DocumentSource* source = self.state->document.FindSource(mediaId);
@@ -9532,8 +9573,6 @@ static ui::agent_window::Rect CMAgentRect(NSRect rect) {
     input = input.lexically_normal();
     const std::filesystem::path output =
         base / ".cutmachine" / "transcripts" / (mediaId + ".json");
-    WhisperSettings settings;
-    settings.whisper_model_path = modelPath.UTF8String ?: "";
     const Ulid taskId = self.state->mediaTasks->Enqueue(
         MediaTaskKind::Transcription, "Whisper " + media->filename,
         [input, output, mediaId, rate = source->rate, settings](

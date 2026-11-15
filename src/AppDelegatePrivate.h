@@ -1063,7 +1063,11 @@ using namespace cutmachine_app;
 - (void)createTimelineFromSelectedMedia:(id)sender;
 - (void)saveProjectPressed:(id)sender;
 - (void)transcribeSelectedMedia:(id)sender;
+- (void)transcribeSelectedMediaHesitations:(id)sender;
+- (void)transcribeSelectedMediaWithProfile:(WhisperDecodingProfile)profile;
 - (void)transcribeTimeline:(id)sender;
+- (void)transcribeTimelineHesitations:(id)sender;
+- (void)transcribeTimelineWithProfile:(WhisperDecodingProfile)profile;
 - (void)chooseWhisperModel:(id)sender;
 - (NSString*)requestWhisperModelPath;
 - (NSString*)transcriptionModelPath;
@@ -1113,7 +1117,7 @@ using namespace cutmachine_app;
 - (BOOL)stageThumbnailForMediaIdentifier:(NSString*)identifier;
 - (void)enqueueThumbnailForMediaIdentifier:(NSString*)identifier;
 - (Ulid)enqueueTranscriptionForMediaIdentifier:(NSString*)identifier
-                                     modelPath:(NSString*)modelPath
+                                      settings:(const WhisperSettings&)settings
                                        batchId:(const Ulid&)batchId;
 @end
 

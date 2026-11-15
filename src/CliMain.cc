@@ -352,6 +352,8 @@ std::optional<int> RunCliCommand(int argc, char* argv[], const CliHost& host) {
         std::string timelineId;
         std::string language = "auto";
         bool verbatim = false;
+        WhisperDecodingProfile profile = WhisperDecodingProfile::Default;
+        bool profileSeen = false;
         for (int index = 3; index < argc; ++index) {
             const std::string option(argv[index]);
             if (option == "--timeline" && index + 1 < argc &&
@@ -359,6 +361,12 @@ std::optional<int> RunCliCommand(int argc, char* argv[], const CliHost& host) {
                 timelineId = argv[++index];
             } else if (option == "--language" && index + 1 < argc) {
                 language = argv[++index];
+            } else if (option == "--decoding-profile" && index + 1 < argc &&
+                       !profileSeen) {
+                std::string error;
+                if (!ParseWhisperDecodingProfile(argv[++index], profile, error))
+                    return failCli("ValidationFailed", error, 2);
+                profileSeen = true;
             } else if (option == "--verbatim") {
                 verbatim = true;
             } else {
@@ -366,8 +374,9 @@ std::optional<int> RunCliCommand(int argc, char* argv[], const CliHost& host) {
             }
         }
         std::string output;
-        const int result = TranscribeTimelineCommand(
-            argv[2], timelineId, language, verbatim, output);
+        const int result =
+            TranscribeTimelineCommand(argv[2], timelineId, language, verbatim,
+                                      output, {}, nullptr, profile);
         std::fwrite(output.data(), 1, output.size(), stdout);
         return result;
     }
@@ -377,10 +386,18 @@ std::optional<int> RunCliCommand(int argc, char* argv[], const CliHost& host) {
     if (argc >= 4 && std::string(argv[1]) == "--srt-from-media") {
         std::string language = "auto";
         bool verbatim = false;
+        WhisperDecodingProfile profile = WhisperDecodingProfile::Default;
+        bool profileSeen = false;
         for (int index = 4; index < argc; ++index) {
             const std::string option(argv[index]);
             if (option == "--language" && index + 1 < argc) {
                 language = argv[++index];
+            } else if (option == "--decoding-profile" && index + 1 < argc &&
+                       !profileSeen) {
+                std::string error;
+                if (!ParseWhisperDecodingProfile(argv[++index], profile, error))
+                    return failCli("ValidationFailed", error, 2);
+                profileSeen = true;
             } else if (option == "--verbatim") {
                 verbatim = true;
             } else {
@@ -388,8 +405,8 @@ std::optional<int> RunCliCommand(int argc, char* argv[], const CliHost& host) {
             }
         }
         std::string output;
-        const int result =
-            SrtFromMediaCommand(argv[2], argv[3], language, verbatim, output);
+        const int result = SrtFromMediaCommand(argv[2], argv[3], language,
+                                               verbatim, output, profile);
         std::fwrite(output.data(), 1, output.size(), stdout);
         return result;
     }
@@ -417,6 +434,8 @@ std::optional<int> RunCliCommand(int argc, char* argv[], const CliHost& host) {
         }
         std::string language = "auto";
         bool verbatim = false;
+        WhisperDecodingProfile profile = WhisperDecodingProfile::Default;
+        bool profileSeen = false;
         bool includeSilent = false;
         // PRD40 -- install the new transcript even where it looks worse than
         // the cached one.
@@ -425,12 +444,20 @@ std::optional<int> RunCliCommand(int argc, char* argv[], const CliHost& host) {
         int positional = 0;
         for (int index = 4; index < argc; ++index) {
             const std::string option(argv[index]);
-            if (option == "--verbatim") {
+            if (option == "--decoding-profile" && index + 1 < argc &&
+                !profileSeen) {
+                std::string error;
+                if (!ParseWhisperDecodingProfile(argv[++index], profile, error))
+                    return failCli("ValidationFailed", error, 2);
+                profileSeen = true;
+            } else if (option == "--verbatim") {
                 verbatim = true;
             } else if (option == "--include-silent") {
                 includeSilent = true;
             } else if (option == "--overwrite") {
                 overwrite = true;
+            } else if (option.rfind("--", 0) == 0) {
+                return refuseOption(index);
             } else if (positional == 0) {
                 modelPath = option;
                 ++positional;
@@ -447,7 +474,7 @@ std::optional<int> RunCliCommand(int argc, char* argv[], const CliHost& host) {
         std::string output;
         const int result = TranscribeMediaCommand(
             argv[2], mediaIds, modelPath, language, verbatim, includeSilent,
-            output, {}, nullptr, overwrite);
+            output, {}, nullptr, overwrite, profile);
         std::fwrite(output.data(), 1, output.size(), stdout);
         return result;
     }

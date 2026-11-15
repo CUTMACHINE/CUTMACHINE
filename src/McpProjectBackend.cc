@@ -913,12 +913,10 @@ bool McpProjectBackend::ScanIsolatedFrames(bool analyze,
                               message);
 }
 
-bool McpProjectBackend::TranscribeSources(const std::vector<Ulid>& sourceIds,
-                                          const std::string& language,
-                                          bool verbatim, bool includeSilent,
-                                          bool overwrite,
-                                          std::string& resultJson,
-                                          std::string& message) {
+bool McpProjectBackend::TranscribeSources(
+    const std::vector<Ulid>& sourceIds, const std::string& language,
+    bool verbatim, bool includeSilent, bool overwrite, std::string& resultJson,
+    std::string& message, WhisperDecodingProfile profile) {
     Project project;
     if (!LoadProject(project, message)) {
         return false;
@@ -929,7 +927,7 @@ bool McpProjectBackend::TranscribeSources(const std::vector<Ulid>& sourceIds,
     std::string output;
     const int result = TranscribeMediaCommand(
         project_path_, sourceIds, "", language, verbatim, includeSilent, output,
-        media_task_runner_, &project, overwrite);
+        media_task_runner_, &project, overwrite, profile);
     std::string errorName;
     return ParseCommandResult(output, result == 0, resultJson, errorName,
                               message);
@@ -939,15 +937,16 @@ bool McpProjectBackend::TranscribeTimeline(const std::string& timelineId,
                                            const std::string& language,
                                            bool verbatim,
                                            std::string& resultJson,
-                                           std::string& message) {
+                                           std::string& message,
+                                           WhisperDecodingProfile profile) {
     Project project;
     if (!LoadProject(project, message)) {
         return false;
     }
     std::string output;
-    const int result =
-        TranscribeTimelineCommand(project_path_, timelineId, language, verbatim,
-                                  output, media_task_runner_, &project);
+    const int result = TranscribeTimelineCommand(
+        project_path_, timelineId, language, verbatim, output,
+        media_task_runner_, &project, profile);
     std::string errorName;
     return ParseCommandResult(output, result == 0, resultJson, errorName,
                               message);

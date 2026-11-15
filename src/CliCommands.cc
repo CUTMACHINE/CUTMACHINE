@@ -334,11 +334,14 @@ const std::vector<CliCommand>& CliCommands() {
 
         {"--transcribe",
          "<project> <media-id>[,<media-id>...] [<model>] [<language>] "
-         "[--verbatim] [--include-silent] [--overwrite]",
-         "transcribe rushes with the local Whisper model, into the cache",
+         "[--verbatim] [--decoding-profile <name>] [--include-silent] "
+         "[--overwrite]",
+         "transcribe rushes locally (profile: default or fr-hesitations-v1), "
+         "into the cache",
          CliSection::kAnalyses},
         {"--transcribe-timeline",
-         "<project> [--timeline <id>] [--language <code>] [--verbatim]",
+         "<project> [--timeline <id>] [--language <code>] [--verbatim] "
+         "[--decoding-profile <name>]",
          "transcribe the sound the timeline plays", CliSection::kAnalyses},
         {"--align-words", "<project> [<media-id>...] [--texts '<json>']",
          "MFA's word boundaries for the rushes named, or for every "
@@ -555,7 +558,8 @@ const std::vector<CliCommand>& CliCommands() {
          "<project> <file.vtt> [--timeline <id>] [--word-by-word]",
          "the timeline's subtitles as WebVTT", CliSection::kDelivery},
         {"--srt-from-media",
-         "<media> <file.srt> [--language <code>] [--verbatim]",
+         "<media> <file.srt> [--language <code>] [--verbatim] "
+         "[--decoding-profile <name>]",
          "transcribe a media file straight into SRT, without a project",
          CliSection::kDelivery},
         {"--export-resolve-timeline",

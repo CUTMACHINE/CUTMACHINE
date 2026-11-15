@@ -1,5 +1,7 @@
 #pragma once
 
+#include "WhisperDecodingProfile.h"
+
 // Backend seam between the transport (McpServer/HttpServer) and tool
 // dispatch (McpTools) on one side, and the actual edit path on the other.
 //
@@ -582,17 +584,20 @@ public:
     // of media the document records as mute. PRD40 -- `overwrite` installs
     // each new transcript even where the cached one looks better
     // (TranscribeMediaCommand).
-    virtual bool TranscribeSources(const std::vector<Ulid>&, const std::string&,
-                                   bool, bool, bool, std::string&,
-                                   std::string& message) {
+    virtual bool TranscribeSources(
+        const std::vector<Ulid>&, const std::string&, bool, bool, bool,
+        std::string&, std::string& message,
+        WhisperDecodingProfile = WhisperDecodingProfile::Default) {
         message = "this backend cannot run a transcription";
         return false;
     }
 
     // B7 -- the timeline is not a source media: its audible PCM is assembled
     // from clips and may be cached only against that exact arrangement.
-    virtual bool TranscribeTimeline(const std::string&, const std::string&,
-                                    bool, std::string&, std::string& message) {
+    virtual bool TranscribeTimeline(
+        const std::string&, const std::string&, bool, std::string&,
+        std::string& message,
+        WhisperDecodingProfile = WhisperDecodingProfile::Default) {
         message = "this backend cannot transcribe a timeline";
         return false;
     }

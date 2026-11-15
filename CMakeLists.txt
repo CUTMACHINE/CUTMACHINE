@@ -736,6 +736,7 @@ add_library(cutmachine_model
     src/TimelineAudioReport.cc
     src/TimelineView.cc
     src/Transcription.cc
+    src/WhisperDecodingProfile.cc
     # DEC23 -- docs/roadmap/LIVRAISON-2026-09-18.md. One Whisper model
     # setting, the engine's, which the window's menu writes.
     src/WhisperModelSetting.cc

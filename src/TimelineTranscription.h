@@ -32,7 +32,8 @@ struct TimelineAudioPlan {
 // relies on can coexist. `cacheDirectory` is the project's `.cutmachine`.
 std::filesystem::path TimelineTranscriptCachePath(
     const std::filesystem::path& cacheDirectory, const Ulid& timelineId,
-    bool verbatim);
+    bool verbatim,
+    WhisperDecodingProfile profile = WhisperDecodingProfile::Default);
 
 bool BuildTimelineAudioPlan(const Document& document,
                             const std::filesystem::path& projectPath,

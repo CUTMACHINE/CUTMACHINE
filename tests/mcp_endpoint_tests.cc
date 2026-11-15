@@ -222,6 +222,13 @@ struct Recorder {
             if (call->tool == tool) return *call;
         return {};
     }
+    // An event that must come: like Last, it may follow the answer by a
+    // moment (two seconds at most). Absence is checked with Saw, at once.
+    bool SawSoon(const std::string& event) {
+        for (int attempt = 0; attempt < 400 && !Saw(event); ++attempt)
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        return Saw(event);
+    }
 };
 
 }  // namespace
@@ -338,8 +345,9 @@ int main() {
         Check(!isError, "an edit goes through the app: " + renamed.Dump());
         Check(Read(projectPath).find("RELAYÉ") != std::string::npos,
               "and lands in the project the app holds");
-        Check(recorder.Saw("connected") && recorder.Saw("open_project") &&
-                  recorder.Saw("rename_timeline"),
+        Check(recorder.SawSoon("connected") &&
+                  recorder.SawSoon("open_project") &&
+                  recorder.SawSoon("rename_timeline"),
               "the app sees the agent connect and each call");
 
         // PRD25 -- docs/roadmap/DIALOGUE-2026-10.md (D3). What an event
@@ -536,7 +544,7 @@ int main() {
                   reopened.Dump());
         Check(client.Close() == 0, "the stdio server ends with its input");
     }
-    Check(recorder.Saw("disconnected"), "the app sees the agent leave");
+    Check(recorder.SawSoon("disconnected"), "the app sees the agent leave");
 
     // ---- Through the real binary, started on the project -------------------
     // The stdio server above released the project when it ended; a second

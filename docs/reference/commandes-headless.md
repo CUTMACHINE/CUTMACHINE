@@ -607,9 +607,17 @@ journal in version 2.
 puts them back on their exact time grid and passes the assembled PCM to
 Whisper without an intermediate video export. Its cache depends on the
 timeline's identity, the bounds and positions of its audible clips, the
-model, the language and the verbatim mode: an audio cut therefore cannot
+model, the language, the verbatim mode and the decoding profile: an audio
+cut therefore cannot
 reuse a stale text. `--srt-from-media` uses the same transcription path to
 produce an SRT from a deliverable without creating a throwaway project.
+
+All three transcription commands also accept
+`--decoding-profile fr-hesitations-v1`, explicitly with French and
+`--verbatim`. This experimental profile requires the verified s075 weights;
+`default` keeps the usual decoding. The corresponding MCP argument is
+`decoding_profile` on `transcribe_media` and `transcribe_timeline`.
+See [the profile and cache provenance](transcription.md#experimental-french-hesitation-profile).
 
 SRT counts in milliseconds, and a frame at 24 or 29.97 fps almost never
 lands exactly on one. Writing an SRT (`--export-srt`, `--srt-from-media`, the
@@ -663,6 +671,26 @@ the ordinary pass was not retained). `list_source_words`,
 to `verbatim`. Without an envelope (`analyze_speech_onset` first), nothing is
 evaluated or redone; the transcription of a timeline and that of the Média
 menu do not do it.
+
+Then, when the words made only of dots or ellipsis characters cover at least
+2 s of measured speech, the pass that gave the words (verbatim, or ordinary
+when no verbatim was asked for or the ordinary pass took its place) is redone
+on those media items with that token forbidden (ITW9). Its
+words whose middle falls under an ellipsis laid over at least half a second of
+speech take the ellipsis's place, except those that would overlap a kept word.
+The words of one ellipsis are refused together, and the ellipsis stays, when
+they hold a known credit ("Sous-titrage…", "Sous-titres par…"), loop (four
+words or more, fewer than half of them distinct) or are too few for the speech
+covered (below the 30 words per minute of `likely_incomplete`). What a verbatim
+pass leaves under ellipses is then asked of the ordinary pass, the token still
+forbidden, with the `default` decoding profile. The result is evaluated again
+against the envelope. The cache says `ellipsis_pass_words`, which
+`list_source_words` returns; the response says so under `ellipsis_pass`
+(`speech_under_ellipses`, `ellipses`, `filled`, `refused`, `words`,
+`plain_words` for the words of the ordinary pass, and `detail` when nothing
+was put in place). Each media item is decoded on a whisper state of its own: a
+temperature fallback samples at random, and on a shared state the draw
+depended on the media items decoded before.
 
 `--apply-project-op` accepts either a canonical operation or an array. In the
 second case, the operations are applied in order and form a single step of

@@ -237,6 +237,7 @@ public:
         bool seen = false;
         // PRD40 -- the call asked to replace a cached transcript regardless.
         bool overwrite = false;
+        WhisperDecodingProfile profile = WhisperDecodingProfile::Default;
     };
     TranscriptionRequest transcription_request;
 
@@ -245,16 +246,17 @@ public:
         std::string language;
         bool verbatim = false;
         bool seen = false;
+        WhisperDecodingProfile profile = WhisperDecodingProfile::Default;
     };
     TimelineTranscriptionRequest timeline_transcription_request;
 
     bool TranscribeSources(const std::vector<Ulid>& mediaIds,
                            const std::string& language, bool verbatim,
                            bool includeSilent, bool overwrite,
-                           std::string& resultJson,
-                           std::string& message) override {
-        transcription_request = {mediaIds,      language, verbatim,
-                                 includeSilent, true,     overwrite};
+                           std::string& resultJson, std::string& message,
+                           WhisperDecodingProfile profile) override {
+        transcription_request = {mediaIds, language,  verbatim, includeSilent,
+                                 true,     overwrite, profile};
         if (transcription_fails_) {
             message = "no Whisper model configured";
             return false;
@@ -265,8 +267,10 @@ public:
 
     bool TranscribeTimeline(const std::string& timelineId,
                             const std::string& language, bool verbatim,
-                            std::string& resultJson, std::string&) override {
-        timeline_transcription_request = {timelineId, language, verbatim, true};
+                            std::string& resultJson, std::string&,
+                            WhisperDecodingProfile profile) override {
+        timeline_transcription_request = {timelineId, language, verbatim, true,
+                                          profile};
         resultJson = "{\"ok\":true}";
         return true;
     }
@@ -9951,6 +9955,23 @@ int main() {
                   backend.transcription_request.verbatim,
               "media, language and verbatim reach the engine unchanged");
 
+        Check(
+            call(
+                R"({"media_id":"01K30000000000000000000001","language":"fr","verbatim":true,"decoding_profile":"fr-hesitations-v1"})")
+                    .ok &&
+                backend.transcription_request.profile ==
+                    WhisperDecodingProfile::FrenchHesitationsV1,
+            "the explicit decoding profile reaches the backend");
+        for (
+            const auto& bad :
+            {R"({"media_id":"01K30000000000000000000001","verbatim":true,"decoding_profile":"fr-hesitations-v1"})",
+             R"({"media_id":"01K30000000000000000000001","language":"fr","decoding_profile":"fr-hesitations-v1"})",
+             R"({"media_id":"01K30000000000000000000001","decoding_profile":"typo"})"}) {
+            backend.transcription_request = {};
+            Check(!call(bad).ok && !backend.transcription_request.seen,
+                  "invalid profile requests fail before the backend runs");
+        }
+
         // QC-2026-09 A3 -- the batch form is the whole point of the ticket:
         // one model load for the rushes instead of one per rush.
         backend.transcription_request = {};
@@ -10030,6 +10051,15 @@ int main() {
                   backend.timeline_transcription_request.verbatim,
               "timeline id, language and verbatim reach timeline "
               "transcription unchanged");
+
+        Check(
+            mcp_json::Value::Parse(
+                R"({"language":"fr","verbatim":true,"decoding_profile":"fr-hesitations-v1"})",
+                arguments, parseError) &&
+                registry.Call(backend, "transcribe_timeline", arguments).ok &&
+                backend.timeline_transcription_request.profile ==
+                    WhisperDecodingProfile::FrenchHesitationsV1,
+            "timeline transcription carries the explicit profile too");
 
         arguments = mcp_json::Value::MakeObject();
         Check(registry.Call(backend, "transcribe_timeline", arguments).ok &&
@@ -11843,7 +11873,8 @@ int main() {
             using InMemoryBackend::InMemoryBackend;
             bool TranscribeSources(const std::vector<Ulid>&, const std::string&,
                                    bool, bool, bool, std::string&,
-                                   std::string& message) override {
+                                   std::string& message,
+                                   WhisperDecodingProfile) override {
                 return McpBackend::TranscribeSources(
                     {}, std::string(), false, false, false, message, message);
             }

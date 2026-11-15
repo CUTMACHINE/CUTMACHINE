@@ -13,6 +13,7 @@
 #include <fstream>
 #include <iterator>
 #include <limits>
+#include <memory>
 #include <set>
 #include <sstream>
 #include <stdexcept>
@@ -140,11 +141,14 @@ whisper_alignment_heads_preset AlignmentHeadsForModel(const std::string& path) {
 }
 
 // Loads the model with cross-attention alignment when the heads are known,
-// and without it otherwise. A refusal here is not fatal: the heuristic
-// timestamps are worse, not unusable, and a transcription is worth more than
-// an exact one that never runs.
-whisper_context* OpenWhisperModel(const std::string& path) {
-    const whisper_alignment_heads_preset preset = AlignmentHeadsForModel(path);
+// and without it otherwise. Default decoding may fall back to heuristic
+// timestamps; the pinned AL4 profile requires the heads it was evaluated with.
+whisper_context* OpenWhisperModel(const std::string& path,
+                                  WhisperDecodingProfile profile) {
+    const whisper_alignment_heads_preset preset =
+        profile == WhisperDecodingProfile::FrenchHesitationsV1
+            ? WHISPER_AHEADS_LARGE_V3
+            : AlignmentHeadsForModel(path);
     if (preset != WHISPER_AHEADS_NONE) {
         whisper_context_params params = whisper_context_default_params();
         params.dtw_token_timestamps = true;
@@ -152,16 +156,19 @@ whisper_context* OpenWhisperModel(const std::string& path) {
         if (whisper_context* ctx =
                 whisper_init_from_file_with_params(path.c_str(), params))
             return ctx;
+        // AL4 -- the pinned profile was evaluated with these alignment heads.
+        if (profile != WhisperDecodingProfile::Default) return nullptr;
     }
     whisper_context_params params = whisper_context_default_params();
     return whisper_init_from_file_with_params(path.c_str(), params);
 }
 
 std::vector<TranscriptWord> GroupWordsFromWhisper(whisper_context* ctx,
+                                                  whisper_state* state,
                                                   const MediaRate& frameRate) {
     std::vector<TranscriptWord> words;
     const whisper_token eot = whisper_token_eot(ctx);
-    const int segmentCount = whisper_full_n_segments(ctx);
+    const int segmentCount = whisper_full_n_segments_from_state(state);
     std::string currentText;
     int64_t currentStartCentis = 0;
     int64_t currentEndCentis = 0;
@@ -179,9 +186,15 @@ std::vector<TranscriptWord> GroupWordsFromWhisper(whisper_context* ctx,
             // not measure it. Keeping whisper's own duration and moving the
             // pair together corrects what is wrong (where the word sits)
             // without inventing what is not measured (how long it lasts).
+            //
+            // ITW9 -- except for an ellipsis: "..." is not a sound but the
+            // span whisper skipped, and the instant it was emitted is that
+            // span's end. Moved there with its duration, one ellipsis over a
+            // 19 s take was cached from 19.6 to 39.4 s, past the end of the
+            // media and over none of its speech (15 November 2026).
             int64_t startCentis = currentStartCentis;
             int64_t endCentis = currentEndCentis;
-            if (currentStartDtw >= 0) {
+            if (currentStartDtw >= 0 && !IsEllipsisOnlyWord(text)) {
                 endCentis =
                     currentStartDtw + (currentEndCentis - currentStartCentis);
                 startCentis = currentStartDtw;
@@ -195,12 +208,13 @@ std::vector<TranscriptWord> GroupWordsFromWhisper(whisper_context* ctx,
         currentStartDtw = -1;
     };
     for (int segment = 0; segment < segmentCount; ++segment) {
-        const int tokenCount = whisper_full_n_tokens(ctx, segment);
+        const int tokenCount = whisper_full_n_tokens_from_state(state, segment);
         for (int token = 0; token < tokenCount; ++token) {
             const whisper_token_data data =
-                whisper_full_get_token_data(ctx, segment, token);
+                whisper_full_get_token_data_from_state(state, segment, token);
             if (data.id >= eot) continue;
-            const char* text = whisper_full_get_token_text(ctx, segment, token);
+            const char* text = whisper_full_get_token_text_from_state(
+                ctx, state, segment, token);
             if (!text || !*text) continue;
             const bool startsNewWord = currentText.empty() || text[0] == ' ';
             if (startsNewWord && !currentText.empty()) flush();
@@ -332,8 +346,17 @@ constexpr int kVerbatimWindowMs = 30000;
 constexpr char kVerbatimPrompt[] =
     "Euh, heu, hum, mmh, eh bien, enfin, donc... je, je veux dire... ";
 
+// ITW9 -- whisper.cpp matches suppress_regex against each vocabulary token
+// whole (std::regex_match). Two dots or more, or ellipsis characters, with
+// their spaces: never the single "." that ends a sentence.
+constexpr char kEllipsisOnlyTokenPattern[] = "[ ]*(\\.\\.+|(…)+)[ ]*";
+
 bool SaveTranscript(const std::filesystem::path& destination,
                     const Transcript& transcript, std::string& error) {
+    if (!ValidateWhisperDecodingRequest(transcript.decoding_profile,
+                                        transcript.language,
+                                        transcript.verbatim, error))
+        return false;
     std::error_code filesystemError;
     std::filesystem::create_directories(destination.parent_path(),
                                         filesystemError);
@@ -359,10 +382,19 @@ bool SaveTranscript(const std::filesystem::path& destination,
         WriteJsonString(output, transcript.detected_language);
     }
     output << ",\"verbatim\":" << (transcript.verbatim ? "true" : "false");
+    if (transcript.decoding_profile != WhisperDecodingProfile::Default) {
+        output << ",\"decoding_profile\":";
+        WriteJsonString(
+            output, WhisperDecodingProfileName(transcript.decoding_profile));
+    }
     // ITW9 -- written only when a plain pass completed a verbatim one, so
     // every other transcript keeps its bytes.
     if (transcript.plain_pass_words > 0) {
         output << ",\"plain_pass_words\":" << transcript.plain_pass_words;
+    }
+    // ITW9 -- likewise, only when words took the place of ellipses.
+    if (transcript.ellipsis_pass_words > 0) {
+        output << ",\"ellipsis_pass_words\":" << transcript.ellipsis_pass_words;
     }
     // Written only when set, so a transcript that has never been through the
     // alignment pass keeps the exact bytes it had before this field existed.
@@ -662,6 +694,21 @@ namespace {
 // whisper.cpp clears prompt_past at the top of every whisper_full call. The
 // verbatim path's per-window prompt seeding below is unaffected for the same
 // reason -- it was always per call, never per context.
+//
+// ITW9 -- docs/roadmap/ITW-2026-09.md. What did leak is the decoding state.
+// A window that fails its thresholds is decoded again at a higher
+// temperature, by sampling, and whisper.cpp seeds the random generator of
+// its first decoder once per state, not once per call: on one shared state,
+// a rush came out with other words depending on the rushes decoded before
+// it in the batch (measured on 15 November 2026: the same take, decoded
+// twice in a row, lost a word the second time). Each media now gets a state
+// of its own, seeded as in a fresh process, so a transcription is the same
+// whatever the batch around it; the model, the costly part, is still loaded
+// once.
+struct WhisperStateDeleter {
+    void operator()(whisper_state* state) const { whisper_free_state(state); }
+};
+
 bool TranscribeSamplesWithModel(whisper_context* ctx,
                                 const std::vector<float>& samples,
                                 const std::string& outputPath,
@@ -715,6 +762,12 @@ bool TranscribeSamplesWithModel(whisper_context* ctx,
     // word. Suppressing those tokens removes at the source the artifacts the
     // editorial layer would otherwise have to recognise and filter.
     params.suppress_nst = true;
+    // ITW9 -- the pass the transcription command makes again over speech
+    // that came out as an ellipsis (see EllipsisOverSpeech in
+    // Transcription.h): whisper may no longer answer with "..." alone, so
+    // it decodes the words or says something the caller can refuse.
+    params.suppress_regex =
+        settings.suppress_ellipsis ? kEllipsisOnlyTokenPattern : nullptr;
     params.language = language.c_str();
     params.n_threads =
         static_cast<int>(std::max(1u, std::thread::hardware_concurrency()));
@@ -726,6 +779,9 @@ bool TranscribeSamplesWithModel(whisper_context* ctx,
         return static_cast<MediaTaskContext*>(data)->Cancelled();
     };
     params.abort_callback_user_data = &context;
+    if (!ConfigureWhisperDecodingProfile(settings.decoding_profile, ctx, params,
+                                         error))
+        return false;
 
     // whisper.cpp seeds prompt_past from initial_prompt once per call, then
     // overwrites it with each decoded segment (its own "update prompt_past").
@@ -741,12 +797,19 @@ bool TranscribeSamplesWithModel(whisper_context* ctx,
     // a verbatim pass makes one call per window, and may hear a crew aside
     // in another language. Each detection counts for the words it decoded.
     std::vector<std::pair<std::string, size_t>> wordsByLanguage;
+    const std::unique_ptr<whisper_state, WhisperStateDeleter> state(
+        whisper_init_state(ctx));
+    if (!state) {
+        error = "local whisper.cpp could not allocate a decoding state";
+        return false;
+    }
     int64_t cursorCentis = 0;
     while (true) {
         params.offset_ms = static_cast<int>(cursorCentis * 10);
         params.duration_ms = settings.verbatim ? kVerbatimWindowMs : 0;
-        const int result = whisper_full(ctx, params, samples.data(),
-                                        static_cast<int>(samples.size()));
+        const int result =
+            whisper_full_with_state(ctx, state.get(), params, samples.data(),
+                                    static_cast<int>(samples.size()));
         if (result != 0 && !context.Cancelled()) {
             error = "local whisper.cpp inference failed with code " +
                     std::to_string(result);
@@ -757,9 +820,9 @@ bool TranscribeSamplesWithModel(whisper_context* ctx,
             return false;
         }
         std::vector<TranscriptWord> pass =
-            GroupWordsFromWhisper(ctx, sourceRate);
+            GroupWordsFromWhisper(ctx, state.get(), sourceRate);
         if (language == "auto" && !pass.empty()) {
-            const int detected = whisper_full_lang_id(ctx);
+            const int detected = whisper_full_lang_id_from_state(state.get());
             if (const char* code =
                     detected >= 0 ? whisper_lang_str(detected) : nullptr) {
                 CountWordsInLanguage(wordsByLanguage, code, pass.size());
@@ -769,15 +832,16 @@ bool TranscribeSamplesWithModel(whisper_context* ctx,
                      std::make_move_iterator(pass.end()));
         if (!settings.verbatim) break;
 
-        const int segmentCount = whisper_full_n_segments(ctx);
+        const int segmentCount =
+            whisper_full_n_segments_from_state(state.get());
         // Whisper stops a window on the last token it decoded, not on the
         // window's nominal end. Resuming there is what keeps a sentence
         // whole; a window that decoded nothing usable falls back to a fixed
         // step so the loop always terminates.
-        const int64_t decodedEnd =
-            segmentCount > 0
-                ? whisper_full_get_segment_t1(ctx, segmentCount - 1)
-                : 0;
+        const int64_t decodedEnd = segmentCount > 0
+                                       ? whisper_full_get_segment_t1_from_state(
+                                             state.get(), segmentCount - 1)
+                                       : 0;
         cursorCentis = decodedEnd > cursorCentis
                            ? decodedEnd
                            : cursorCentis + kVerbatimWindowMs / 10;
@@ -796,6 +860,7 @@ bool TranscribeSamplesWithModel(whisper_context* ctx,
     transcript.language = language;
     transcript.detected_language = MostSpokenLanguage(wordsByLanguage);
     transcript.verbatim = settings.verbatim;
+    transcript.decoding_profile = settings.decoding_profile;
     transcript.source_rate = sourceRate;
     transcript.words = std::move(words);
 
@@ -826,7 +891,15 @@ bool GenerateAudioTranscripts(const std::vector<TranscriptionJob>& jobs,
         error = "a local whisper.cpp model path is required";
         return false;
     }
-    whisper_context* ctx = OpenWhisperModel(settings.whisper_model_path);
+    if (!ValidateWhisperDecodingRequest(settings.decoding_profile,
+                                        settings.language, settings.verbatim,
+                                        error) ||
+        !ValidateWhisperDecodingModel(settings.decoding_profile,
+                                      settings.whisper_model_path, context,
+                                      error))
+        return false;
+    whisper_context* ctx = OpenWhisperModel(settings.whisper_model_path,
+                                            settings.decoding_profile);
     if (!ctx) {
         error = "unable to load local whisper.cpp model '" +
                 settings.whisper_model_path + "'";
@@ -880,7 +953,15 @@ bool GenerateAudioTranscriptFromPcm(const std::vector<float>& samples,
         error = "a local whisper.cpp model path is required";
         return false;
     }
-    whisper_context* ctx = OpenWhisperModel(settings.whisper_model_path);
+    if (!ValidateWhisperDecodingRequest(settings.decoding_profile,
+                                        settings.language, settings.verbatim,
+                                        error) ||
+        !ValidateWhisperDecodingModel(settings.decoding_profile,
+                                      settings.whisper_model_path, context,
+                                      error))
+        return false;
+    whisper_context* ctx = OpenWhisperModel(settings.whisper_model_path,
+                                            settings.decoding_profile);
     if (!ctx) {
         error = "unable to load local whisper.cpp model '" +
                 settings.whisper_model_path + "'";
@@ -977,7 +1058,8 @@ bool TranscriptCacheMatches(const Transcript& transcript,
     return transcript.media_id == mediaId &&
            transcript.whisper_model == model &&
            transcript.language == language &&
-           transcript.verbatim == settings.verbatim;
+           transcript.verbatim == settings.verbatim &&
+           transcript.decoding_profile == settings.decoding_profile;
 }
 
 bool LoadAudioTranscript(const std::string& path, Transcript& transcript,
@@ -1012,6 +1094,15 @@ bool LoadAudioTranscript(const std::string& path, Transcript& transcript,
         }
         if (reader.Consume(",\"verbatim\":"))
             parsed.verbatim = reader.Boolean();
+        if (reader.Consume(",\"decoding_profile\":")) {
+            if (!ParseWhisperDecodingProfile(reader.String(),
+                                             parsed.decoding_profile, error) ||
+                !ValidateWhisperDecodingRequest(parsed.decoding_profile,
+                                                parsed.language,
+                                                parsed.verbatim, error)) {
+                throw std::runtime_error(error);
+            }
+        }
         if (reader.Consume(",\"plain_pass_words\":")) {
             const int64_t count = reader.Integer();
             if (count <= 0 || !parsed.verbatim) {
@@ -1020,6 +1111,14 @@ bool LoadAudioTranscript(const std::string& path, Transcript& transcript,
                     "transcript");
             }
             parsed.plain_pass_words = static_cast<size_t>(count);
+        }
+        if (reader.Consume(",\"ellipsis_pass_words\":")) {
+            const int64_t count = reader.Integer();
+            if (count <= 0) {
+                throw std::runtime_error(
+                    "ellipsis_pass_words is a positive count");
+            }
+            parsed.ellipsis_pass_words = static_cast<size_t>(count);
         }
         if (reader.Consume(",\"speech_aligned\":"))
             parsed.speech_aligned = reader.Boolean();
@@ -1185,13 +1284,14 @@ bool ContainsKnownHallucinationPhrase(
     const std::vector<TranscriptWord>& words) {
     std::string compact;
     for (const TranscriptWord& word : words) compact += FoldWordText(word.text);
+    // ITW9 -- "Sous-titrage" alone: large-v3 signs its credits with other
+    // names than the Société Radio-Canada one ("Sous-titrage ST' 501",
+    // "Sous-titrage MFP.", met on 14 and 15 November 2026), and the first
+    // of them was let through on a conference take.
     static const std::vector<std::string> kKnownPhrases = {
-        "soustitragesocieteradiocanada",
-        "soustitrespar",
-        "abonnezvous",
-        "noubliezpasdevousabonner",
-        "subscribe",
-        "mercidavoirregarde",
+        "soustitrage",    "soustitrespar",
+        "abonnezvous",    "noubliezpasdevousabonner",
+        "subscribe",      "mercidavoirregarde",
         "generiquedefin",
     };
     return std::any_of(kKnownPhrases.begin(), kKnownPhrases.end(),
@@ -1200,7 +1300,181 @@ bool ContainsKnownHallucinationPhrase(
                        });
 }
 
+// ITW9 -- the measured speech between `start` and `end`, exact.
+RationalTime SpeechBetween(const RationalTime& start, const RationalTime& end,
+                           const SpeechOnsetReport& envelope) {
+    RationalTime covered{0, 100};
+    for (const SpeechGroup& group : envelope.groups) {
+        const RationalTime& from = start < group.start ? group.start : start;
+        const RationalTime& to = group.end < end ? group.end : end;
+        if (from < to) covered = covered.add(to.sub(from));
+    }
+    return covered;
+}
+
+// ITW9 -- what whisper says when it may not say "..." and hears nothing it
+// can decode: a phrase repeated over the span ("Merci. Merci. Merci.",
+// measured on 15 November 2026), four words or more of which fewer than
+// half are distinct.
+bool WordsLoop(const std::vector<TranscriptWord>& words) {
+    if (words.size() < 4) return false;
+    std::set<std::string> distinct;
+    for (const TranscriptWord& word : words)
+        distinct.insert(FoldWordText(word.text));
+    return distinct.size() * 2 < words.size();
+}
+
 }  // namespace
+
+bool IsEllipsisOnlyWord(const std::string& text) {
+    static constexpr std::string_view kEllipsis = "…";
+    size_t dots = 0;
+    size_t ellipses = 0;
+    for (size_t index = 0; index < text.size();) {
+        if (text[index] == '.') {
+            ++dots;
+            ++index;
+        } else if (text[index] == ' ') {
+            ++index;
+        } else if (text.compare(index, kEllipsis.size(), kEllipsis) == 0) {
+            ++ellipses;
+            index += kEllipsis.size();
+        } else {
+            return false;
+        }
+    }
+    return dots >= 2 || ellipses > 0;
+}
+
+RationalTime EllipsisOverSpeech(const Transcript& transcript,
+                                const SpeechOnsetReport& envelope) {
+    RationalTime covered{0, 100};
+    if (transcript.media_id != envelope.media_id) return covered;
+    for (const TranscriptWord& word : transcript.words) {
+        if (!IsEllipsisOnlyWord(word.text)) continue;
+        covered = covered.add(SpeechBetween(word.start, word.end, envelope));
+    }
+    return covered;
+}
+
+bool FillEllipsesFromPass(Transcript& transcript, const Transcript& redo,
+                          const SpeechOnsetReport& envelope,
+                          EllipsisRepair& repair) {
+    repair = EllipsisRepair{};
+    if (transcript.media_id != envelope.media_id ||
+        redo.media_id != transcript.media_id) {
+        return false;
+    }
+    const RationalTime minimum{kEllipsisSpanMinSpeechCentis, 100};
+    std::vector<TranscriptWord> kept;
+    // Each accepted ellipsis, with the words that would take its place.
+    std::vector<std::pair<TranscriptWord, std::vector<TranscriptWord>>> fills;
+    for (const TranscriptWord& word : transcript.words) {
+        if (!IsEllipsisOnlyWord(word.text) ||
+            SpeechBetween(word.start, word.end, envelope) < minimum) {
+            kept.push_back(word);
+            continue;
+        }
+        ++repair.spans;
+        // Twice the middle against twice the bounds: exact, no division.
+        const RationalTime low = word.start.add(word.start);
+        const RationalTime high = word.end.add(word.end);
+        std::vector<TranscriptWord> inside;
+        for (const TranscriptWord& candidate : redo.words) {
+            const RationalTime middle = candidate.start.add(candidate.end);
+            if (!IsEllipsisOnlyWord(candidate.text) && low <= middle &&
+                middle <= high) {
+                inside.push_back(candidate);
+            }
+        }
+        if (inside.empty()) {
+            kept.push_back(word);
+            continue;
+        }
+        // Words per minute of covered speech, against the floor of
+        // likely_incomplete, in exact integers.
+        const RationalTime covered =
+            SpeechBetween(word.start, word.end, envelope);
+        const bool sparse =
+            static_cast<__int128>(inside.size()) * 60 * covered.rate <
+            static_cast<__int128>(kSparseTranscriptMinWordsPerMinute) *
+                covered.value;
+        if (ContainsKnownHallucinationPhrase(inside) || WordsLoop(inside) ||
+            sparse) {
+            ++repair.refused;
+            kept.push_back(word);
+            continue;
+        }
+        fills.emplace_back(word, std::move(inside));
+    }
+    if (fills.empty()) return false;
+
+    // Each word with whether it was put in place (true) or kept (false).
+    std::vector<std::pair<TranscriptWord, bool>> merged;
+    merged.reserve(kept.size() + redo.words.size());
+    for (const TranscriptWord& word : kept) merged.emplace_back(word, false);
+    for (const auto& [ellipsis, fill] : fills) {
+        size_t placed = 0;
+        for (const TranscriptWord& word : fill) {
+            const bool overlaps = std::any_of(
+                kept.begin(), kept.end(), [&](const TranscriptWord& other) {
+                    return word.start < other.end && other.start < word.end;
+                });
+            if (overlaps) continue;
+            merged.emplace_back(word, true);
+            ++placed;
+        }
+        if (placed == 0) merged.emplace_back(ellipsis, false);
+    }
+    // The kept words are disjoint among themselves, as are the words of one
+    // pass, and no word put in place overlaps a kept one. What is left is an
+    // ellipsis that stayed for want of words, against a word put in place
+    // for its neighbour: the word put in place gives way.
+    std::stable_sort(merged.begin(), merged.end(),
+                     [](const auto& left, const auto& right) {
+                         return left.first.start < right.first.start;
+                     });
+    std::vector<std::pair<TranscriptWord, bool>> ordered;
+    for (auto& entry : merged) {
+        if (entry.second) {
+            if (!ordered.empty() &&
+                entry.first.start < ordered.back().first.end) {
+                continue;
+            }
+        } else {
+            while (!ordered.empty() && ordered.back().second &&
+                   entry.first.start < ordered.back().first.end) {
+                ordered.pop_back();
+            }
+        }
+        ordered.push_back(std::move(entry));
+    }
+    std::vector<TranscriptWord> words;
+    for (auto& [word, placed] : ordered) {
+        if (placed) ++repair.words;
+        words.push_back(std::move(word));
+    }
+    // An ellipsis counts as filled once none of it remains.
+    for (const auto& fill : fills) {
+        const bool remains = std::any_of(
+            words.begin(), words.end(), [&](const TranscriptWord& word) {
+                return word.text == fill.first.text &&
+                       word.start == fill.first.start &&
+                       word.end == fill.first.end;
+            });
+        if (!remains) ++repair.filled;
+    }
+    if (repair.words == 0) return false;
+    transcript.words = std::move(words);
+    transcript.ellipsis_pass_words += repair.words;
+    // Assessed again by the caller, on what the words now are.
+    transcript.speech_assessed = false;
+    transcript.measured_speech_duration = {0, 1};
+    transcript.likely_hallucinated = false;
+    transcript.likely_incomplete = false;
+    transcript.known_hallucination_phrase = false;
+    return true;
+}
 
 bool IsHesitationToken(const std::string& text) {
     const std::string folded = FoldWordText(text);

@@ -860,21 +860,24 @@ public:
     bool TranscribeSources(const std::vector<Ulid>& sourceIds,
                            const std::string& language, bool verbatim,
                            bool includeSilent, bool overwrite,
-                           std::string& resultJson,
-                           std::string& message) override {
+                           std::string& resultJson, std::string& message,
+                           WhisperDecodingProfile profile =
+                               WhisperDecodingProfile::Default) override {
         const McpLiveBackend::CacheTarget target = FreezeCacheTarget();
         return McpLiveBackend::RunTranscribeSources(
             target, sourceIds, language, verbatim, includeSilent, overwrite,
-            resultJson, message);
+            resultJson, message, profile);
     }
 
     bool TranscribeTimeline(const std::string& timelineId,
                             const std::string& language, bool verbatim,
-                            std::string& resultJson,
-                            std::string& message) override {
+                            std::string& resultJson, std::string& message,
+                            WhisperDecodingProfile profile =
+                                WhisperDecodingProfile::Default) override {
         const McpLiveBackend::CacheTarget target = FreezeCacheTarget();
         return McpLiveBackend::RunTranscribeTimeline(
-            target, timelineId, language, verbatim, resultJson, message);
+            target, timelineId, language, verbatim, resultJson, message,
+            profile);
     }
 
     bool AlignSourceTranscripts(bool apply, std::string& resultJson,
