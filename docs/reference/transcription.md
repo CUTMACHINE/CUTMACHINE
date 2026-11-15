@@ -1,392 +1,375 @@
-# Transcription verbatim et nettoyage des hésitations
+# Verbatim transcription and hesitation cleanup
 
-> Relu contre le code le 3 octobre 2026. Les mesures citées (durées, comptes
-> de mots et de rushes, banc d'alignement, montages réels) ne sont pas
-> vérifiées par lecture.
+## Configuring the model
 
-## Configurer le modèle
-
-Le chemin du modèle Whisper est un **réglage local de la machine**, jamais une
-donnée de projet : un chemin enregistré dans le projet n'existerait pas sur un
-autre Mac, et le même montage doit s'ouvrir partout. Il se pose une fois, dans
-`~/.config/cutmachine/.env` — le même fichier qui peut porter
-`ANTHROPIC_API_KEY`, la clé de repli du panneau chat :
+The path to the Whisper model is a **local setting of the machine**, never
+project data: a path saved in the project would not exist on another Mac, and
+the same edit must open everywhere. It is set once, in
+`~/.config/cutmachine/.env` — the same file that can carry
+`ANTHROPIC_API_KEY`, the chat panel's fallback key:
 
 ```sh
 echo 'CUTMACHINE_WHISPER_MODEL=/chemin/vers/ggml-large-v3.bin' \
   >> ~/.config/cutmachine/.env
 ```
 
-La variable d'environnement l'emporte sur le fichier, donc un essai ponctuel
-se fait en la préfixant à la commande, sans rien modifier.
+The environment variable takes precedence over the file, so a one-off trial is
+done by prefixing it to the command, without modifying anything.
 
-Une fois posé, le réglage sert à l'identique `--transcribe` sans chemin
-explicite, l'outil MCP `transcribe_media`, y compris quand le panneau Agent
-de l'application l'appelle, et les menus de transcription de la fenêtre. Tant
-qu'il n'est pas posé, les outils refusent de la même façon, en nommant la
-variable et le fichier à éditer ; les menus de la fenêtre demandent un
-fichier par un dialogue. **CUTMACHINE → Modèle Whisper…** et ce dialogue
-écrivent le modèle choisi dans `~/.config/cutmachine/.env`, comme
-`CUTMACHINE_WHISPER_MODEL` : le reste du fichier est gardé tel quel, et un
-fichier neuf n'est lisible que par son propriétaire. Une variable exportée
-dans l'environnement de l'application garde la priorité, et la ligne d'état
-le dit.
+Once set, the setting serves identically `--transcribe` without an explicit
+path, the MCP tool `transcribe_media`, including when the application's Agent
+panel calls it, and the window's transcription menus. As long as it is not set,
+the tools refuse in the same way, naming the variable and the file to edit; the
+window's menus ask for a file through a dialog. **CUTMACHINE → Modèle
+Whisper…** (Whisper model…) and this dialog write the chosen model into
+`~/.config/cutmachine/.env`, like `CUTMACHINE_WHISPER_MODEL`: the rest of the
+file is kept as is, and a new file is readable only by its owner. A variable
+exported in the application's environment keeps priority, and the status line
+says so.
 
-Il n'y a qu'un réglage depuis le 24 octobre 2026 (DEC23,
-LIVRAISON-2026-09-18). Avant, les
-menus de la fenêtre gardaient leur propre modèle dans les préférences macOS
-(`CUTMACHINEWhisperModelPath`). Au premier lancement, ce choix est recopié
-dans le fichier s'il n'y désigne encore aucun modèle, puis la préférence est
-effacée ; si le fichier en désigne déjà un, c'est lui qui reste.
+There is only one setting (DEC23,
+LIVRAISON-2026-09-18). The window's menus
+do not keep a model of their own in the macOS preferences
+(`CUTMACHINEWhisperModelPath`): at first launch, a model chosen there by an
+earlier version is copied into the file if the file does not yet designate any
+model, then the preference is erased; if the file already designates one, it is
+the one that stays.
 
-`transcribe_media` est ce qui rend le travail sur les mots atteignable par un
-agent : `list_disfluencies`, `remove_words` et le montage d'interview lisent
-tous un transcript, et aucun d'eux ne pouvait le faire exister. Il faut
-`verbatim: true` pour pouvoir retirer les hésitations ensuite — le décodage par
-défaut les supprime silencieusement, donc elles ne sont plus là pour être
-coupées.
+`transcribe_media` is what makes work on words reachable by an agent:
+`list_disfluencies`, `remove_words` and interview editing all read a
+transcript, and none of them could bring it into existence. `verbatim: true` is
+needed to be able to remove hesitations afterwards — the default decoding
+silently suppresses them, so they are no longer there to be cut.
 
-`list_source_words` (AGENT-2026-09 A4) lit les mots d'un rush tels que
-l'aligneur les a posés (`word_timing` dit qui : `mfa`, `nemo` pour un
-rush aligné avant le 1er novembre 2026, ou `whisper`) et,
-pour chacun, l'image où entrer et celle où sortir, lues sur l'enveloppe du
-rush par les règles du skill d'interview : un début en silence prend
-l'attaque moins deux images d'air, un début sonore recule jusqu'au silence,
-une fin sonore avance jusqu'au décrochage sans dépasser le mot suivant, une
-fin déjà silencieuse recule au dernier son plus trois images ; `entry_rule`
-et `exit_rule` nomment la règle, `voiced: false` un mot que l'enveloppe
-n'entend pas. `find` cherche un mot et rend ses voisins, `from_frame` et
-`to_frame` bornent, `max_words` plafonne. Sans enveloppe
-(`analyze_speech_onset`), les images sont celles de l'aligneur. Les trois
-analyses par rush — `analyze_speech_onset`, `analyze_shot_quality`,
-`analyze_hesitations` — prennent `media_ids` pour analyser tous les rushes
-en un appel, une ligne par rush sous `results` (A8). Avec cette enveloppe
-en cache, `remove_words` et `clean_disfluencies` coupent chaque mot de son
-entrée à sa chute par les mêmes règles, et le disent (`boundaries`,
-`widened_frames`) ; `trim_boundary_air` et `close_junction_air` lisent la
-même ligne de voix que `tighten_pauses` ; `ripple_trim` signale sous
-`repeats_source` les images qu'un rallongement fait jouer deux fois, quand
-le plan voisin les joue déjà (A9 à A12). `propose_exposure` (A16) mesure
-tous les plans image d'une timeline sous gestion couleur et rend, pour
-chacun dont la médiane de scène s'écarte de plus de `tolerance_stops` du
-gris moyen (`target_stops`), un pas `set_clip_effects` avec sa propre
-exposition corrigée, à passer à `prepare_edit_plan` ou à appliquer un à un ;
-rien n'est appliqué par l'outil, et `summary` dit où le montage se tient.
-`propose_grade` (A20 à A22) lit chaque plan là où l'étalonneur le lit : le
-plus grand visage que le moteur trouve (Vision), ou un carré blanc ou gris
-nommé en `region`, ou le cadre entier ; il propose l'exposition de l'ancre
-vers `target_stops` (0,7 pour un visage) et sa balance sur la ligne de
-peau ou au neutre, avec la température et la teinte du plan, et arrête une
-remontée où le p98 du cadre passerait le blanc diffus
-(`highlight_ceiling_stops`) ; un plan sans visage suit le montage.
-`list_timeline_words` (A24) projette les alignements des rushes sur chaque
-plan audio du montage, sans le transcrire : les mots et leurs images, un mot
-coupé à l'entrée ou à la sortie, l'air aux bornes, le son hors mots et le
-texte du montage en un appel ; `list_source_words` avec `levels` et une
-plage rend l'enveloppe entière de la plage (A23).
-`describe` prend `only` (sections) et `kinds` (genres de piste) pour ne
-rendre que ce qu'on lui demande (A25).
-`tighten_pauses` et `trim_boundary_air` prennent `clip_ids`,
-`close_junction_air` des `pairs` : un appel pour tous les plans, un résultat
-par plan (A26).
-`transcribe_media` rend le texte de chaque rush transcrit (A27).
-`create_project` crée un parent absent (A28) ; une sélection de parole
-refusée nomme tous les segments fautifs d'un coup (A29).
-`tighten_pauses` ne protège d'un mot aligné que ses fenêtres audibles, et
-ferme le creux qu'une fin d'alignement tardive tenait ouvert (A30).
-`propose_grade` étalonne par rush : les plans ancrés votent, tous les plans
-du rush reçoivent le vote (A31).
-La coupe suggérée d'une hésitation n'entame plus un mot aligné voisin (A33).
-`generate_captions` allonge ou fond un carton trop court et ferme un trou
-entre deux cartons (A32) ; un carton trop court ne fond jamais par-dessus
-une fin de phrase, et celui qui ouvre le film ou une phrase prend la
-majuscule (REGLES-2026-10 RM2) ; `ripple_trim` entraîne par défaut les pistes
-sync-lockées (A34) ; `list_disfluencies` liste les marqueurs de discours
-(A35) ; `trim_boundary_air` rend `ok` et `analyze_hesitations` compte aussi
-en images (A36).
-`range_levels` donne aussi l'enveloppe à ses fenêtres de 20 ms (A37) ; un
-contrôle de cartons sans lecture du son monté le dit (A38).
-`propose_grade` rogne une boîte de visage qui dépasse et n'échoue plus sur un
-plan illisible (A39) ; `transcribe_media` rend son texte même sans enveloppe
-(A40).
-`propose_grade` prend `apply` et `verbose` (A41) ; le dernier carton
-s'arrête avec la séquence (A42) ; `insert_clip` ne déplace plus les autres
-pistes, `ripple_trim` si (A34).
-`list_disfluencies` rend les redémarrages, un mot dit deux fois que la
-transcription a écrit une fois (A43) ; `list_timeline_words` compte les
-hésitations et redémarrages que chaque plan joue encore (A44).
-`cut_words` signale un mot aligné sur une image contre une coupe (A45).
-Chaque bord audio sans fondu propre reçoit un fondu de 3 ms, à l'export comme
-à la lecture : plus de clic à chaque raccord (A46).
-Une coupe d'hésitation garde deux images d'un mot ou d'une syllabe, pas
-quatre, et un redémarrage emporte le « euh » qui le précède (A47).
-La coupe d'une hésitation court jusqu'à la fin de la voix qui suit la tenue,
-une tenue entre deux mots compte dès 100 ms, un mot posé dans une tenue est
-nommé, un plan entré ou sorti dans la voix continue le dit
-(`head_in_voice`, `tail_in_voice`), et une coupe ne rentre jamais dans un
-mot aligné (A48).
-`tighten_pauses` signale un mot aligné que l'enveloppe n'entend pas
-(`heard: false`, crête et plancher publiés) et, avec `close_unheard`, ferme
-le creux par-dessus (A17) ; `list_source_words` rend sous
-`voice_without_words` les plages sonores qu'aucun mot ne couvre (A18).
+`list_source_words` (AGENT-2026-09 A4) reads a source clip's words as the
+aligner placed them (`word_timing` says who: `mfa`, `nemo` for a source clip
+aligned by NeMo, or `whisper`) and, for each, the frame to come in on and the
+one to go out on, read on the source clip's envelope by the interview skill's
+rules: a start in silence takes the attack minus two frames of air, a voiced
+start steps back to the silence, a voiced end moves forward to the drop-off
+without passing the next word, an already silent end steps back to the last
+sound plus three frames; `entry_rule` and `exit_rule` name the rule,
+`voiced: false` a word that the envelope does not hear. `find` looks up a word
+and returns its neighbours, `from_frame` and `to_frame` bound, `max_words`
+caps. Without an envelope (`analyze_speech_onset`), the frames are the
+aligner's. The three per-source-clip analyses — `analyze_speech_onset`,
+`analyze_shot_quality`, `analyze_hesitations` — take `media_ids` to analyse all
+the source clips in one call, one line per source clip under `results` (A8).
+With this envelope in cache, `remove_words` and `clean_disfluencies` cut each
+word from its entry to its drop by the same rules, and say so (`boundaries`,
+`widened_frames`); `trim_boundary_air` and `close_junction_air` read the same
+voice line as `tighten_pauses`; `ripple_trim` reports under `repeats_source`
+the frames that a lengthening makes play twice, when the neighbouring clip
+already plays them (A9 to A12). `propose_exposure` (A16) measures all the
+picture clips of a timeline under colour management and returns, for each one
+whose scene median differs by more than `tolerance_stops` from mid grey
+(`target_stops`), a `set_clip_effects` step with its own corrected exposure, to
+be passed to `prepare_edit_plan` or applied one by one; nothing is applied by
+the tool, and `summary` says where the edit stands. `propose_grade` (A20 to
+A22) reads each clip where the colourist reads it: the largest face the engine
+finds (Vision), or a named white or grey square in `region`, or the whole
+frame; it proposes the anchor's exposure toward `target_stops` (0.7 for a face)
+and its balance on the skin line or at neutral, with the clip's temperature and
+tint, and stops a lift where the frame's p98 would pass diffuse white
+(`highlight_ceiling_stops`); a clip with no face follows the edit.
+`list_timeline_words` (A24) projects the source clips' alignments onto each
+audio clip of the edit, without transcribing it: the words and their frames, a
+word cut at the entry or the exit, the air at the boundaries, the sound outside
+words and the edit's text in one call; `list_source_words` with `levels` and a
+range returns the whole envelope of the range (A23).
+`describe` takes `only` (sections) and `kinds` (track kinds) to return only
+what is asked of it (A25).
+`tighten_pauses` and `trim_boundary_air` take `clip_ids`, `close_junction_air`
+`pairs`: one call for all the clips, one result per clip (A26).
+`transcribe_media` returns the text of each transcribed source clip (A27).
+`create_project` creates a missing parent (A28); a refused speech selection
+names all the faulty segments at once (A29).
+`tighten_pauses` protects from an aligned word only its audible windows, and
+closes the dip that a late alignment end held open (A30).
+`propose_grade` grades per source clip: the anchored clips vote, all the
+clips cut from that source clip receive the vote (A31).
+A hesitation's suggested cut never nicks a neighbouring aligned word (A33).
+`generate_captions` lengthens or merges a caption that is too short and closes
+a gap between two captions (A32); a caption that is too short never merges
+over a sentence end, and the one that opens the film or a sentence takes the
+capital (REGLES-2026-10 RM2); `ripple_trim` carries the sync-locked tracks by
+default (A34); `list_disfluencies` lists discourse markers (A35);
+`trim_boundary_air` returns `ok` and `analyze_hesitations` also counts in
+frames (A36).
+`range_levels` also gives the envelope at its 20 ms windows (A37); a caption
+check with no reading of the edited sound says so (A38).
+`propose_grade` trims a face box that overflows and does not fail on an
+unreadable clip (A39); `transcribe_media` returns its text even without an
+envelope (A40).
+`propose_grade` takes `apply` and `verbose` (A41); the last caption stops with
+the sequence (A42); `insert_clip` does not move the other tracks, `ripple_trim`
+does (A34).
+`list_disfluencies` returns restarts, a word said twice that the transcription
+wrote once (A43); `list_timeline_words` counts the hesitations and restarts
+that each clip still plays (A44).
+`cut_words` reports an aligned word on a frame against a cut (A45).
+Each audio edge without its own fade receives a 3 ms fade, at export as at
+playback: no click at any join (A46).
+A hesitation cut keeps two frames of a word or syllable, not four, and a
+restart takes along the "euh" that precedes it (A47).
+A hesitation's cut runs to the end of the voice that follows the hold, a hold
+between two words counts from 100 ms, a word placed in a hold is named, a clip
+entered or exited in continuing voice says so (`head_in_voice`,
+`tail_in_voice`), and a cut never enters an aligned word (A48).
+`tighten_pauses` reports an aligned word that the envelope does not hear
+(`heard: false`, peak and floor published) and, with `close_unheard`, closes
+the dip over it (A17); `list_source_words` returns under `voice_without_words`
+the voiced ranges that no word covers (A18).
 
-## Le reste
+## The rest
 
-`--transcribe` accepte une langue explicite et un mode `--verbatim`. Le chemin
-du modèle y reste facultatif : donné, il l'emporte ; omis, c'est le réglage
-local qui s'applique.
+`--transcribe` accepts an explicit language and a `--verbatim` mode. The model
+path remains optional there: if given, it takes precedence; if omitted, the
+local setting applies.
 
-Il accepte aussi **plusieurs `media-id` séparés par des virgules** (MCP :
-`media_ids`), et ne charge alors le modèle qu'une fois. Le chargement mesure
-~8 s ; sur les 43 rushes parlés d'un projet réel, c'était près de six minutes
-passées à relire le même fichier, contre 11 min d'inférence utile. Les médias
-dont le document dit qu'ils sont muets sont **sautés et signalés** plutôt que
-transcrits — 29 des 71 rushes du même projet étaient des plans de coupe à
-−74 dBFS, tous passés à Whisper à 11× le temps réel pour ne rien produire.
-`--include-silent` (MCP : `include_silent`) force le passage.
+It also accepts **several `media-id`s separated by commas** (MCP: `media_ids`),
+and then loads the model only once. Loading takes ~8 s; on the 43 spoken source
+clips of a real project, that was nearly six minutes spent rereading the same
+file, against 11 min of useful inference. Media that the document says are
+silent are **skipped and reported** rather than transcribed — 29 of the same
+project's 71 source clips were cutaways at −74 dBFS, all passed to Whisper at
+11× real time to produce nothing. `--include-silent` (MCP: `include_silent`)
+forces the pass.
 
-Ce niveau vient de `--ingest`, qui mesure désormais le niveau audio moyen de
-chaque média et l'enregistre dans le document (`audio_level`), au même titre
-que la cadence et la durée. C'est un décodage audio, donc un coût réel :
-mesuré à 0,3 s sur un rush 4K de 268 Mo. Une entrée de bibliothèque écrite
-avant ce champ se relit « non mesurée » — jamais « silencieuse » ; un
-ré-`--ingest` la remplit.
+This level comes from `--ingest`, which measures the average audio level of
+each media item and records it in the document (`audio_level`), just like the
+frame rate and the duration. It is an audio decode, hence a real cost: measured
+at 0.3 s on a 268 MB 4K source clip. A library entry written before this field
+is read back as "not measured" — never "silent"; a repeated `--ingest` fills
+it.
 
-L'auto-détection de langue se trompe sur un rush long et majoritairement non
-parlé (mesuré : gallois détecté sur une interview française). Nomme la langue.
+Automatic language detection is wrong on a long, mostly non-spoken source clip
+(measured: Welsh detected on a French interview). Name the language.
 
-Sans `--verbatim`, Whisper nettoie ce qu'il entend : sur une interview de
-7 min 35 il n'a conservé que 3 tics sur les 20 réellement prononcés. Le mode
-verbatim place devant chaque fenêtre de 30 s un prompt qui biaise le décodage
-vers les hésitations, les répétitions et les faux départs — d'où 607 mots
-transcrits au lieu de 390, et les « euh », « heu », « ben » et « bah »
-présents dans le cache. Le drapeau fait partie de l'identité du transcript :
-une transcription verbatim n'est jamais réutilisée à la place d'une
-transcription standard, ni l'inverse.
+Without `--verbatim`, Whisper cleans up what it hears: on a 7 min 35 interview
+it kept only 3 tics out of the 20 actually spoken. Verbatim mode places in
+front of each 30 s window a prompt that biases the decoding toward hesitations,
+repetitions and false starts — hence 607 words transcribed instead of 390, and
+the "euh", "heu", "ben" and "bah" present in the cache. The flag is part of the
+transcript's identity: a verbatim transcription is never reused in place of a
+standard one, nor the reverse.
 
-Le mode verbatim peut aussi vider une prise : sur des rushes en anglais et en
-espagnol, 2 à 6 mots pour 13 à 22 s de voix, les mots de l'équipe en tête et
-en queue, la phrase sautée (ITW9). Quand l'enveloppe de parole le signale
-(`likely_incomplete`), `--transcribe` et `transcribe_media` refont ces
-médias sans le prompt ; la passe ordinaire devient la transcription, avec
-les seules hésitations de la passe verbatim tombées dans ses silences. Le
-cache reste verbatim et dit `plain_pass_words` : ces mots-là ne portent pas
-d'hésitation, que seule l'analyse du signal trouve alors (voir « Les
-hésitations que personne n'a transcrites »). Le détail est dans
-[Commandes headless](commandes-headless.md).
+Verbatim mode can also empty a take: on source clips in English and Spanish, 2
+to 6 words for 13 to 22 s of voice, the crew's words at the head and tail, the
+sentence skipped (ITW9). When the speech envelope signals it
+(`likely_incomplete`), `--transcribe` and `transcribe_media` redo these media
+without the prompt; the ordinary pass becomes the transcription, with only the
+hesitations of the verbatim pass that fall in its silences. The cache stays
+verbatim and says `plain_pass_words`: those words carry no hesitation, which
+only signal analysis then finds (see "The hesitations nobody transcribed").
+The detail is in [Commandes headless](commandes-headless.md).
 
-Le nettoyage se fait ensuite en deux temps, et jamais par un modèle :
+Cleanup is then done in two steps, and never by a model:
 
-1. `--disfluencies` (MCP : `list_disfluencies`) liste ce qui est *prouvable* —
-   les syllabes qui ne sont pas des mots français, et les mots répétés
-   immédiatement — sous forme d'index de mots, avec leur texte pour relecture.
-   Ce qui relève du jugement (« ce "donc" est-il un tic ? ») est listé à part,
-   comme marqueur de discours (`Marker`, A35), et jamais coupé d'office.
-2. `--remove-words` (MCP : `remove_words`) applique la coupe. Il ne prend que
-   des **index de mots** : c'est `ResolveWordRemoval` qui calcule les images,
-   jamais l'appelant. La coupe est une seule `RemoveWordsOperation`,
-   réversible, qui referme la timeline.
+1. `--disfluencies` (MCP: `list_disfluencies`) lists what is *provable* — the
+   syllables that are not French words, and the immediately repeated words — as
+   word indexes, with their text for review. What is a matter of judgment ("is
+   this 'donc' a tic?") is listed apart, as a discourse marker (`Marker`, A35),
+   and never cut automatically.
+2. `--remove-words` (MCP: `remove_words`) applies the cut. It takes only **word
+   indexes**: `ResolveWordRemoval` computes the frames, never the caller. The
+   cut is a single, reversible `RemoveWordsOperation`, which closes the
+   timeline up.
 
-Un modèle peut donc proposer une sélection et la justifier, sans jamais
-calculer un timecode.
+A model can therefore propose a selection and justify it, without ever
+computing a timecode.
 
-`clean_disfluencies` (MCP) réunit les deux étapes en une seule intention :
-CUTMACHINE détecte, calcule les images et applique **une** opération
-réversible pour tout le plan. Le modèle n'énumère rien. Les répétitions ne
-sont retirées que si `include_repetitions` est demandé — un mot répété peut
-être une insistance voulue, une syllabe d'hésitation jamais.
+`clean_disfluencies` (MCP) brings the two steps together in a single intent:
+CUTMACHINE detects, computes the frames and applies **one** reversible
+operation for the whole clip. The model enumerates nothing. Repetitions are
+removed only if `include_repetitions` is requested — a repeated word can be an
+intended emphasis, a hesitation syllable never.
 
-## Choisir des passages : spans, blocs, sélection
+## Choosing passages: spans, blocks, selection
 
-> Écrit le 7 octobre 2026 d'après le catalogue du binaire (IA-2026-09 IA3).
+> IA-2026-09 IA3.
 
-`get_timeline_transcript` (MCP) lit le transcript en cache des plans
-audibles sous forme de spans, chacun nommé par un `span_id`, et rend une
-`transcript_revision`. Les identifiants sont des positions dans cette
-lecture : un outil qui les reçoit avec une révision plus ancienne les refuse
-en `StaleSelection`. Les temps exacts sont donnés pour qu'un humain les
-vérifie, jamais pour être recopiés dans un autre outil. Un span porte
-`straddles_cut` quand il contient un mot coupé à un raccord,
-`likely_hallucinated` quand des mots existent sans groupe de parole mesuré
-(les outils de sélection le refusent sans `force: true`), et
-`likely_incomplete` quand une parole soutenue a donné trop peu de mots : le
-texte manquant n'y est pas un silence.
+`get_timeline_transcript` (MCP) reads the cached transcript of the audible
+clips as spans, each named by a `span_id`, and returns a `transcript_revision`.
+The identifiers are positions in this reading: a tool that receives them with
+an older revision refuses them with `StaleSelection`. The exact times are given
+for a human to check, never to be copied into another tool. A span carries
+`straddles_cut` when it contains a word cut at a join, `likely_hallucinated`
+when words exist with no measured speech group (the selection tools refuse it
+without `force: true`), and `likely_incomplete` when sustained speech produced
+too few words: the missing text there is not a silence.
 
-`list_speech_blocks` regroupe ces spans en blocs de parole, coupés là où une
-phrase finit, où la personne s'arrête plus longtemps qu'un souffle, ou où le
-rush change : c'est là qu'on choisit des idées, plutôt que dans des cartons
-de sous-titres. `opens_mid_sentence` et `closes_mid_sentence` signalent un
-bloc qui n'est pas une phrase entière (un drapeau faux est omis).
-`inspect_speech_selection` vérifie une sélection avant de la construire, sans
-rien changer : pour chaque segment, sa plage et son texte, s'il ouvre ou
-ferme au milieu d'une phrase, ce que le même rush dit juste avant et juste
-après, avec `kept` (la sélection le garde ailleurs) et `heard_next_to_it` (le
-segment voisin le joue), et `overlaps_segments` pour des segments qui
-rejouent la même matière. Le moteur rapporte ; juger du sens revient à
-l'appelant.
+`list_speech_blocks` groups these spans into speech blocks, cut where a
+sentence ends, where the person pauses longer than a breath, or where the
+source clip changes: this is where to choose ideas, rather than in subtitle
+captions. `opens_mid_sentence` and `closes_mid_sentence` flag a block that is
+not a whole sentence (a false flag is omitted). `inspect_speech_selection`
+checks a selection before building it, changing nothing: for each segment, its
+range and its text, whether it opens or closes mid-sentence, what the same
+source clip says just before and just after, with `kept` (the selection keeps
+it elsewhere) and `heard_next_to_it` (the neighbouring segment plays it), and
+`overlaps_segments` for segments that replay the same material. The engine
+reports; judging the sense is up to the caller.
 
-`create_interview_short` crée une timeline à partir de spans ou de blocs
-nommés avec la `transcript_revision` lue en même temps, et l'active, sauf
-`activate: false` ou mode strict ; la timeline d'origine ne change pas. Le
-moteur résout chaque identifiant en plage source exacte, ce qui garde une
-coupe hors d'un mot.
+`create_interview_short` creates a timeline from spans or blocks named with the
+`transcript_revision` read at the same time, and activates it, except with
+`activate: false` or in strict mode; the original timeline does not change. The
+engine resolves each identifier to an exact source range, which keeps a cut out
+of a word.
 
-## Recaler les mots sur le signal, et refermer les silences
+## Realigning words on the signal, and closing silences
 
-`--speech-onset` met aussi en cache les groupes de parole séparés par au
-moins 200 ms de creux. `--speech-onset-report` (MCP :
-`list_speech_onsets`) publie pour chaque groupe ses bornes source, son niveau
-moyen et sa crête en dBFS. Le champ `dominant_onset` désigne le premier groupe
-tenu au moins six fenêtres de 20 ms et situé à moins de 9 dB du 90e centile du
-plan. Une question faible hors micro reste donc visible dans `groups`, mais
-n'est plus confondue avec l'entrée du sujet équipé d'un micro-cravate. Le
-seuil séparant les groupes et leur plancher au-dessus du bruit sont
-paramétrables dans les outils MCP (`group_gap_ms`, `group_floor_db`).
+`--speech-onset` also caches the speech groups separated by at least 200 ms of
+gap. `--speech-onset-report` (MCP: `list_speech_onsets`) publishes for each
+group its source bounds, its average level and its peak in dBFS. The
+`dominant_onset` field designates the first group held for at least six 20 ms
+windows and located within 9 dB of the clip's 90th percentile. A weak
+off-microphone question therefore stays visible in `groups`, but is not
+confused with the entry of the subject wearing a lavalier microphone. The
+threshold separating the groups and their floor above the noise are
+configurable in the MCP tools (`group_gap_ms`, `group_floor_db`).
 
-Les horodatages de Whisper sont excellents la plupart du temps et
-occasionnellement faux d'une seconde. `--align-transcripts` (MCP :
-`align_transcript`) compare chaque frontière de mot à l'enveloppe d'énergie
-produite par `--speech-onset`, corrige celles qui tombent dans le silence, et
-**refuse** les autres plutôt que de les déplacer au jugé — une frontière
-ambiguë, sans front de parole à portée, ou qui demanderait un déplacement
-au-delà du plafond est signalée et laissée où elle est. Sans `--write`, c'est
-un rapport ; avec, la correction est écrite dans le cache de transcription que
-lisent `remove_words`, `clean_disfluencies` et le montage d'interview. C'est
-ce qui rend une coupe par mot fiable ; sans ça, la seule façon de vérifier une
-borne était d'extraire un fragment et de le retranscrire.
+Whisper's timestamps are excellent most of the time and occasionally wrong by a
+second. `--align-transcripts` (MCP: `align_transcript`) compares each word
+boundary with the energy envelope produced by `--speech-onset`, corrects those
+that fall in silence, and **refuses** the others rather than moving them by
+guesswork — a boundary that is ambiguous, has no speech onset in range, or
+would require a shift beyond the ceiling is reported and left where it is.
+Without `--write`, it is a report; with it, the correction is written into the
+transcription cache that `remove_words`, `clean_disfluencies` and interview
+editing read. This is what makes a per-word cut reliable; without it, the only
+way to check a boundary was to extract a fragment and transcribe it again.
 
-`--tighten-pauses` (MCP : `tighten_pauses`) referme les silences **internes**
-d'un plan sans lire un seul mot : il cherche les creux de l'enveloppe d'au
-moins `min_gap_ms` millisecondes (320 par défaut), ramène chacun à
-`keep_frames` images (4 par défaut, réparties entre les deux bords, pour que
-le raccord tombe au plus profond du silence), et referme en ripple. Ces
-défauts sont le réglage que la procédure d'interview passait explicitement
-depuis septembre ; ils remplacent 400 ms et 6 images, qui laissaient le film
-mou, depuis le 4 novembre 2026. Sous 300 ms, un creux à l'intérieur d'un mot
-(une occlusive) a déjà été refermé. Une seule `RemoveWordsOperation`, donc un seul `undo`, et
-la paire A/V liée est emportée avec. L'air de tête et de queue n'est pas
-touché : c'est un rognage, la question de `--speech-onset`, et il est publié
-dans le rapport plutôt que coupé en douce.
+`--tighten-pauses` (MCP: `tighten_pauses`) closes a clip's **internal**
+silences without reading a single word: it looks for envelope gaps of at least
+`min_gap_ms` milliseconds (320 by default), brings each down to `keep_frames`
+frames (4 by default, split between the two edges, so that the join falls in
+the deepest part of the silence), and closes up with a ripple. These defaults
+are the setting that the interview procedure passed explicitly; they replace
+400 ms and 6 frames, which left the film soft. Under 300 ms, a gap inside a
+word (a stop consonant) has already been closed. A single
+`RemoveWordsOperation`, hence a single `undo`, and the linked A/V pair is taken
+along with it. The head and tail air is not touched: that is trimming, the
+question of `--speech-onset`, and it is published in the report rather than cut
+on the sly.
 
-`--trim-boundary-air` (MCP : `trim_boundary_air`) ferme précisément ces
-silences de tête et de queue. Les deux nombres optionnels sont, dans l'ordre,
-les images source conservées près de la parole (3 par défaut) et la durée
-minimale d'air traitée en millisecondes (300 par défaut). Les bornes viennent
-des groupes de parole mesurés par `--speech-onset`, jamais des mots Whisper.
-La paire A/V et les autres pistes en sync-lock suivent dans une seule
-`TrimBoundaryAirOperation`, donc un seul `undo`. La paire, c'est le seul
-partenaire de chaque bord rogné : sur chaque autre piste, le membre du groupe
-lié dont le même bord est le plus proche, comme pour `ripple_trim`. Les autres
-morceaux d'un bloc déjà découpé (par `remove_source_ranges` ou
-`--tighten-pauses`, qui leur laissent un seul groupe) ne bougent pas.
+`--trim-boundary-air` (MCP: `trim_boundary_air`) closes precisely these head
+and tail silences. The two optional numbers are, in order, the source frames
+kept next to the speech (3 by default) and the minimum duration of air handled
+in milliseconds (300 by default). The bounds come from the speech groups
+measured by `--speech-onset`, never from Whisper's words. The A/V pair and the
+other sync-locked tracks follow in a single `TrimBoundaryAirOperation`, hence a
+single `undo`. The pair is the single partner of each trimmed edge: on each
+other track, the linked-group member whose same edge is closest, as for
+`ripple_trim`. The other pieces of a block already cut up (by
+`remove_source_ranges` or `--tighten-pauses`, which leave them a single group)
+do not move.
 
-À une coupe, utiliser `--close-junction-air` (MCP :
-`close_junction_air`) avec le plan sortant puis le plan entrant. Le moteur
-additionne l'air de queue du premier et l'air de tête du second avant de
-comparer le seuil, puis rogne les deux côtés atomiquement. Ainsi deux moitiés
-de 280 ms sont bien reconnues comme un creux audible de 560 ms, et une seconde
-passe ne déplace plus la jonction. Les outils MCP acceptent en plus
-`sync_track_ids` pour remplacer explicitement les pistes sync-lock déduites.
+At a cut, use `--close-junction-air` (MCP: `close_junction_air`) with the
+outgoing clip then the incoming clip. The engine adds the first one's tail air
+and the second one's head air before comparing the threshold, then trims both
+sides atomically. Thus two 280 ms halves are properly recognised as an audible
+560 ms gap, and a second pass does not move the junction again. The MCP tools
+additionally accept `sync_track_ids` to explicitly replace the deduced
+sync-lock tracks.
 
-Quand un alignement forcé des mots est en cache, `--tighten-pauses` ne referme
-jamais un creux qui recouvre un mot aligné : le creux est découpé autour du mot
-et chaque morceau est jugé comme un creux à part entière. Un « à » d'une image
-resté sous la ligne de parole entre deux silences courts n'est plus avalé avec
-eux. Sans alignement, la fermeture est inchangée et le rapport le dit
-(`words_checked: false`) ; les mots protégés sont nommés dans `kept_words`.
+When a forced word alignment is in cache, `--tighten-pauses` never closes a gap
+that overlaps an aligned word: the gap is cut around the word and each piece is
+judged as a gap in its own right. A one-frame "à" left below the speech line
+between two short silences is not swallowed with them. Without alignment, the
+closing is unchanged and the report says so (`words_checked: false`); the
+protected words are named in `kept_words`.
 
-Toute édition qui retire du son de la timeline nomme les mots qu'elle emporte.
-Le résultat de `--apply-op`, des commandes de coupe et des outils MCP
+Any edit that removes sound from the timeline names the words it takes along.
+The result of `--apply-op`, of the cutting commands and of the MCP tools
 `tighten_pauses`, `trim_boundary_air`, `close_junction_air`,
-`remove_source_ranges`, `ripple_trim`, `remove_words` et `clean_disfluencies`
-porte `cut_words` : par source, les images retirées et les mots alignés
-touchés, entiers ou entamés (`whole: false`), séparés entre `targeted` (les
-mots demandés à `remove_words`, les hésitations de `clean_disfluencies`) et
-`carried` (tous les autres). Une source sans alignement forcé est déclarée
-`checked: false` avec la raison, plutôt que rendue comme une liste vide. La
-matière retirée se lit sur les pistes son : rogner l'image seule ne retire
-aucun mot entendu.
+`remove_source_ranges`, `ripple_trim`, `remove_words` and `clean_disfluencies`
+carries `cut_words`: per source, the frames removed and the aligned words
+touched, whole or nicked (`whole: false`), split between `targeted` (the words
+requested of `remove_words`, the hesitations of `clean_disfluencies`) and
+`carried` (all the others). A source without forced alignment is declared
+`checked: false` with the reason, rather than returned as an empty list. The
+material removed is read on the audio tracks: trimming the picture alone
+removes no heard word.
 
-## Frontières alignées et mots non entendus
+## Aligned boundaries and unheard words
 
-Whisper fournit le texte, un aligneur forcé fournit les frontières : c'est la
-conclusion du banc d'alignement. L'aligneur
-est Montreal Forced Aligner (MFA 3.4.3) depuis le 1er novembre 2026
-(ALIGNEMENT-2026-11) : contre C-PROM, 70 minutes de français vérifiées à la
-main, ses frontières sont à 31 ms de la référence en moyenne, celles de NeMo
-Forced Aligner, qu'il remplace, à 73 ms, et celles de Whisper à près de
-300 ms. Le moteur lit ce résultat
-lui-même. Un alignement se dépose sous
-`.cutmachine/word-alignments/<media-id>/` au format du banc (manifeste en
-version 1, mots en images source `[frame_start, frame_end)`) ; l'outil
-`align_words` (MCP) et `--align-words` (CLI) l'y écrivent, en lançant
-`scripts/mfa_align.py` avec le Python de l'environnement de MFA sous le
-verrou du projet (voir [Où MFA est cherché](lancement.md#où-mfa-est-cherché)).
-Chaque rush est d'abord aligné d'un seul tenant ; un rush de plus de 90 s
-que MFA laisse sans alignement est repris découpé au milieu de ses silences
-(`segmented: true` dans la réponse), et un rush qu'il n'aligne toujours pas
-est écarté (`not_aligned`) et garde ses mots d'avant. Les caches écrits par
-NeMo restent lus.
-Chaque rush est aligné dans la langue de sa transcription, avec les modèles
-MFA de cette langue (`french_mfa`, `english_mfa`, `spanish_mfa` : modèle
-acoustique, dictionnaire de prononciation et G2P des mots absents du
-dictionnaire) : la langue
-donnée à `transcribe_media` quand elle était forcée, sinon celle que whisper
-a détectée (`detected_language`, gardée dans le cache depuis ITW9 et rendue
-par `transcribe_media`), sinon celle que désignent les mots du texte, le
-français quand rien ne tranche. Les chiffres sont écrits en toutes lettres
-dans cette langue. Un rush dans une autre langue est écarté
-(`unsupported_language`). Pour un tournage dans une langue que la détection
-confond, transcris avec la langue forcée : c'est aussi elle qu'on aligne.
+Whisper provides the text, a forced aligner provides the boundaries: this is
+the conclusion of the alignment bench. The
+aligner is Montreal Forced Aligner (MFA 3.4.3) (ALIGNEMENT-2026-11): against
+C-PROM, 70 minutes of hand-verified French, its boundaries are 31 ms from the
+reference on average, those of NeMo Forced Aligner, which it replaces, 73 ms,
+and those of Whisper nearly 300 ms. The engine reads this result
+itself. An alignment is stored under
+`.cutmachine/word-alignments/<media-id>/` in the bench's format (manifest in
+version 1, words in source frames `[frame_start, frame_end)`); the `align_words`
+tool (MCP) and `--align-words` (CLI) write it there, by launching
+`scripts/mfa_align.py` with the Python of MFA's environment under the project
+lock (see [Where MFA is looked up](lancement.md#where-mfa-is-searched)).
+Each source clip is first aligned in one piece; a source clip of more than 90 s
+that MFA leaves without alignment is retried cut up in the middle of its
+silences (`segmented: true` in the response), and a source clip that it still
+does not align is set aside (`not_aligned`) and keeps its earlier words. The
+caches written by NeMo are still read.
+Each source clip is aligned in the language of its transcription, with the MFA
+models of that language (`french_mfa`, `english_mfa`, `spanish_mfa`: acoustic
+model, pronunciation dictionary and G2P for words absent from the dictionary):
+the language given to `transcribe_media` when it was forced, otherwise the one
+that whisper detected (`detected_language`, kept in the cache (ITW9) and
+returned by `transcribe_media`), otherwise the one that the words of the text
+designate, French when nothing decides. Digits are written out in words in that
+language. A source clip in another language is set aside
+(`unsupported_language`). For a shoot in a language that detection confuses,
+transcribe with the language forced: it is also the one that is aligned.
 `remove_words`, `clean_disfluencies`, `list_disfluencies`,
-`get_timeline_transcript`, `create_interview_short` et `--export-srt` passent
-tous par le même lecteur : l'alignement le plus récent remplace les mots
-Whisper tant que leurs lettres concordent. Une transcription refaite après
-l'alignement retombe donc sur Whisper plutôt que de garder des frontières
-périmées. Chaque réponse dit qui a placé les frontières (`word_timing` :
-`whisper`, `mfa`, `nemo`…).
+`get_timeline_transcript`, `create_interview_short` and `--export-srt` all go
+through the same reader: the most recent alignment replaces Whisper's words as
+long as their letters agree. A transcription redone after the alignment
+therefore falls back to Whisper rather than keeping stale boundaries. Each
+response says who placed the boundaries (`word_timing`: `whisper`, `mfa`,
+`nemo`…).
 
-Un mot peut être placé dans le montage par la transcription du rush sans être
-entendu dans le son monté. `transcribe_timeline` garde côte à côte une lecture
-standard et une lecture verbatim du montage, tant qu'elles correspondent à son
-agencement audible. Un mot qu'aucune de ces lectures ne contient à moins de
-deux secondes est écarté des spans et du SRT, et listé dans `unheard_words`
-avec le nombre de lectures consultées (`montage_readings`). Sans lecture, rien
-n'est écarté : l'absence de preuve ne retire aucun mot.
+A word can be placed in the edit by the source clip's transcription without
+being heard in the edited sound. `transcribe_timeline` keeps side by side a
+standard reading and a verbatim reading of the edit, as long as they match its
+audible arrangement. A word that none of these readings contains within two
+seconds is set aside from the spans and the SRT, and listed in `unheard_words`
+with the number of readings consulted (`montage_readings`). Without a reading,
+nothing is set aside: the absence of proof removes no word.
 
-## Les hésitations que personne n'a transcrites
+## The hesitations nobody transcribed
 
-Whisper, même en verbatim, n'écrit pas toutes les hésitations : sur une
-interview réelle, il n'en a transcrit aucune des quatorze que le montage final
-a coupées. Elles se rangent en trois familles : un « euh » détaché, une
-syllabe étirée (« la maa…rée ») et un murmure entre deux mots.
+Whisper, even in verbatim, does not write all the hesitations: on a real
+interview, it transcribed none of the fourteen that the final edit cut. They
+fall into three families: a detached "euh", a stretched syllable ("la
+maa…rée") and a murmur between two words.
 
-`analyze_hesitations` (MCP) les cherche dans le son d'un rush, sans lire les
-mots. La mesure est la **stabilité du timbre** : la distance moyenne entre
-vecteurs MFCC successifs sur ±50 ms. La parole change d'enveloppe spectrale
-toutes les quelques dizaines de millisecondes, une voyelle tenue presque pas.
-Une portion est tenue quand sa stabilité passe sous 76 % de la médiane des
-fenêtres voisées du rush. Le seuil est relatif, parce que l'échelle absolue
-dépend de l'analyse, alors que le rapport s'est conservé d'une mesure à
-l'autre. Une tenue de moins de 200 ms en fin de mot est la prosodie d'une
-virgule et n'est pas listée ; un murmure se situe entre 22 et 36 dB sous le
-niveau de parole du rush. Chaque candidat est placé contre les mots alignés,
-avec sa famille, sa plage source, sa mesure et les mots voisins. Le résultat
-est mis en cache dans `.cutmachine/hesitations/<media-id>.json`.
+`analyze_hesitations` (MCP) looks for them in a source clip's sound, without
+reading the words. The measure is **timbre stability**: the mean distance
+between successive MFCC vectors over ±50 ms. Speech changes its spectral
+envelope every few tens of milliseconds, a held vowel hardly at all. A portion
+is held when its stability falls under 76 % of the median of the source clip's
+voiced windows. The threshold is relative, because the absolute scale depends
+on the analysis, whereas the ratio has been conserved from one measurement to
+the next. A hold of less than 200 ms at the end of a word is the prosody of a
+comma and is not listed; a murmur lies between 22 and 36 dB below the source
+clip's speech level. Each candidate is placed against the aligned words, with
+its family, its source range, its measure and the neighbouring words. The
+result is cached in `.cutmachine/hesitations/<media-id>.json`.
 
-`list_disfluencies` y ajoute alors, pour le plan, un tableau `hesitations`
-(`hesitation_analysis` vaut `missing` tant que le rush n'est pas analysé) :
-plage en images source, mesures, mots autour et `suggested_cut`. Pour une
-syllabe étirée, la coupe proposée laisse les deux premières images de la
-tenue, pour que la syllabe s'entende encore (A47).
-`remove_source_ranges` applique cette coupe : plages en images du rush,
-`[first_frame, end_frame)`, une seule opération réversible qui emporte la
-paire liée et les pistes en sync-lock.
+`list_disfluencies` then adds to it, for the clip, a `hesitations` array
+(`hesitation_analysis` is `missing` as long as the source clip is not
+analysed): range in source frames, measures, words around and `suggested_cut`.
+For a stretched syllable, the proposed cut leaves the first two frames of the
+hold, so that the syllable is still heard (A47).
+`remove_source_ranges` applies this cut: ranges in the source clip's frames,
+`[first_frame, end_frame)`, a single reversible operation that takes along the
+linked pair and the sync-lock tracks.
 
-Recoupé sur les quatre rushes d'un montage réel : 20 candidats, dont 15 dans
-la portion utilisée et 11 dans ce que le monteur a finalement coupé. Les
-quatre autres sont soit de fausses alertes, soit des hésitations gardées :
-seule l'écoute les départage. C'est une mesure, pas une décision de coupe.
+Cross-checked on the four source clips of a real edit: 20 candidates, 15 of
+them in the used portion and 11 in what the editor finally cut. The other four
+are either false alarms or kept hesitations: only listening tells them apart.
+It is a measurement, not a cutting decision.
 
 ```sh
 ./build/cutmachine --call-tool Projet.cutmachine-project/project.cutmachine.json \
@@ -396,98 +379,94 @@ seule l'écoute les départage. C'est une mesure, pas une décision de coupe.
   '{"clip_id":"<clip-id>","ranges":[{"first_frame":1412,"end_frame":1427}]}'
 ```
 
-## Qui parle : les voix d'un rush
+## Who is speaking: a source clip's voices
 
-`analyze_speakers {media_id, speakers}` dit qui parle quand dans un rush
-(PARITE-2026-11 PA3). `speakers` est le nombre de voix du rush, de 1 à 8 :
-tu le connais, le modèle ne le devine pas. Deviné, il était faux sur cinq
-dialogues de quinze.
+`analyze_speakers {media_id, speakers}` says who speaks when in a source clip
+(PARITE-2026-11 PA3). `speakers` is the number of voices in the source clip,
+from 1 to 8: you know it, the model does not guess it. Guessed, it was wrong on
+five dialogues out of fifteen.
 
-Un modèle d'empreinte vocale (WeSpeaker ResNet34-LM, lancé par sherpa-onnx,
-tous deux sous Apache 2.0) lit le son sur la machine : rien n'en sort. Il
-donne un vecteur à chaque fenêtre de 1,5 s de parole, une fenêtre toutes les
-0,25 s, et les vecteurs sont rangés en autant de groupes qu'il y a de voix.
-Transcris le rush d'abord : les passages de parole sont alors ses mots, et
-une fenêtre ne passe jamais d'un passage au suivant (`speech_from: "words"`).
-Sans transcription, les passages sont ceux où le son est fort
-(`"loudness"`).
+A voiceprint model (WeSpeaker ResNet34-LM, launched by sherpa-onnx, both under
+Apache 2.0) reads the sound on the machine: nothing leaves it. It gives a
+vector to each 1.5 s window of speech, one window every 0.25 s, and the vectors
+are sorted into as many groups as there are voices. Transcribe the source clip
+first: the speech passages are then its words, and a window never crosses from
+one passage to the next (`speech_from: "words"`). Without a transcription, the
+passages are those where the sound is loud (`"loudness"`).
 
-Le résultat est un cache, `.cutmachine/speakers/<media-id>.json`, pas un
-état du document. Deux lectures :
+The result is a cache, `.cutmachine/speakers/<media-id>.json`, not a state of
+the document. Two readings:
 
-- `list_speakers {media_id}` rend, par voix, sa durée et son nombre de
-  tours, puis les tours dans l'ordre : la voix, les temps dans le rush, le
-  nombre de mots et les douze premiers. Une liste longue se pagine
+- `list_speakers {media_id}` returns, per voice, its duration and its number of
+  turns, then the turns in order: the voice, the times in the source clip, the
+  number of words and the first twelve. A long list is paginated
   (`max_turns`, `from_turn`, `next_from_turn`).
-- `list_source_words` ajoute `speaker` à chaque mot : la voix qui parle sur
-  la plus grande part du mot.
+- `list_source_words` adds `speaker` to each word: the voice that speaks over
+  the largest share of the word.
 
-Une voix est un numéro, 0, 1, 2 dans l'ordre d'apparition, propre à son
-rush : rien ne dit qui c'est, et la voix 0 d'un rush n'est pas celle d'un
-autre. Tu la nommes en lisant les mots.
+A voice is a number, 0, 1, 2 in order of appearance, specific to its source
+clip: nothing says who it is, and voice 0 of one source clip is not that of
+another. You name it by reading the words.
 
-`similarity` dit à quel point deux voix se ressemblent, en millièmes. Des
-voix bien séparées ont mesuré de 380 à 800 ; une seule voix demandée en deux
-a mesuré 877, et les paires que le modèle a confondues de 850 à 900. À
-partir de 850, le partage n'est pas fiable : soit c'est une seule voix
-coupée en deux, soit deux voix qu'il ne distingue pas. L'outil rend le
-nombre, pas un verdict.
+`similarity` says how much two voices resemble each other, in thousandths.
+Well-separated voices measured from 380 to 800; a single voice requested as two
+measured 877, and the pairs that the model confused from 850 to 900. From 850,
+the split is not reliable: either it is a single voice cut in two, or two
+voices that it does not tell apart. The tool returns the number, not a verdict.
 
-Mesuré le 12 novembre 2026 sur quinze dialogues fabriqués avec deux voix
-françaises réelles chacun, tous les tours connus
-(`tools/speaker-diarization-benchmark/bench.py`) :
+Measured on fifteen dialogues made with two real French voices each, all turns
+known (`tools/speaker-diarization-benchmark/bench.py`):
 
-| | part du temps donnée à la mauvaise voix |
+| | share of time given to the wrong voice |
 |---|---|
-| en moyenne | 5,9 % |
-| à la médiane | 4,2 % |
-| la pire paire (deux voix très proches) | 25,5 % |
-| trois voix à tour de rôle | 4,1 % |
+| on average | 5.9 % |
+| at the median | 4.2 % |
+| the worst pair (two very close voices) | 25.5 % |
+| three voices taking turns | 4.1 % |
 
-Un changement de voix est trouvé à 0,25 s près, et une seconde de son est
-lue en 0,06 s. La chaîne habituelle de sherpa-onnx (segmentation pyannote
-3.0 puis regroupement), essayée d'abord, donnait 26 % en moyenne sur les
-mêmes dialogues : elle séparait un homme d'une femme et manquait presque
-toujours le passage entre deux femmes dans la même pièce.
+A change of voice is found to within 0.25 s, and a second of sound is read in
+0.06 s. The usual sherpa-onnx chain (pyannote 3.0 segmentation then clustering),
+tried first, gave 26 % on average on the same dialogues: it separated a man from
+a woman and almost always missed the transition between two women in the same
+room.
 
-Ce que la mesure ne dit pas : ces dialogues sont des tours collés bout à
-bout, sans pause ni chevauchement, et aucun vrai rush à deux voix dont la
-réponse soit connue n'a été lu. Deux personnes qui parlent en même temps ne
-sont pas traitées : un passage a une voix.
+What the measurement does not say: these dialogues are turns glued end to end,
+with no pause or overlap, and no real two-voice source clip whose answer is
+known has been read. Two people speaking at once are not handled: a passage has
+one voice.
 
-Pour un multicam monté à la voix, coupe le groupe aux temps des tours
-(`split_multicam_group`) et donne à chaque morceau son angle
-(`set_multicam_active_angle`) : l'outil mesure, le choix de l'angle est le
-tien. Où le modèle est cherché :
-[lancement](lancement.md#où-la-diarisation-est-cherchée).
+For a multicam edit cut by voice, cut the group at the turns' times
+(`split_multicam_group`) and give each piece its angle
+(`set_multicam_active_angle`): the tool measures, the choice of the angle is
+yours. Where the model is looked up:
+[launch](lancement.md#where-diarization-is-searched).
 
-## Adresser la timeline par le rush
+## Addressing the timeline by source clip
 
-Une décision de montage se prend dans le rush (« couper juste après le nom »,
-« cette prise commence à 1412 »), mais toutes les opérations prennent une
-position **timeline**. La conversion est une soustraction et une addition —
-c'est-à-dire exactement ce qu'on rate une fois sur dix.
+An editing decision is made in the source clip ("cut just after the name",
+"this take starts at 1412"), but all the operations take a **timeline**
+position. The conversion is a subtraction and an addition — that is, exactly
+what one gets wrong one time in ten.
 
-`--locate-source-frame` (MCP : `locate_source_frame`) répond « où joue
-l'image N de ce rush » : quel plan, quelle piste, quelle position. Une même
-image peut être sur la timeline plusieurs fois — l'image et son son détaché,
-ou un rush utilisé deux fois — donc toutes les correspondances sont rendues,
-jamais une choisie.
+`--locate-source-frame` (MCP: `locate_source_frame`) answers "where does frame
+N of this source clip play": which clip, which track, which position. The same
+frame can be on the timeline several times — the picture and its detached
+sound, or a source clip used twice — so all the matches are returned, never
+one chosen.
 
-Et les outils de coupe et de rognage acceptent la même adresse :
-`split_clip`, `trim_clip` et `ripple_trim` prennent `source_frame` **à la
-place** de `timeline_position` ou de `delta` — jamais les deux, refus explicite
-sinon. Sur un rognage, `Head` veut dire « le plan démarre sur cette image » et
-`Tail` « c'est la dernière image jouée » : la borne est inclusive, parce que
-c'est ce qu'un numéro d'image veut dire pour un monteur, et le +1 appartient au
-moteur.
+And the cutting and trimming tools accept the same address: `split_clip`,
+`trim_clip` and `ripple_trim` take `source_frame` **in place of**
+`timeline_position` or `delta` — never both, explicit refusal otherwise. On a
+trim, `Head` means "the clip starts on this frame" and `Tail` "this is the last
+frame played": the bound is inclusive, because that is what a frame number
+means to an editor, and the +1 belongs to the engine.
 
-Une paire A/V liée est coupée des deux côtés dans la **même** opération.
-`RemoveWordsOperation` porte un champ `linked_clip_ids` : chaque clip nommé
-perd exactement les mêmes images source et referme sa propre piste. Sans ça,
-nettoyer le son d'une interview raccourcirait la bande et laisserait l'image,
-et un seul `undo` ne suffirait plus à revenir en arrière. Les outils
-`clean_disfluencies` et `remove_words` résolvent eux-mêmes les membres du
-groupe de liaison qui couvrent réellement la coupe ; l'opération, elle, reste
-stricte — un clip nommé explicitement qui ne contient pas les plages est
-refusé (`SourceOutOfBounds`), jamais coupé à moitié.
+A linked A/V pair is cut on both sides in the **same** operation.
+`RemoveWordsOperation` carries a `linked_clip_ids` field: each named clip loses
+exactly the same source frames and closes up its own track. Without that,
+cleaning an interview's sound would shorten the audio and leave the picture,
+and a single `undo` would no longer be enough to go back. The
+`clean_disfluencies` and `remove_words` tools themselves resolve the members of
+the link group that actually cover the cut; the operation, for its part, stays
+strict — an explicitly named clip that does not contain the ranges is refused
+(`SourceOutOfBounds`), never cut by half.

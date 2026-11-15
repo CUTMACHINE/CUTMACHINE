@@ -34,7 +34,7 @@ instantané.
 
 FFmpeg sert deux fois. Ses bibliothèques sont liées au moteur ; son exécutable
 `ffmpeg` fait les exports et les analyses. Le moteur le cherche dans un ordre
-fixe, décrit dans [Quel FFmpeg](docs/reference/lancement.md#quel-ffmpeg) : la
+fixe, décrit dans [Quel FFmpeg](docs/reference/lancement.md#which-ffmpeg) : la
 variable `CUTMACHINE_FFMPEG`, un binaire posé à côté de l'exécutable, puis le
 `PATH`. Depuis le 9 octobre 2026, il n'a plus besoin du filtre `drawtext` :
 les légendes sont dessinées par le moteur lui-même, avec Core Text
@@ -44,7 +44,7 @@ qui manque à la machine — FFmpeg, le modèle Whisper, MFA, la clé de l'agent
 intégré, la copie de l'archive, la voix off
 locale —, élément par élément, avec ce que
 chaque absence empêche et comment y remédier : voir
-[Ce qui manque à la machine](docs/reference/lancement.md#ce-qui-manque-à-la-machine).
+[Ce qui manque à la machine](docs/reference/lancement.md#what-the-machine-is-missing).
 `./build/cutmachine --check-ffmpeg` détaille FFmpeg seul : quel binaire le
 moteur retient et quels encodeurs lui manquent. Les deux commandes sortent en
 0 dès que FFmpeg est trouvé : ce qui lui manque se lit dans leur JSON, pas
@@ -245,14 +245,14 @@ La référence est sous [`docs/reference/`](docs/reference/README.md), un
 fichier par section :
 
 - [Lancement](docs/reference/lancement.md) : ouvrir l'application, la boucle de
-  développement, [quel FFmpeg](docs/reference/lancement.md#quel-ffmpeg) le moteur lance, le stockage et
+  développement, [quel FFmpeg](docs/reference/lancement.md#which-ffmpeg) le moteur lance, le stockage et
   la collecte d'un projet.
 - [Décisions de temps](docs/reference/decisions-de-temps.md) : ce que le temps exact impose
   au scrub, au playhead et à la composition des pistes.
 - [Timeline graphique](docs/reference/timeline-graphique.md), [Audio](docs/reference/audio.md) et
   [Chutiers](docs/reference/chutiers.md) : la fenêtre.
 - [API d'édition](docs/reference/api-edition.md) : les opérations et les outils de montage,
-  les réglages d'un plan, et le [catalogue des outils par famille](docs/reference/api-edition.md#le-catalogue-par-famille).
+  les réglages d'un plan, et le [catalogue des outils par famille](docs/reference/api-edition.md#the-catalogue-by-family).
 - [Commandes headless](docs/reference/commandes-headless.md) : la ligne de commande, le
   serveur MCP et son journal, les interventions et les plans d'édition.
   `cutmachine --help` y renvoie.
@@ -268,10 +268,10 @@ fichier par section :
   hésitations](docs/reference/transcription.md) : le
   modèle Whisper, les mots, les silences.
 - [Contrôle qualité des plans](docs/reference/controle-qualite.md),
-  [Regarder un plan](docs/reference/regarder.md#regarder-un-plan),
-  [Regarder le montage en planches](docs/reference/regarder.md#regarder-le-montage-en-planches),
-  [Regarder un raccord tel qu'il est livré](docs/reference/regarder.md#regarder-un-raccord-tel-quil-est-livré),
-  [Visionner les raccords](docs/reference/regarder.md#visionner-les-raccords) et
+  [Regarder un plan](docs/reference/regarder.md#looking-at-a-shot),
+  [Regarder le montage en planches](docs/reference/regarder.md#looking-at-the-edit-as-sheets),
+  [Regarder un raccord tel qu'il est livré](docs/reference/regarder.md#looking-at-a-junction-as-it-is-delivered),
+  [Visionner les raccords](docs/reference/regarder.md#reviewing-the-junctions) et
   [Mesurer l'étalonnage](docs/reference/mesurer-etalonnage.md) : ce que le moteur mesure et
   montre.
 - [EDL CMX 3600 et WebVTT](docs/reference/edl.md) : les listes d'une timeline

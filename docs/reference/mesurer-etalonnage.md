@@ -1,126 +1,116 @@
-# Mesurer l'étalonnage
+# Measuring the grade
 
-> Relu contre le code le 3 octobre 2026. L'écart de 0,385 % de swscale est une
-> mesure de GRADE-2026-09, pas vérifiée par lecture.
+`--measure-color` (MCP: `measure_color`) gives the numbers a colourist reads
+on their scopes, for one frame of each requested clip (`Start`, `Middle` or
+`End`), as the export delivers that clip alone: grade, sequence look and
+output transform included, without opacity, fade, title card or clip above.
+Only the part of the source that the sequence shows is measured.
 
-`--measure-color` (MCP : `measure_color`) donne les chiffres qu'un étalonneur
-lit sur ses scopes, pour une image de chaque plan demandé (`Start`, `Middle`
-ou `End`), telle que l'export livre ce plan seul : étalonnage, look de la
-séquence et transformation de sortie compris, sans opacité, fondu, carton ni
-plan du dessus. Seule la partie de la source que la séquence montre est
-mesurée.
+- `display`: luminance at the 2nd, 50th and 98th percentiles as a percentage,
+  share of clipped and crushed pixels, mean saturation and at the 95th
+  percentile (unit of `signalstats`' `SATAVG`), and balance of shadows,
+  midtones and highlights (`warmth`, `green_magenta`);
+- `scene`, under colour management: the working space's linear luminance in
+  stops relative to 18 % grey, the unit of `color.exposure` under ACEScct;
+- `region`, if given (exact fractions of the frame): the same numbers on the
+  area, plus its hue on the vectorscope and its distance from the skin line.
 
-- `display` : luminance aux centiles 2, 50 et 98 en pourcentage, part de
-  pixels écrêtés et bouchés, saturation moyenne et au centile 95 (unité de
-  `SATAVG` de `signalstats`), et balance des ombres, tons moyens et hautes
-  lumières (`warmth`, `green_magenta`) ;
-- `scene`, sous gestion couleur : la luminance linéaire de l'espace de
-  travail en diaphragmes par rapport au gris 18 %, l'unité de
-  `color.exposure` sous ACEScct ;
-- `region`, si on la donne (fractions exactes de l'image) : les mêmes chiffres
-  sur la zone, plus sa teinte au vectorscope et son écart à la ligne peau.
+To match a clip to a reference clip, `--match-color` (MCP: `match_color`)
+computes the exposure, balance and saturation correction, and returns the
+`set_clip_effects` call that would apply it, without modifying anything: it
+adjusts the settings the clip already has and adds only the ones that are
+missing. The response gives the numbers before, after and of the reference,
+and the remaining difference. The step is passed as is to
+`prepare_edit_plan`.
 
-Pour accorder un plan à un plan de référence, `--match-color` (MCP :
-`match_color`) calcule la correction d'exposition, de balance et de
-saturation, et rend l'appel `set_clip_effects` qui l'appliquerait, sans rien
-modifier : il règle les réglages que le plan a déjà et n'ajoute que ceux qui
-manquent. La réponse donne les chiffres avant, après et de la référence, et
-l'écart restant. L'étape se passe telle quelle à `prepare_edit_plan`.
+For all the clips of a timeline at once (or those of `clip_ids`), under colour
+management, two MCP tools propose without applying anything (AGENT-2026-09
+A16, A20 to A22):
 
-Pour tous les plans d'une timeline d'un coup (ou ceux de `clip_ids`), sous
-gestion couleur, deux outils MCP proposent sans rien appliquer
-(AGENT-2026-09 A16, A20 à A22 ; écrit le 7 octobre d'après le catalogue) :
+- `propose_exposure` measures each clip like `measure_color` and, when its
+  scene median differs by more than `tolerance_stops` (0.5 by default) from
+  `target_stops` (0, mid grey), returns under `steps` a `set_clip_effects`
+  step that moves only its exposure; `clips` says for each one what was
+  measured and why it has a step or not (`proposed`, `within_tolerance`,
+  `no_scene_measure`). The steps are passed to `prepare_edit_plan`, or to
+  `set_clip_effects` one by one.
+- `propose_grade`, preferable on an interview, proposes exposure and balance,
+  read where a colourist reads them: on the largest face in the frame
+  (`anchor: "face"`, the default, target +0.7 stop, +1.5 when the sequence
+  outputs in HLG), on a named white or grey area (`neutral`), or on the whole
+  frame, exposure only (`median`). A clip with no face found takes the
+  exposure that the faces found left in the edit, and no balance. A lift stops
+  where the frame's whites would go (`highlight_ceiling_stops`, reason
+  `limited_by_highlights`); in HLG, without that named ceiling, where the
+  rendered image would clip more than before (`highlight_ceiling:
+  display_clipping`, GR15). `apply: true` applies all the proposals; a scene
+  meant to be dark or bright is left out of `clip_ids`. The face found is the
+  largest thing that looks like one: on a subject wearing make-up or a mask,
+  it is the make-up.
 
-- `propose_exposure` mesure chaque plan comme `measure_color` et, quand sa
-  médiane de scène s'écarte de plus de `tolerance_stops` (0,5 par défaut)
-  de `target_stops` (0, le gris moyen), rend sous `steps` une étape
-  `set_clip_effects` qui ne bouge que son exposition ; `clips` dit pour
-  chacun ce qui a été mesuré et pourquoi il a une étape ou non
-  (`proposed`, `within_tolerance`, `no_scene_measure`). Les étapes se
-  passent à `prepare_edit_plan`, ou à `set_clip_effects` une par une.
-- `propose_grade`, à préférer sur une interview, propose l'exposition et la
-  balance, lues là où un étalonneur les lit : sur le plus grand visage de
-  l'image (`anchor: "face"`, par défaut, cible +0,7 diaphragme, +1,5 quand
-  la séquence sort en HLG), sur une
-  zone blanche ou grise nommée (`neutral`), ou sur toute l'image, exposition
-  seule (`median`). Un plan sans visage trouvé prend l'exposition que les
-  visages trouvés ont laissée au montage, et aucune balance. Une montée
-  s'arrête où les blancs de l'image iraient (`highlight_ceiling_stops`,
-  raison `limited_by_highlights`) ; en HLG, sans ce plafond nommé, où
-  l'image rendue écrêterait plus qu'avant (`highlight_ceiling:
-  display_clipping`, GR15). `apply: true` pose toutes les
-  propositions ; une scène voulue sombre ou claire se laisse hors de
-  `clip_ids`. Le visage trouvé est la plus grande chose qui en a l'air : sur
-  un sujet maquillé ou masqué, c'est le maquillage.
+After applying, measure again.
 
-Après application, on remesure.
+`color.temperature` is a real colour temperature: the light that lit the
+scene, adapted (Bradford, in linear light) to the white balance the camera
+shot at. Ingest reads this balance in Sony files (`rtmd` track);
+`set_media_white_balance` sets it by hand or reads it again (`from_camera`)
+for media ingested earlier. At the shooting balance, the temperature is
+neutral.
 
-`color.temperature` est une vraie température de couleur : la lumière qui
-éclairait la scène, adaptée (Bradford, en lumière linéaire) vers la balance
-des blancs à laquelle la caméra a tourné. L'ingest lit cette balance dans les
-fichiers Sony (piste `rtmd`) ; `set_media_white_balance` la fixe à la main
-ou la relit (`from_camera`) pour un média ingéré avant. À la balance de
-tournage, la température est neutre.
+A media item's shooting balance and colour input belong to the project. They
+are read only once from the file, when the media enters the media library, and
+by the same probe whatever the path: import in the window, `--ingest` and
+`ingest_media`, `--import-resolve`. A given source clip therefore enters read
+the same way by any of them. After that, they change only on request
+(`set_media_white_balance`, `set_media_color_input`): a reconnection, or an
+ingest that completes an entry of an older project, keeps them. A
+`color.temperature` is set against its media's balance: changing the balance
+of an already graded media item changes the image of all its clips, and
+`propose_grade` must then be redone. A media item ingested before the balance
+was read has an unknown balance, and 6500 K stands in for it.
 
-La balance de tournage et l'entrée couleur d'un média appartiennent au
-projet. Elles sont lues une seule fois dans le fichier, quand le média entre
-dans la médiathèque, et par la même sonde quel que soit le chemin : import
-dans la fenêtre, `--ingest` et `ingest_media`, `--import-resolve`. Un même
-rush entre donc lu de la même façon par n'importe lequel. Ensuite, elles ne
-changent que sur demande (`set_media_white_balance`,
-`set_media_color_input`) : une reconnexion, ou un ingest qui complète une
-entrée d'un projet ancien, les garde. Une `color.temperature` est posée
-contre la balance de son média : changer la balance d'un média déjà
-étalonné change l'image de tous ses plans, et `propose_grade` est alors à
-refaire. Un média ingéré avant que la balance soit lue (septembre 2026) a
-une balance inconnue, et 6500 K en tient lieu.
+A primary correction is exchanged in the ASC CDL format (slope, offset and
+power per channel, then saturation). `--export-cdl` (MCP: `export_cdl`) folds
+a clip's exposure, contrast, hue, wheels and saturation into one CDL, writes a
+`.cc`, `.ccc` or `.cdl` through OpenColorIO and gives the table that
+`TimelineItem.SetCDL` takes in DaVinci Resolve's scripting; a stage with no
+CDL form (temperature, curves...) refuses the clip and names it.
+`--apply-cdl` (MCP: `apply_cdl`) does the reverse: the CDL, read from a file
+or given by Resolve's strings, replaces the clips' primary (in `color.wheels`
+and `color.saturation`). The space the CDL was made in is declared
+(`--space acescct`...) and must be the one the clips are graded in.
 
-Une correction primaire s'échange au format CDL de l'ASC (pente, offset et
-puissance par canal, puis saturation). `--export-cdl` (MCP : `export_cdl`)
-replie l'exposition, le contraste, la teinte, les roues et la saturation d'un
-plan en une CDL, écrit un `.cc`, `.ccc` ou `.cdl` par OpenColorIO et donne la
-table que prend `TimelineItem.SetCDL` dans le scripting de DaVinci Resolve ;
-un étage sans forme CDL (température, courbes...) refuse le plan en le
-nommant. `--apply-cdl` (MCP : `apply_cdl`) fait l'inverse : la CDL, lue dans
-un fichier ou donnée par les chaînes de Resolve, remplace le primaire des
-plans (en `color.wheels` et `color.saturation`). L'espace dans lequel la CDL
-a été faite se déclare (`--space acescct`...) et doit être celui où les plans
-sont étalonnés.
+Tested in Resolve Studio 21.1 (GR12):
+in an ACEScct project, the table set by `SetCDL` gives the same image as
+here, to within 0.03 10-bit code. In a DaVinci YRGB project, managed or not,
+Resolve computes the CDL's saturation with the weights 0.21 / 0.70 / 0.09
+instead of Rec.709's: a saturation other than 1 does not render the same image
+there (1.8 codes for 1.1, 9 codes for 0.5). The response of `export_cdl` and
+of `--export-cdl` says so (DEC30, GR12): each clip whose saturation is not 1
+carries `resolve_yrgb_gap_codes`, the largest gap it will have in a YRGB
+project, in 10-bit codes (|1 − s| × 0.0178 × 1023, rounded to the tenth), and
+the response carries a `warning` and the list `warning_clip_ids`. The engine
+does not know which colour science the Resolve project works in: the warning
+comes for any saturation other than 1, whatever the CDL's space. Resolve has
+no `GetCDL`: the strings are copied from what was set, not from Resolve.
 
-Éprouvé dans Resolve Studio 21.1 le 10 octobre 2026
-(GR12) : dans un projet ACEScct, la
-table posée par `SetCDL` donne la même image qu'ici, à 0,03 code 10 bits
-près. Dans un projet DaVinci YRGB, géré ou non, Resolve calcule la
-saturation de la CDL avec les poids 0,21 / 0,70 / 0,09 au lieu de ceux de
-Rec.709 : une saturation différente de 1 n'y rend pas la même image (1,8 code
-pour 1,1, 9 codes pour 0,5). Depuis le 24 octobre 2026 (DEC30, GR12), la
-réponse d'`export_cdl` et de `--export-cdl` le dit : chaque plan dont la
-saturation n'est pas 1 porte `resolve_yrgb_gap_codes`, l'écart le plus grand
-qu'il aura dans un projet YRGB, en codes 10 bits (|1 − s| × 0,0178 × 1023,
-arrondi au dixième), et la réponse porte un `warning` et la liste
-`warning_clip_ids`. Le moteur ne sait pas en quelle science couleur le projet
-Resolve travaille : l'avertissement vient pour toute saturation différente de
-1, quel que soit l'espace de la CDL. Resolve n'a pas de `GetCDL` : les
-chaînes se recopient depuis ce qu'on a posé, pas depuis Resolve.
+A grade is copied from one clip to others (GR11): `paste_clip_grade`
+(`from_clip_id`, `clip_ids`), or in the **Couleur** (Color) window, **Copier
+l'étalonnage du plan** (Copy clip grade) then **Coller l'étalonnage sur la
+sélection** (Paste grade onto selection). The source clip's whole stack
+replaces that of each clip, in one undo; a motion clip, an audio clip or a
+graphic under colour management are left alone and named.
 
-Un étalonnage se copie d'un plan sur d'autres (GR11, 24 octobre 2026) :
-`paste_clip_grade` (`from_clip_id`, `clip_ids`), ou dans la fenêtre Couleur ›
-Copier l'étalonnage du plan puis Coller l'étalonnage sur la sélection. La pile
-entière du plan source remplace celle de chaque plan, en une annulation ; un
-clip de motion, un son ou un graphisme sous gestion couleur sont laissés et
-nommés.
+To see what is measured, `read_frame` (MCP) takes `graded: true` with a
+`clip_id`: the graded clip's frame, look included, in Record's SDR view.
+Edit sheets take it too (DEC29): `contact_sheet` and `cut_sheet` with
+`graded: true` (`--contact-sheet` and `--cut-sheet` with `--graded`) show each
+cell the way graded `read_frame` shows its clip, through the same chain, pixel
+for pixel; a graded sheet of junctions judges how well colours match from one
+clip to the next. `media_sheet` stays ungraded: a source clip has no grade of
+its own: only a timeline clip sets one.
 
-Pour voir ce qu'on mesure, `read_frame` (MCP) prend `graded: true` avec un
-`clip_id` : l'image du plan étalonné, look compris, dans la vue SDR de Record.
-Les planches d'un montage le prennent aussi (DEC29, 24 octobre 2026) :
-`contact_sheet` et `cut_sheet` avec `graded: true` (`--contact-sheet` et
-`--cut-sheet` avec `--graded`) montrent chaque cellule comme `read_frame`
-étalonné montre son plan, par la même chaîne, pixel pour pixel ; une planche
-de raccords étalonnée juge l'accord des couleurs d'un plan à l'autre.
-`media_sheet` reste sans étalonnage : un rush n'en a pas tant qu'un plan ne
-le pose pas.
-
-La mesure ne juge rien et ne modifie pas le projet. La source est décodée
-comme le moniteur la décode, pas par la conversion YCbCr de swscale, qui lit
-les codes 0,385 % trop bas (voir
+The measurement judges nothing and does not modify the project. The source is
+decoded the way the monitor decodes it, not by swscale's YCbCr conversion,
+which reads codes 0.385 % too low (see
 GRADE-2026-09).

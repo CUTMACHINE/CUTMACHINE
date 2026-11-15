@@ -1,131 +1,120 @@
-# Chutiers
+# Bins
 
-> Relu contre le code le 3 octobre 2026. Les gestes à la souris
-> (glisser-déposer, sélection, clic droit) ne sont pas vérifiés par lecture.
+The **Projet / Chutiers** (Project / Bins) panel occupies the left of the
+window, outside the Metal timeline surface. It opens full size on the
+**Médias** (Media) tab (Shift+2), and on the other tabs with a click on
+**Médiathèque** (Media library), at the bottom right (ONGLETS-2026-10). The
+active sequence appears there as an addressable object distinct from the
+media; a double-click returns to the Record monitor. A tree shows the nested
+bins, the root and a view of all objects. A selector offers a metadata list
+or an icon grid; the search field filters both. In both views, `Cmd+click`
+adds or removes an object from the selection and `Shift+click` selects a
+range, as in the Finder. A right-click keeps the multi-selection and
+**Déplacer vers un chutier…** (Move to bin…) files all the selected source
+clips together, in the bin that its dialog asks for. **Nouveau chutier**
+(New bin) creates a child of the current bin and **Supprimer** (Delete)
+refuses a bin that still contains media, children or a timeline. A timeline
+is filed by drag and drop, or by `set_timeline_bin` (`timeline_id`, and an
+empty `bin_id` for the root): an entry in the project journal
+(`SetProjectTimelineBinOperation`), which `list_timelines` and `describe`
+read back in the timeline's `bin_id`. Bins are moved and nested by drag and
+drop, the way the Finder does it; dropping on **Projet** (or on **Tous**)
+puts them back at the root. These moves use `MoveBinOperation`, reject
+cycles and therefore follow `Cmd+Z`/`Cmd+Shift+Z`. The `bins`, `parent_id`
+and `bin_id` fields are persisted and exposed by `--describe`. See the
+[`bins specification`](../BINS_SPEC.md). The **Nouveau chutier** context menu
+creates the item in the tree immediately and activates inline renaming,
+without opening a dialog. A right-click in the empty area creates at the
+root; **Renommer** (Rename) also edits the name directly in the view.
 
-Le panneau **Projet / Chutiers** occupe la gauche de la fenêtre, hors de
-la surface de timeline Metal. Depuis le 31 octobre 2026, il s'ouvre en grand
-sur l'onglet **Médias** (Maj+2), et sur les autres onglets d'un clic sur
-**Médiathèque**, en bas à droite (ONGLETS-2026-10). La séquence active y apparaît comme un objet
-adressable distinct des médias ; un double-clic revient au moniteur Record.
-Une arborescence affiche les chutiers imbriqués, la racine et une vue de tous
-les objets. Un sélecteur propose une liste de
-métadonnées ou une grille d'icônes ; le champ de recherche filtre les deux.
-Dans les deux vues, `Cmd+clic` ajoute ou retire un objet de la sélection et
-`Shift+clic` sélectionne une plage, comme dans le Finder. Le clic droit conserve
-la multisélection et **Déplacer vers un chutier…** classe ensemble tous les
-rushes sélectionnés, dans le chutier que son dialogue demande.
-**Nouveau chutier** crée un enfant du chutier courant et **Supprimer** refuse un
-chutier contenant encore des médias, des enfants ou une timeline. Une timeline
-se range par glisser-déposer, ou par `set_timeline_bin` (`timeline_id`, et
-`bin_id` vide pour la racine) : une entrée du journal du projet
-(`SetProjectTimelineBinOperation`), que `list_timelines` et `describe`
-relisent dans le `bin_id` de la timeline. Avant le 4 novembre 2026, seul le
-glissé de l'app rangeait une timeline. Les chutiers se déplacent
-et s'imbriquent par glisser-déposer, à la manière du Finder ; le dépôt sur
-**Projet** (ou sur **Tous**) les replace à la racine. Ces déplacements utilisent
-`MoveBinOperation`, rejettent les cycles et suivent donc
-`Cmd+Z`/`Cmd+Shift+Z`. Les champs `bins`,
-`parent_id` et `bin_id` sont persistés et exposés par `--describe`. Voir la
-[`spécification des chutiers`](../BINS_SPEC.md).
-Le menu contextuel **Nouveau chutier** crée immédiatement l'élément dans
-l'arborescence et active son renommage inline, sans ouvrir de dialogue. Un clic
-droit dans la zone vide crée à la racine ; **Renommer** édite également le nom
-directement dans la vue.
+**Fichier → Importer des rushes…** (File → Import source clips…) (`Cmd+I`)
+accepts several videos or a whole folder and files the new media directly
+in the selected bin. Files from the Finder and source clips already present
+can also be dropped on a bin. An import is a single `IngestMediaOperation`
+(DEC32): the new source clips and the known source clips moved into the bin
+are undone together by `Cmd+Z`. The CLI (`--ingest … --bin <id>`) and MCP
+(`ingest_media` with `bin_id`) file into a bin the same way. The
+**Déplacer vers un chutier…** context menu offers the same organisation
+without drag and drop via `SetMediaBinOperation`: its dialog asks for the
+destination, **Sans chutier** (No bin) for the root.
 
-**Fichier → Importer des rushes…** (`Cmd+I`) accepte plusieurs vidéos ou un
-dossier complet et range directement les nouveaux médias dans le chutier
-sélectionné. Des fichiers du Finder et des rushes déjà présents peuvent aussi
-être déposés sur un chutier. Depuis le 24 octobre 2026 (DEC32), un import
-est une seule `IngestMediaOperation` : les nouveaux rushes et les rushes
-connus déplacés dans le chutier s'annulent ensemble par `Cmd+Z`. Le CLI
-(`--ingest … --bin <id>`) et le MCP (`ingest_media` avec `bin_id`) rangent
-dans un chutier de la même façon. Le menu contextuel **Déplacer vers un
-chutier…** propose la même organisation sans drag-and-drop via
-`SetMediaBinOperation` : son dialogue demande la destination, **Sans chutier**
-pour la racine.
+FFmpeg analysis of imports goes through a `MediaTaskManager` with bounded
+concurrency. Each task has a ULID, a type, a state, a progress value, a
+detail and possibly an error. The Media panel shows the active task and
+allows its cooperative cancellation. Workers never mutate the project: a
+finished batch is validated, applied and saved on the main thread.
 
-L’analyse FFmpeg des imports passe par un `MediaTaskManager` à concurrence
-bornée. Chaque tâche possède un ULID, un type, un état, une progression, un
-détail et une erreur éventuelle. Le panneau Média montre la tâche active et
-permet son annulation coopérative. Les workers ne mutent jamais le projet : un
-batch terminé est validé, appliqué et sauvegardé sur le thread principal.
+Proxies use this same scheduler. When **Timeline → Générer automatiquement
+les proxies** (Timeline → Generate proxies automatically) is checked (it is
+not by default), source clips wider than 1920 px, HEVC/H.265 or AV1 trigger
+a silent ProRes Proxy transcode, limited to 1280 px wide, into
+`.cutmachine/proxies/`. The proxy path is persisted in the project without
+replacing that of the original. The context menu of a source clip lets you
+generate, recreate or delete it; **Timeline → Utiliser les proxies** (Use
+proxies) switches immediately between proxy and original. A proxy that is
+missing, unreadable or incompatible falls back to the original. Audio and the
+final export always use the original media: no sound is embedded in the video
+clip or in its proxy.
 
-Les proxies utilisent ce même ordonnanceur. Quand **Timeline → Générer
-automatiquement les proxies** est coché (il ne l'est pas par défaut), les
-rushes supérieurs à 1920 px, HEVC/H.265 ou AV1 déclenchent un transcodage
-ProRes Proxy silencieux, limité à 1280 px de large, dans
-`.cutmachine/proxies/`. Le chemin
-du proxy est persisté dans le projet sans remplacer celui de l'original. Le
-menu contextuel d'un rush permet de le générer, le recréer ou le supprimer ;
-**Timeline → Utiliser les proxies** bascule immédiatement entre proxy et
-original. Un proxy absent, illisible ou incompatible retombe sur l'original.
-L'audio et l'export final utilisent toujours les médias originaux : aucun son
-n'est embarqué dans le clip vidéo ni dans son proxy.
+Media containing audio also trigger a background waveform analysis. The
+binary cache, which can be regenerated, lives in `.cutmachine/waveforms/` and
+does not weigh down the project JSON. Audio track clips display the exact
+portion corresponding to their `source_in`; peaks are aggregated according to
+the zoom so as to preserve transients. Video clips stay silent and never
+display a waveform.
 
-Les médias contenant de l'audio déclenchent aussi une analyse waveform en
-arrière-plan. Le cache binaire, régénérable, vit dans
-`.cutmachine/waveforms/` et n'alourdit pas le JSON du projet. Les clips des
-pistes audio affichent la portion exacte correspondant à leur `source_in` ;
-les pics sont agrégés selon le zoom afin de conserver les transitoires. Les
-clips vidéo restent silencieux et n'affichent jamais de waveform.
+The bins grid view uses 320×180 video thumbnails generated by the same
+scheduler and stored in `.cutmachine/thumbnails/`. The image is extracted at
+10% of the source clip (at most at 10 seconds), respects the orientation,
+then is letterboxed without distortion. A missing or corrupted thumbnail is
+recreated automatically; **Régénérer la vignette** (Regenerate thumbnail)
+forces its replacement. Offline media keep their visual warning.
 
-La vue grille des chutiers utilise des thumbnails vidéo 320×180 générées par
-le même scheduler et stockées dans `.cutmachine/thumbnails/`. L'image est
-extraite à 10 % du rush (au plus à 10 secondes), respecte l'orientation puis
-est letterboxée sans déformation. Une vignette absente ou corrompue est
-recréée automatiquement ; **Régénérer la vignette** force son remplacement.
-Les médias offline conservent leur avertissement visuel.
+The **Reconnecter le média…** (Relink media…) context menu replaces the file
+of a source clip without changing its ULID, its clips, its A/V links or its
+bin. The new file is probed by a `Relink` task before any mutation. A
+different frame rate, a duration shorter than the original, or the absence
+of an audio track already in use is refused. After a transactional save, the
+video and audio workers are rebuilt, and the obsolete proxy, waveform and
+thumbnail are invalidated then regenerated from the replacement.
 
-Le menu contextuel **Reconnecter le média…** remplace le fichier d'un rush
-sans changer son ULID, ses clips, ses liens A/V ni son chutier. Le nouveau
-fichier est probé par une tâche `Relink` avant toute mutation. Une cadence
-différente, une durée inférieure à l'original ou l'absence d'une piste audio
-déjà utilisée est refusée. Après sauvegarde transactionnelle, les workers
-vidéo et audio sont reconstruits et les proxy, waveform et thumbnail obsolètes
-sont invalidés puis régénérés depuis le remplacement.
+**Fichier → Reconnecter les médias offline…** (File → Relink offline
+media…) performs the same operation in batch from a folder searched
+recursively. Matching uses the file name without regard to case. A name that
+is absent stays offline; a name present several times is reported as
+ambiguous and is never chosen at random. All the compatible replacements found
+are saved in a single transaction, then the workers and caches are rebuilt
+only once for the whole batch.
 
-**Fichier → Reconnecter les médias offline…** effectue la même opération en
-lot depuis un dossier parcouru récursivement. La correspondance utilise le nom
-de fichier sans tenir compte de la casse. Un nom absent reste offline ; un nom
-présent plusieurs fois est signalé comme ambigu et n'est jamais choisi au
-hasard. Tous les remplacements compatibles trouvés sont sauvegardés dans une
-seule transaction, puis les workers et caches ne sont reconstruits qu'une
-fois pour le lot entier.
+Relinking changes the file, not the way the project reads its picture: the
+shooting white balance and the colour input of the media stay what they were,
+and the stored path is that of the file as it was chosen, link included
+(relative to the package if they share a folder under the root, absolute
+otherwise, as at import; see IMPORT-2026-10).
+Everything the file says about itself (size, format, tags, duration) comes
+from the new probe. To adopt the file's values, you have to ask for it:
+`set_media_white_balance` with `from_camera`, `set_media_color_input` with
+`from_file` (see [Measuring and grading](mesurer-etalonnage.md)).
 
-Reconnecter change le fichier, pas la façon dont le projet lit son image : la
-balance de tournage et l'entrée couleur du média restent celles qu'il avait,
-et le chemin rangé est celui du fichier tel qu'il a été choisi, lien compris
-(relatif au paquet s'ils partagent un dossier sous la racine, absolu sinon,
-comme à l'import ; voir IMPORT-2026-10).
-Tout ce que le fichier dit de lui-même (taille, format, étiquettes, durée)
-vient du nouveau sondage. Pour adopter les valeurs du fichier, il faut le
-demander : `set_media_white_balance` avec `from_camera`,
-`set_media_color_input` avec `from_file` (voir
-[Mesurer et étalonner](mesurer-etalonnage.md)). Avant le 4 octobre 2026, la
-reconnexion en lot donnait aux rushes Sony d'un projet ingéré en septembre la
-balance lue dans la caméra (4000 K) au lieu de la balance inconnue contre
-laquelle leurs plans avaient été étalonnés : l'image jaunissait, au moniteur
-comme à l'export.
+A double-click on a media item, or the **Source** button, opens it in the
+Metal monitor. Source and Record have their own In/Out points: `I`, `O` and
+`Alt+X` act on the active monitor. `F9` inserts the Source zone on the
+targeted video track, opening the tracks in sync lock; `F10` overwrites the
+same duration without shifting what follows. These edits are a single exact,
+undoable operation, even when a clip at the edit point has to be split. A
+drag from the list or the grid onto a video track inserts the whole source
+clip there, by this same journaled Source-to-Record edit
+(`TimelineSourceEditOperation`, as an insert), with the source's ULID, its
+`source_in` at zero and its full rational duration. Clicking in the timeline
+afterwards returns the monitor to the program. `--ingest` creates the
+editable `DocumentSource` with the same stable ULID as each new library media
+item.
 
-Un double-clic sur un média, ou le bouton **Source**, l'ouvre dans le moniteur
-Metal. Source et Record possèdent leurs propres points In/Out : `I`, `O` et
-`Alt+X` agissent sur le moniteur actif. `F9` insère la zone Source sur la piste
-vidéo ciblée en ouvrant les pistes en sync lock ; `F10` écrase la même durée sans
-décaler l'aval. Ces montages sont une seule opération exacte, annulable, même
-lorsqu'un clip au point de montage doit être scindé. Un drag depuis la liste
-ou la grille vers une piste vidéo y insère le rush entier, par ce même montage
-Source vers Record journalisé (`TimelineSourceEditOperation`, en insertion),
-avec l'ULID de la source, son `source_in`
-zéro et sa durée rationnelle complète. Cliquer ensuite dans la timeline rend
-le moniteur au programme. `--ingest` crée désormais le `DocumentSource`
-montable ayant le même ULID stable que chaque nouveau média de bibliothèque.
-
-L'application installe une barre de menus macOS native : **CUTMACHINE**,
-**Fichier**, **Édition**, **Clip**, **Couleur**, **Timeline**, **Lecture** et
-**Affichage**. Le clic droit est contextuel : chutiers et médias
-dans la médiathèque, clips, gaps et pistes dans la timeline. Les commandes de
-montage utilisent les mêmes opérations que le CLI ; le renommage d'un chutier
-est notamment une `RenameBinOperation` réversible. Un clip peut aussi être
-retrouvé dans la médiathèque depuis son menu contextuel, comme le `Find in
-Media Pool` des NLE classiques.
+The application installs a native macOS menu bar: **CUTMACHINE**, **Fichier**
+(File), **Édition** (Edit), **Clip**, **Couleur** (Colour), **Timeline**,
+**Lecture** (Playback) and **Affichage** (View). The right-click is
+contextual: bins and media in the media library, clips, gaps and tracks in
+the timeline. The editing commands use the same operations as the CLI; the
+renaming of a bin is notably a reversible `RenameBinOperation`. A clip can
+also be found again in the media library from its context menu, like the
+`Find in Media Pool` of conventional NLEs.

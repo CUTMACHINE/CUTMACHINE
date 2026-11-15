@@ -12,10 +12,10 @@ the same journal and pass the same validations. A project is a set of
 readable JSON files, every change is a named, reversible operation, and
 positions and durations are exact rationals, never floats.
 
-> The detailed documentation is in French: [`LISEZMOI.md`](LISEZMOI.md)
-> (building, testing, a first walk through the command line) and the
-> reference under [`docs/reference/`](docs/reference/README.md). Code
-> comments are in English.
+> The reference under [`docs/reference/`](docs/reference/README.md) is in
+> English. [`LISEZMOI.md`](LISEZMOI.md) (building and testing in detail), the
+> specifications in [`docs/`](docs/) and the editing procedures are still in
+> French; they are being translated.
 
 ## What it does
 
@@ -170,15 +170,15 @@ call to it, so the agent and the person edit the same document.
 
 ## Documentation
 
-All in French:
-
-- [`LISEZMOI.md`](LISEZMOI.md): building, testing, the first project in
-  detail.
 - [`docs/reference/`](docs/reference/README.md): the reference, one file per
   section (operations and tools, command line and MCP server, export,
   colour, captions, interchange, Resolve).
-- [`docs/MOTION_FORMAT.md`](docs/MOTION_FORMAT.md): the motion design format.
-- [`headless/README.md`](headless/README.md): the build without a window.
+- [`LISEZMOI.md`](LISEZMOI.md), in French: building, testing, the first
+  project in detail.
+- [`docs/MOTION_FORMAT.md`](docs/MOTION_FORMAT.md), in French: the motion
+  design format.
+- [`headless/README.md`](headless/README.md), in French: the build without a
+  window.
 
 ## License
 

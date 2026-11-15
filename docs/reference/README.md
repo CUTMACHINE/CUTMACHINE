@@ -1,53 +1,51 @@
-# Référence de CUTMACHINE
+# CUTMACHINE reference
 
-La référence du moteur, un fichier par section. Ce qu'est le projet, ce
-qu'il faut pour le compiler et un premier parcours à la ligne de commande
-sont dans le [`LISEZMOI.md`](../../LISEZMOI.md) de la racine, qui porte la même
-table.
+The engine reference, one file per section. What the project is, what you
+need to build it and a first walk-through on the command line are in the
+[`README.md`](../../README.md) at the repository root.
 
-- [Lancement](lancement.md) : ouvrir l'application, la boucle de
-  développement, [quel FFmpeg](lancement.md#quel-ffmpeg) le moteur lance, le stockage et
-  la collecte d'un projet.
-- [Décisions de temps](decisions-de-temps.md) : ce que le temps exact impose
-  au scrub, au playhead et à la composition des pistes.
-- [Timeline graphique](timeline-graphique.md), [Audio](audio.md) et
-  [Chutiers](chutiers.md) : la fenêtre.
-- [API d'édition](api-edition.md) : les opérations et les outils de montage,
-  les réglages d'un plan, et le [catalogue des outils par famille](api-edition.md#le-catalogue-par-famille).
-- [Commandes headless](commandes-headless.md) : la ligne de commande, le
-  serveur MCP, les interventions et les plans d'édition. `cutmachine --help`
-  y renvoie.
-- [Archive SQL des projets](archive-projets.md) : conserver les JSON complets
-  à la sauvegarde, importer une collection et interroger avec SQL/JSON, au
-  CLI ou par MCP.
-- [Étapes durables et mesures d’agent](orchestration-montage.md) : reçus
-  d’étapes sans double édition, captures liées, légendes dans un plan et
-  rapport des traces ACP du panneau Agent.
-- [Import depuis DaVinci Resolve](resolve.md) et
-  [Format de séquence](format-de-sequence.md).
-- [Transcription verbatim et nettoyage des
-  hésitations](transcription.md) : le
-  modèle Whisper, les mots, les silences.
-- [Contrôle qualité des plans](controle-qualite.md),
-  [Regarder un plan](regarder.md#regarder-un-plan),
-  [Regarder le montage en planches](regarder.md#regarder-le-montage-en-planches),
-  [Regarder un raccord tel qu'il est livré](regarder.md#regarder-un-raccord-tel-quil-est-livré),
-  [Visionner les raccords](regarder.md#visionner-les-raccords),
-  [Décrire et chercher des plans](regarder.md#décrire-les-plans-une-fois-les-chercher-ensuite) et
-  [Mesurer l'étalonnage](mesurer-etalonnage.md) : ce que le moteur mesure et
-  montre.
-- [EDL CMX 3600 et WebVTT](edl.md) : les listes d'une timeline et de ses
-  marqueurs, la lecture des marqueurs, les sous-titres WebVTT.
-- [OTIO et FCPXML](echange.md) : une timeline écrite pour un autre
-  éditeur, toutes ses pistes dans un fichier.
-- [Export vidéo final](export.md) : l'export, sa vérification, les
-  légendes, la mesure du son.
-- [Séquence](sequence.md) : le document, la gestion colorimétrique, les
-  opérations projet.
-- [Agent intégré et clé utilisateur](agent-integre.md) et
-  [Sidecar conversationnel](sidecar.md) : le pilotage par modèle.
-- [Génération payante](generation.md) : proposer puis générer avec fal.ai,
-  sur la clé de la personne et seulement à sa demande ; la provenance.
-- [Images de référence dans les tests](tests-golden.md) : comparer un rendu
-  CPU à une image PNG, avec sa tolérance, et réécrire les références.
+- [Launching](lancement.md): opening the application, the development loop,
+  [which FFmpeg](lancement.md#which-ffmpeg) the engine launches, storage and
+  collecting a project.
+- [Time decisions](decisions-de-temps.md): what exact time imposes on
+  scrubbing, on the playhead and on track compositing.
+- [Graphical timeline](timeline-graphique.md), [Audio](audio.md) and
+  [Bins](chutiers.md): the window.
+- [Editing API](api-edition.md): the editing operations and tools, the
+  settings of a clip, and the [catalogue of tools by family](api-edition.md#the-catalogue-by-family).
+- [Headless commands](commandes-headless.md): the command line, the MCP
+  server, interventions and edit plans. `cutmachine --help` points to it.
+- [SQL archive of projects](archive-projets.md): keeping the full JSON on
+  save, importing a collection and querying it with SQL/JSON, from the CLI
+  or over MCP.
+- [Durable steps and agent measurements](orchestration-montage.md): step
+  receipts with no double edit, linked captures, captions inside a plan, and
+  the report of the Agent panel's ACP traces.
+- [Import from DaVinci Resolve](resolve.md) and
+  [Sequence format](format-de-sequence.md).
+- [Verbatim transcription and cleaning up
+  hesitations](transcription.md): the
+  Whisper model, words, silences.
+- [Shot quality control](controle-qualite.md),
+  [Looking at a shot](regarder.md#looking-at-a-shot),
+  [Looking at the edit as contact sheets](regarder.md#looking-at-the-edit-as-sheets),
+  [Looking at a cut as it is delivered](regarder.md#looking-at-a-junction-as-it-is-delivered),
+  [Viewing the cuts](regarder.md#reviewing-the-junctions),
+  [Describing and searching shots](regarder.md#describing-shots-once-searching-them-afterwards) and
+  [Measuring the grade](mesurer-etalonnage.md): what the engine measures and
+  shows.
+- [CMX 3600 EDL and WebVTT](edl.md): lists of a timeline and its
+  markers, reading markers back, WebVTT subtitles.
+- [OTIO and FCPXML](echange.md): a timeline written for another
+  editor, all its tracks in one file.
+- [Final video export](export.md): export, its verification, captions,
+  sound measurement.
+- [Sequence](sequence.md): the document, colour management, project
+  operations.
+- [Built-in agent and user key](agent-integre.md) and
+  [Conversational sidecar](sidecar.md): driving by a model.
+- [Paid generation](generation.md): proposing then generating with fal.ai,
+  on the person's own key and only on their request; provenance.
+- [Reference images in tests](tests-golden.md): comparing a CPU render
+  with a PNG image, with its tolerance, and rewriting the references.
 - [Licence](../../LISEZMOI.md#licence).

@@ -1,36 +1,35 @@
-# Décisions de temps
+# Time decisions
 
-> Relu contre le code le 3 octobre 2026.
+CUTMACHINE loads a v2 project package, opens each media source by its ULID,
+then resolves scrubbing into cache keys `(source_id, source_frame)`.
+Clip intervals are half-open: `[timeline_in, timeline_in + duration)`. A gap
+triggers no decoding and is rendered black.
 
-CUTMACHINE charge un package projet v2, ouvre chaque source média par
-son ULID, puis résout le scrub en clés de cache `(source_id, source_frame)`.
-Les intervalles des clips sont semi-ouverts : `[timeline_in, timeline_in +
-duration)`. Un trou ne déclenche aucun décodage et est rendu en noir.
-
-- `RationalTime::rescale` refuse les conversions non exactes afin de ne jamais
-  déplacer silencieusement un raccord.
-- `to_frames` arrondit vers le bas vers la frame qui contient la position et
-  accepte un taux rationnel, par exemple `30000/1001`.
-- `TimelineViewport` est l'unique frontière temps/pixels. `TimeToX` conserve
-  le calcul intermédiaire en `long double`; `XToTime(x, rate)` arrondit au tick
-  le plus proche du timebase demandé, avec les demi-ticks à l'opposé de zéro.
-  Dans le timebase NTSC `30000`, les frontières de frames `30000/1001` sont
-  les multiples de `1001` ticks : leur aller-retour est donc exact. Ce choix
-  symétrique rend aussi déterministes les vues dont `view_start` est négatif.
-- `sources[].rate` est interprété comme une cadence rationnelle, tandis que le
-  `rate` d'un `RationalTime` est un timebase entier. Ainsi, une frame à
-  `30000/1001` dure `1001` ticks dans un timebase `30000`; cette convention est
-  nécessaire car `RationalTime::rate` ne peut lui-même contenir un quotient.
-- Le playhead possède deux grilles, basculées par `Alt+Shift+M`. En mode Image, sa
-  position est arrondie à l'image la plus proche selon la cadence rationnelle
-  de référence (celle de la séquence ; à défaut, la première source), y
-  compris les multiples de `1001` à `30000/1001`. En mode
-  Échantillon, elle est arrondie à l'échantillon 48 kHz le plus proche. Les
-  demi-pas sont arrondis à l'opposé de zéro par calcul entier 128 bits ; aucun
-  temps ne transite en `double` pour cette quantification.
-- Les pistes vidéo sont classées par leur champ `index` et compositées du bas
-  vers le haut. Un trou sur une piste supérieure révèle les pistes inférieures.
-- Les médias vidéo portant un canal alpha sont composités dans Metal. Chaque
-  clip vidéo possède aussi une opacité exacte `num/den`, modifiable dans
-  l’Inspecteur ou par l’opération `SetClipOpacity`; les fondus multiplient cette
-  valeur et l’export opaque en tient compte.
+- `RationalTime::rescale` refuses inexact conversions so that a cut is never
+  silently moved.
+- `to_frames` rounds down to the frame that contains the position and
+  accepts a rational rate, for example `30000/1001`.
+- `TimelineViewport` is the single time/pixel boundary. `TimeToX` keeps the
+  intermediate computation in `long double`; `XToTime(x, rate)` rounds to the
+  nearest tick of the requested timebase, with half-ticks rounded away from
+  zero. In the NTSC timebase `30000`, the frame boundaries of `30000/1001`
+  are the multiples of `1001` ticks, so their round trip is exact. This
+  symmetric choice also makes views with a negative `view_start`
+  deterministic.
+- `sources[].rate` is interpreted as a rational rate, while the `rate` of a
+  `RationalTime` is an integer timebase. So a frame at `30000/1001` lasts
+  `1001` ticks in a `30000` timebase; this convention is necessary because
+  `RationalTime::rate` cannot itself hold a quotient.
+- The playhead has two grids, toggled by `Alt+Shift+M`. In Image mode, its
+  position is rounded to the nearest frame according to the rational
+  reference rate (that of the sequence; failing that, the first source),
+  including the multiples of `1001` at `30000/1001`. In Échantillon (Sample)
+  mode, it is rounded to the nearest 48 kHz sample. Half-steps are rounded
+  away from zero by 128-bit integer arithmetic; no time passes through
+  `double` for this quantization.
+- Video tracks are ordered by their `index` field and composited from bottom
+  to top. A gap on an upper track reveals the lower tracks.
+- Video media carrying an alpha channel are composited in Metal. Each video
+  clip also has an exact `num/den` opacity, editable in the Inspector or by
+  the `SetClipOpacity` operation; fades multiply this value and the opaque
+  export takes it into account.

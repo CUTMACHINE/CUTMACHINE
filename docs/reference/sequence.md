@@ -1,162 +1,159 @@
-# Séquence
+# Sequence
 
-> Relu contre le code le 3 octobre 2026. Ce qu'on voit au moniteur (bandes,
-> vue SDR, rendu des couleurs) n'est pas vérifié par lecture.
+The timeline has a `sequence` object independent of the source media, with a
+ULID, a name, a width, a height and a rational frame rate. This object
+directly owns its `tracks` and its `markers`: no timeline floats at project
+level without a sequence. As in Premiere Pro or Resolve, this canvas drives
+the monitor and serves as the basis for the export presets; a portrait video
+therefore does not implicitly transform a horizontal sequence.
+**Timeline → Réglages de séquence…** (Timeline → Sequence settings…) offers
+the HD, UHD, vertical and square formats as well as the usual frame rates.
+Older documents with no `sequence` block, or earlier than version 4, are
+refused.
 
-La timeline possède un objet `sequence` indépendant des médias sources, avec
-un ULID, un nom, une largeur, une hauteur et une cadence rationnelle. Cet objet
-possède directement ses `tracks` et ses `markers` : aucune timeline ne flotte
-au niveau du projet sans séquence. Comme dans Premiere Pro ou Resolve, ce
-canevas pilote le moniteur et sert de base aux
-presets d’export ; une vidéo portrait ne transforme donc pas implicitement une
-séquence horizontale. **Timeline → Réglages de séquence…** propose les formats
-HD, UHD, vertical et carré ainsi que les cadences usuelles. Les documents plus
-anciens sans bloc `sequence` ou antérieurs à la version 4 sont refusés.
+The application loads a complete `Project` around this active document. All
+its timelines appear in the bin; a double-click activates one and
+`Cmd+Option+N` creates a new one. An autosave of the complete project
+protects each atomic commit and can be recovered at launch.
 
-L’application charge désormais un `Project` complet autour de ce document
-actif. Toutes ses timelines apparaissent dans le chutier ; un double-clic en
-active une et `Cmd+Option+N` en crée une nouvelle. Une autosave du projet
-complet protège chaque commit atomique et peut être récupérée au lancement.
+`--describe` writes only the condensed JSON view to stdout, with the distinct
+`timeline` and `library` blocks. Library media have aliases `M1`, `M2`, etc.
+and remain available when they are edited in (`in_use:true`). `--ingest`
+reads the FFmpeg headers without decoding the picture (only the sound is
+decoded, to measure its average level), keeps the exact rational frame
+rates, keeps the display matrix rotation and deduces the displayed
+orientation from it. The player also re-probes the edited-in sources at
+launch: the information banner exposes codec, dimensions, orientation,
+rotation, frame rate and audio presence. Portrait videos are rotated, then
+fitted to the monitor with their ratio preserved and neutral bars, without
+stretching. This presentation cache does not mutate the document from the
+interface. Files that are not media, or are corrupted, are reported in
+`errors` without making the batch fail; the idempotent identity is the
+resolved absolute path.
 
-`--describe` écrit uniquement la vue JSON condensée sur stdout, avec les blocs
-distincts `timeline` et `library`. Les médias de bibliothèque ont des alias
-`M1`, `M2`, etc. et restent disponibles lorsqu'ils sont montés (`in_use:true`).
-`--ingest` lit les en-têtes FFmpeg sans décoder l'image (seul le son est décodé,
-pour mesurer son niveau moyen), conserve les cadences rationnelles
-exactes, conserve la rotation de la display matrix et en déduit l'orientation
-affichée. Le player reprobe aussi les sources montées au lancement : le bandeau
-d'information expose codec, dimensions, orientation, rotation, cadence et
-présence audio. Les vidéos portrait sont tournées puis ajustées au moniteur
-avec leur ratio conservé et des bandes neutres, sans étirement. Ce cache de
-présentation ne mute pas le document depuis l'interface. Les fichiers qui ne
-sont pas des médias, ou corrompus, sont rapportés dans `errors` sans faire
-échouer le lot ; l'identité
-idempotente est le chemin absolu résolu.
+The current document schema runs from version 7 to version 26 (each version
+adds what it introduces: the `kDocumentVersionWith…` constants of
+`src/Document.h`): a document is
+written at the oldest version that carries everything it contains, and
+versions 4 to 6 are still read. `library`, `bins` and `sources` are project
+objects; `tracks` and `markers` belong to `sequence`. Versions 1 to 3 are
+refused. Library and source share the media's ULID; ingest alone never
+places a clip on the timeline.
 
-Le schéma courant du document va de la version 7 à la version 19 (un plan
-décrit, PLANS-2026-10 PL1 ; 18 pour une rampe de vitesse, REEL-2026-09 R3) :
-un document
-s'écrit à la plus ancienne qui porte tout ce qu'il contient, et les versions 4
-à 6 restent lues. `library`, `bins` et `sources`
-sont des objets projet ; `tracks` et `markers` appartiennent à `sequence`.
-Les versions 1 à 3 sont refusées. Bibliothèque et source partagent l'ULID du
-média ; l'ingest seul ne monte jamais de clip.
+## Colour management
 
-## Gestion colorimétrique
+The **Couleur** (Colour) menu offers a direct preset **Sony S-Log3 →
+Rec.2020 HLG** and an advanced panel. The chain is persisted in
+`color_management` at project level: input gamut and curve, YCbCr matrix,
+Full/Legal range, grading space, then output gamut and curve. The preset
+uses the Full range required by the Sony specification, S-Gamut3.Cine/S-Log3,
+ACEScct/AP1 as the wide-gamut grading space and a Rec.2020/HLG output. The
+range and the matrix can also automatically follow the FFmpeg metadata of
+each frame.
 
-Le menu **Couleur** propose un preset direct **Sony S-Log3 → Rec.2020 HLG**
-et un panneau avancé. La chaîne est persistée dans `color_management` au
-niveau du projet : gamut et courbe d'entrée, matrice YCbCr, plage Full/Legal,
-espace de grading, puis gamut et courbe de sortie. Le preset utilise la plage
-Full imposée par la spécification Sony, S-Gamut3.Cine/S-Log3, ACEScct/AP1 comme
-espace wide gamut de grading et une sortie Rec.2020/HLG. La plage et la matrice
-peuvent aussi suivre automatiquement les métadonnées FFmpeg de chaque frame.
+Each planar YUV frame of 8 to 16 bits is first normalised according to its
+depth and its range. OpenColorIO 2.5.2 then applies the transforms of the
+built-in, frozen configuration `studio-config-v2.2.0_aces-v1.3_ocio-v2.4`: no
+`$OCIO` variable and no external file takes part in the rendering. The player
+samples the OCIO processors into two 65³ 3D LUTs cached by Metal, before and
+after the ACEScct grading; track compositing stays in linear AP1 in a 16-bit
+float texture. Export uses the same OCIO processor in the form of a `.cube`
+LUT. The editing monitors derive a local Rec.709/SDR view from the delivery
+setting so that macOS does not present the HLG master as an EDR layer in the
+middle of the interface. This display preference changes neither the document
+nor the exported render.
 
-Chaque frame YUV planaire 8 à 16 bits est d'abord normalisée selon sa profondeur
-et sa plage. OpenColorIO 2.5.2 applique ensuite les transformations de la
-configuration intégrée et figée
-`studio-config-v2.2.0_aces-v1.3_ocio-v2.4` : aucune variable `$OCIO` ni aucun
-fichier externe n'intervient dans le rendu. Le player échantillonne les
-processeurs OCIO en deux LUT 3D 65³ mises en cache par Metal, avant et après le
-grading ACEScct ; la composition des pistes reste en AP1 linéaire dans une
-texture flottante 16 bits. L'export utilise le même processeur OCIO sous forme
-de LUT `.cube`. Les moniteurs de montage dérivent une vue locale Rec.709/SDR du
-réglage de livraison afin que macOS ne présente pas le master HLG comme une
-couche EDR au milieu de l'interface. Cette préférence d'affichage ne modifie ni
-le document ni le rendu exporté.
+An SDR delivery goes through the "ACES 1.0 - SDR Video" view of the
+configuration. An HLG delivery does not go through ACES's HDR view, which put
+18% grey at 30% of the signal (about 15 nits). It follows the curve that
+DaVinci Resolve renders with the reference settings (BLANC-HLG-2026-10 BH3,
+`HlgDelivery.h`):
+- a toe in the blacks;
+- 18% grey at 37% of the signal, as in BT.2408;
+- a shoulder that reaches the peak at about 17 times the white.
 
-Une livraison SDR passe par la vue « ACES 1.0 - SDR Video » de la
-configuration. Une livraison HLG ne passe pas par la vue HDR d'ACES, qui
-mettait le gris 18 % à 30 % du signal (environ 15 nits). Depuis le
-20 octobre 2026, elle suit la courbe que DaVinci Resolve rend avec les
-réglages de l'auteur (BLANC-HLG-2026-10 BH3, `HlgDelivery.h`) :
-- un pied dans les noirs ;
-- le gris 18 % à 37 % du signal, comme BT.2408 ;
-- une épaule qui atteint le pic vers 17 fois le blanc.
+This curve is applied channel by channel in DaVinci Wide Gamut, then encoded
+in HLG with the reference white at 75% of the signal.
 
-Cette courbe est appliquée canal par canal en DaVinci Wide Gamut, puis
-encodée en HLG avec le blanc de référence à 75 % du signal.
+To judge a grade, the **Couleur** menu also offers to ignore the grade at the
+Record monitor (Shift+D: clips without their `color.*` stages, sequence
+without its look) and to compare it with a reference still taken on Record
+(Cmd+Alt+G), shown on the left half of the frame (Cmd+Alt+W). These are local
+monitor preferences: neither the document, nor the export, nor the
+measurements change.
 
-Pour juger un étalonnage, le menu **Couleur** propose aussi d'ignorer
-l'étalonnage au moniteur Record (Maj+D : plans sans leurs étages `color.*`,
-séquence sans son look) et de le comparer à une image de référence prise sur
-Record (Cmd+Alt+G), montrée sur la moitié gauche du cadre (Cmd+Alt+W). Ce
-sont des préférences locales du moniteur : ni le document, ni l'export, ni
-les mesures ne changent.
+Settings go through the reversible `SetColorManagement` operation, also
+available via `--apply-op` and the MCP tool `set_color_management`. An input
+gamut/curve combination absent from the built-in configuration is refused
+before rendering rather than silently replaced.
 
-Les réglages passent par l'opération réversible `SetColorManagement`, disponible
-également via `--apply-op` et l'outil MCP `set_color_management`. Une combinaison
-gamut/courbe d'entrée absente de la configuration intégrée est refusée avant le
-rendu plutôt que remplacée silencieusement.
+The `hlg` input accepts source clips already shot in Rec.2020 HLG (ARIB
+STD-B67 curve), like those of a camera set to HLG rather than S-Log3. It is
+only valid with the `rec2020` gamut.
 
-L'entrée `hlg` accepte les rushes déjà tournés en Rec.2020 HLG (courbe
-ARIB STD-B67), comme ceux d'une caméra réglée en HLG plutôt qu'en S-Log3. Elle
-n'est valide qu'avec le gamut `rec2020`.
+Each media item can declare its own input, which replaces the project's for
+that item alone: a phone video in Rec.709 or in HLG in an S-Log3 project is
+read in its own space, at the monitor, at export, in `read_frame`, the
+contact sheets and `measure_color`. Ingest declares it when the file says so:
+the metadata of a Sony camera (S-Log3 / S-Gamut3.Cine, `rtmd` track),
+otherwise the container tags (HLG in BT.2020, or BT.709), never tags that a
+house curve announced by the container contradicts (a Blackmagic Pocket 4K
+tags its Film log as BT.709). A media item that declares nothing follows the
+project. The reversible `SetMediaColorInput` operation, the MCP tool
+`set_media_color_input` (`from_file:true` rereads the ingested files first)
+and the **Espace couleur d’entrée** (Input colour space) context menu of the
+media browser set it; `describe` lists it as `color_input`. A document that
+carries one goes to version 16.
 
-Chaque média peut déclarer sa propre entrée, qui remplace celle du projet pour
-lui seul : une vidéo de téléphone en Rec.709 ou en HLG dans un projet S-Log3
-est lue dans son espace, au moniteur, à l'export, dans `read_frame`, les
-planches et `measure_color`. L'ingest la déclare quand le fichier la dit : les
-métadonnées d'une caméra Sony (S-Log3 / S-Gamut3.Cine, piste `rtmd`), sinon
-les balises du conteneur (HLG en BT.2020, ou BT.709), jamais des balises
-qu'une courbe maison annoncée par le conteneur contredit (un Blackmagic
-Pocket 4K balise son Film log en BT.709). Un média qui ne déclare rien suit le
-projet. L'opération réversible `SetMediaColorInput`, l'outil MCP
-`set_media_color_input` (`from_file:true` relit les fichiers ingérés avant) et
-le menu contextuel **Espace couleur d’entrée** du navigateur de médias la
-règlent ; `describe` la liste en `color_input`. Un document qui en porte une
-passe en version 16.
+A media item can also be declared **graphic** (DEC31): a logo, a packshot, a
+still image. Its code values are then what it shows, like the colours of a
+motion title: under colour management, it is placed in the graphics view and
+blended there (`OpenColorIoCompositeDisplayReferred`), instead of being read
+through a camera's input; a white comes out white in SDR and at the peak of an
+HLG delivery. Without colour management, only the matrix of an RGB graphic
+(a PNG) changes, converted to BT.709. `set_media_color_input` with
+`graphics: true` declares it (`input_ycbcr_matrix` and `input_range` say, if
+needed, how to read a YCbCr graphic), as does the menu **Espace couleur
+d’entrée › Graphisme (logo, image)** (Input colour space › Graphic (logo,
+image)); ingest never guesses it. Under colour management, a graphic takes no
+grade: export refuses a graphic clip that carries a `color.*` stage,
+`measure_color`, `match_color` and a graded `read_frame` refuse it, naming it,
+`propose_exposure` and `propose_grade` leave it aside, and the graded contact
+sheet shows it as it is written, without the sequence look.
+`conform_color_management` does not count it. A document that carries one
+goes to version 21.
 
-Un média peut aussi être déclaré **graphisme** (DEC31, 24 octobre 2026) :
-un logo, un packshot, une image fixe. Ses valeurs de code sont alors ce
-qu'il montre, comme les couleurs d'un titre de motion : sous gestion
-couleur, il est posé dans la vue des graphismes et y est mélangé
-(`OpenColorIoCompositeDisplayReferred`), au lieu d'être lu par l'entrée
-d'une caméra ; un blanc sort blanc en SDR et au pic d'une livraison HLG.
-Sans gestion couleur, seule change la matrice d'un graphisme RVB (un PNG),
-convertie en BT.709. `set_media_color_input` avec `graphics: true` le
-déclare (`input_ycbcr_matrix` et `input_range` disent, au besoin, comment
-lire un graphisme YCbCr), comme le menu **Espace couleur d’entrée ›
-Graphisme (logo, image)** ; l'ingest ne le devine jamais. Sous gestion
-couleur, un graphisme ne prend pas d'étalonnage : l'export refuse un plan
-graphisme qui porte un étage `color.*`, `measure_color`, `match_color` et
-`read_frame` étalonné le refusent en le nommant, `propose_exposure` et
-`propose_grade` le laissent de côté, et la planche étalonnée le montre tel
-qu'il est écrit, sans le look de séquence. `conform_color_management` ne le
-compte pas. Un document qui en porte un passe en version 21.
+`conform_color_management` (MCP) sets the project input to what the media
+declare, each by its own declaration, otherwise by its tags: HLG or S-Log3
+turns management on with that input, Rec.709 sets the `rec709` input without
+touching the activation. Media that declare nothing decide nothing: the tool
+says so and changes nothing, and `set_color_management` is what has to be
+used. The working and output settings are kept; mixed tags are listed in
+`declarations` and the most frequent input wins. `preview:true` returns the
+proposal without applying it.
 
-`conform_color_management` (MCP) règle l'entrée du projet sur ce que
-déclarent les médias, chacun par sa propre déclaration, sinon par ses
-balises : HLG ou S-Log3 active la gestion avec cette entrée, Rec.709 pose
-l'entrée `rec709` sans toucher à l'activation. Des médias qui ne déclarent
-rien ne décident rien : l'outil le dit et ne change rien, et c'est
-`set_color_management` qu'il faut employer. Les réglages de travail et de
-sortie sont conservés ; des balises mélangées sont listées dans
-`declarations` et l'entrée la plus fréquente l'emporte. `preview:true` rend
-la proposition sans l'appliquer.
+`--apply-op` reuses the canonical format of `SerializeOperation`, replaces
+the document transactionally and keeps the journal in the companion file
+`<document>.timeline-<timeline-id>.editlog.json`, one per timeline. In case
+of refusal, neither the document nor this journal is modified.
 
-`--apply-op`
-réutilise le format canonique de `SerializeOperation`, remplace le document de
-façon transactionnelle et conserve le journal dans le fichier compagnon
-`<document>.timeline-<timeline-id>.editlog.json`, un par timeline. En cas de
-refus, ni le document ni ce journal ne sont modifiés.
+`--apply-project-op` applies in the same way the multi-timeline, bin metadata
+and relink operations. Its separate history is kept in
+`<document>.project-editlog.json` and the `--undo-project-op` and
+`--redo-project-op` commands walk through it without initialising the
+graphical interface.
 
-`--apply-project-op` applique de la même façon les opérations multi-timeline,
-de métadonnées de chutier et de relink. Son historique distinct est conservé
-dans `<document>.project-editlog.json` et les commandes `--undo-project-op` et
-`--redo-project-op` le parcourent sans initialiser l’interface graphique.
-
-Les objets passés à `--apply-project-op` doivent reprendre exactement l’ordre
-et tous les champs produits par `SerializeProjectOperation`. `exact_project_hex`
-vaut `null` pour une nouvelle intention ; le journal le remplace par
-`exact_project_delta`, le delta exact de ce que l'opération a changé, pour un
-rejeu exact. Les journaux plus anciens portent encore un projet complet sous
-`exact_project_hex` et restent lus. Depuis le 24 octobre 2026 (DEC24), un tel journal est réécrit
-sous la forme delta dès que l'éditeur ou `open_project` ouvre le projet,
-sous le verrou de session, par la transaction du paquet ; le reste du paquet
-n'est pas touché. Seul un changement qu'aucun delta n'exprime (un
-réordonnancement) garde un projet complet. Exemples canoniques complets (les
-identifiants sont des ULID) :
+The objects passed to `--apply-project-op` must reproduce exactly the order
+and all the fields produced by `SerializeProjectOperation`.
+`exact_project_hex` is `null` for a new intention; the journal replaces it
+with `exact_project_delta`, the exact delta of what the operation changed,
+for an exact replay. Older journals still carry a complete project under
+`exact_project_hex` and are still read. Such a journal (DEC24) is rewritten in
+delta form as
+soon as the editor or `open_project` opens the project, under the session
+lock, by the package transaction; the rest of the package is not touched.
+Only a change that no delta expresses (a reordering) keeps a complete
+project. Complete canonical examples (the identifiers are ULIDs):
 
 ```json
 {"type":"AddProjectTimeline","name":"Vertical","width":1080,"height":1920,"frame_rate":{"num":25,"den":1},"timeline_id":"","video_track_id":"","audio_track_id":"","exact_project_hex":null}

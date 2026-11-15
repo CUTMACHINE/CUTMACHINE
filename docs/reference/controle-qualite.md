@@ -1,198 +1,192 @@
-# Contrôle qualité des plans
+# Shot quality control
 
-> Relu contre le code le 3 octobre 2026. Les mesures sur des prises réelles
-> (valeurs, corpus, balayage des seuils) ne sont pas vérifiées par lecture :
-> seuls les seuils qui en sortent le sont.
+> Measurements on real takes (values, corpus, threshold sweeps) are not
+> verified by reading: only the thresholds that come out of them are.
 
-Un plan flou ou bougé ne se juge pas, il se mesure. `--shot-quality` analyse
-un média, quatre échantillons par seconde, et écrit un cache dans
-`.cutmachine/shotquality/<media-id>.json` ; `--shot-quality-report` (MCP :
-`list_shot_quality`) note chaque clip de la timeline active.
+A blurry or shaky shot is not judged, it is measured. `--shot-quality` analyses
+a media at four samples per second and writes a cache in
+`.cutmachine/shotquality/<media-id>.json`; `--shot-quality-report` (MCP:
+`list_shot_quality`) rates each clip of the active timeline.
 
-Deux mesures, aucune inférence :
+Two measurements, no inference:
 
-- **Netteté** — variance du laplacien sur le plan de luminance, notée par
-  rapport à la médiane du média lui-même. Le relatif est volontaire : la
-  variance du laplacien n'a pas de sens absolu d'un contenu à l'autre, alors
-  qu'à l'intérieur d'un même rush, même caméra et même optique, la comparaison
-  tient. Le prix de ce choix est énoncé plutôt que caché — un média flou de
-  bout en bout note tous ses plans « Sharp », d'où la publication des médianes
-  absolues à côté de la note.
-- **Bougé** — différence absolue moyenne de luminance entre deux échantillons,
-  notée en absolu : la grandeur veut dire la même chose sur n'importe quel
-  rush.
+- **Sharpness** — variance of the Laplacian on the luminance plane, rated
+  against the median of the media itself. The relative scale is deliberate: the
+  variance of the Laplacian has no absolute meaning from one content to
+  another, whereas within a single source clip, same camera and same optics,
+  the comparison holds. The price of this choice is stated rather than hidden —
+  a media that is blurry from end to end rates all its shots "Sharp", hence the
+  publication of the absolute medians next to the rating.
+- **Shake** — mean absolute luminance difference between two samples, rated in
+  absolute terms: the quantity means the same thing on any source clip.
 
-Le grade porte sur le **décile le plus mauvais**, pas sur la médiane : un plan
-qui perd le point à mi-course reste sain en médiane et reste inutilisable.
+The grade rests on the **worst decile**, not on the median: a shot that loses
+focus midway stays healthy in the median and stays unusable.
 
-Mesuré sur une prise réelle (interview à la main, Sony FX30, 6,72 s, quatre
-échantillons par seconde, 1,7 s d'analyse) : le corps du plan tient entre
-4 055 et 4 481 de netteté, et les cinq derniers échantillons s'effondrent à
-3 499, 3 691, 2 616, 1 461 puis 336 pendant que le bougé passe de 5 000–36 000
-à 67 624. Vérifié à l'image : la caméra quitte le sujet en fin de prise, le
-cadre part sur un mur et la dernière image n'est plus qu'une bouillie. C'est
-exactement ce que la mesure doit attraper. Un clip posé sur cette fin est noté
-`Blurry` / `Shaky`, celui posé sur le corps `Sharp` / `Steady`.
+Measured on a real take (hand-held interview, 6.72 s, four samples per second,
+1.7 s of analysis): the body of the shot holds between 4,055 and 4,481 of
+sharpness, and the last five samples collapse to 3,499, 3,691, 2,616, 1,461
+then 336 while the shake goes from 5,000–36,000 to 67,624. Checked on the
+image: the camera leaves the subject at the end of the take, the frame drifts
+onto a wall and the last image is nothing but mush. This is exactly what the
+measurement must catch. A clip placed on this end is rated `Blurry` / `Shaky`,
+the one placed on the body `Sharp` / `Steady`.
 
-Les seuils de bougé sont calés sur cette prise unique. C'est un point
-d'ancrage, pas un étalonnage : chaque note est publiée avec le nombre qui l'a
-produite, précisément pour qu'ils se déplacent sur preuve.
+The shake thresholds are calibrated on this single take. It is an anchor point,
+not a calibration: each rating is published with the number that produced it,
+precisely so that they move on evidence.
 
-Un média jamais analysé apparaît sous `unanalyzed`, jamais parmi les plans
-propres. L'absence de mesure n'est pas un feu vert : `analyze_shot_quality`
-(MCP) lance l'analyse depuis l'agent, sans passer par la ligne de commande.
+A media that was never analysed appears under `unanalyzed`, never among the
+clean shots. The absence of a measurement is not a green light:
+`analyze_shot_quality` (MCP) starts the analysis from the agent, without going
+through the command line.
 
-Un cache écrit dans un format que ce binaire ne lit plus (version 1 ou 2, ou
-une version plus récente) n'est pas un média jamais analysé : ses plans
-restent sous `unanalyzed` avec une raison qui le dit, et `unreadable_caches`
-nomme chaque source, la version trouvée, les versions lisibles et l'appel qui
-reconstruit le cache (`analyze_shot_quality`, `--shot-quality` au CLI) ; les
-autres sources sont notées comme d'habitude. Rien n'est réanalysé sans qu'on
-le demande. `list_stable_windows`, qui ne porte que sur une source, refuse
-(`"error":"UnreadableCache"`, même `result.unreadable_caches`).
+A cache written in a format that this binary no longer reads (version 1 or 2,
+or a more recent version) is not a media that was never analysed: its shots
+stay under `unanalyzed` with a reason that says so, and `unreadable_caches`
+names each source, the version found, the readable versions and the call that
+rebuilds the cache (`analyze_shot_quality`, `--shot-quality` in the CLI); the
+other sources are rated as usual. Nothing is reanalysed unless asked.
+`list_stable_windows`, which covers a single source, refuses
+(`"error":"UnreadableCache"`, same `result.unreadable_caches`).
 
-La note tient compte du recouvrement. Un plan mou entièrement caché par une
-illustration posée au-dessus n'est pas un défaut à corriger, puisque personne
-ne le voit — chaque entrée porte donc sa note (`clean`, ce qui est mesuré), sa
-durée encore visible (`visible`, ce que dit le document) et `needs_attention`,
-qui est la conjonction des deux. Sans ça, la vue réclamait de recouper des
-plans invisibles.
+The rating takes overlap into account. A soft shot entirely hidden by an
+illustration placed above it is not a defect to fix, since no one sees it —
+each entry therefore carries its rating (`clean`, what is measured), its
+duration still visible (`visible`, what the document says) and
+`needs_attention`, which is the conjunction of the two. Without this, the view
+asked for cutting away invisible shots.
 
-## Découper un rush en plans
+## Splitting a source clip into shots
 
-Noter ce qui est déjà monté est une chose ; savoir ce que les rushes
-contiennent en est une autre. Un fichier sorti de la caméra en une seule prise
-peut tenir six prises, et tant qu'elles ne sont pas nommées il n'y a rien à
-sélectionner, à noter ou à décrire d'autre que le fichier entier.
+Rating what is already edited is one thing; knowing what the source clips
+contain is another. A file that comes out of the camera as a single take can
+hold six takes, and as long as they are not named there is nothing to select,
+rate or describe other than the whole file.
 
-`--shot-quality-report` publie donc, à côté de la liste des clips, un tableau
-`sources` : pour chaque média analysé, les plans détectés à l'intérieur, avec
-leur début, leur fin et l'échantillon le plus net — l'image à extraire quand
-une seule doit représenter le plan. Les temps sont dans le domaine temporel de
-la source, donc utilisables tels quels comme `source_in`.
+`--shot-quality-report` therefore publishes, next to the list of clips, a
+`sources` table: for each analysed media, the shots detected inside it, with
+their start, their end and the sharpest sample — the image to extract when a
+single one must represent the shot. The times are in the source's time domain,
+hence usable as they are as `source_in`.
 
-Reste une mesure, sans modèle : une coupe est une discontinuité de l'image.
-Une troisième grandeur par échantillon s'ajoute aux deux précédentes, la
-**distance d'histogramme de luma** — la fraction des pixels ayant changé de
-casier de luminance. Le cache passe en version 3 ; les anciens sont refusés,
-à réanalyser, plutôt que complétés par une valeur jamais mesurée.
+One measurement remains, without a model: a cut is a discontinuity of the
+image. A third quantity per sample is added to the previous two, the **luma
+histogram distance** — the fraction of the pixels that changed luminance bin.
+The cache goes to version 3; the old ones are refused, to be reanalysed, rather
+than completed with a value that was never measured.
 
-L'idée de départ était qu'un panoramique déplace l'image sans changer sa
-distribution, contrairement à une coupe. **Mesurée, cette idée est fausse.**
-Sur la prise réelle ci-dessus, l'instant où la caméra quitte le sujet atteint
-70 433 de bougé et 292 944 de distance d'histogramme ; une vraie coupe montée
-dans la même matière mesure 48 489 et 30 900. Le mouvement de caméra note
-*plus haut que la coupe sur les deux grandeurs*. Aucun couple de seuils
-absolus ne les sépare.
+The initial idea was that a pan moves the image without changing its
+distribution, unlike a cut. **Measured, this idea is wrong.** On the real take
+above, the instant when the camera leaves the subject reaches 70,433 of shake
+and 292,944 of histogram distance; a real cut edited in the same material
+measures 48,489 and 30,900. The camera movement rates *higher than the cut on
+both quantities*. No pair of absolute thresholds separates them.
 
-Ce qui les sépare n'est pas l'amplitude du changement mais sa forme. Une
-caméra a de l'inertie : un mouvement s'étale sur plusieurs échantillons. Une
-coupe est instantanée : elle tombe sur un seul. Rapportés à la médiane de leur
-voisinage, les mêmes événements se rangent — les mouvements de caméra montent
-à 153 %, 194 %, 201 %, 202 %, 210 %, 232 % et 299 %, les deux coupes réelles à
-408 % et 3 956 %. Le seuil est à 350 %, à égale distance des deux, et 162 des
-combinaisons balayées autour de ce point donnent le même résultat sur les
-quatre fixtures : la règle est sur un plateau, pas sur une arête.
+What separates them is not the amplitude of the change but its shape. A camera
+has inertia: a movement spreads over several samples. A cut is instantaneous:
+it falls on a single one. Relative to the median of their neighbourhood, the
+same events sort themselves out — the camera movements rise to 153%, 194%,
+201%, 202%, 210%, 232% and 299%, the two real cuts to 408% and 3,956%. The
+threshold is at 350%, equidistant from both, and 162 of the combinations swept
+around this point give the same result on the four fixtures: the rule sits on
+a plateau, not on an edge.
 
-Les limites sont connues et énoncées : un fondu enchaîné n'est pas trouvé,
-puisqu'il n'a aucun échantillon isolé sur lequel piquer ; une coupe entre deux
-plans réellement semblables peut passer sous les planchers absolus ; et
-l'étalonnage repose sur quatre fixtures dont une seule est de la vraie matière.
-Élargir ce corpus est ce qui ferait cesser d'être provisoires les nombres
-ci-dessus.
+The limits are known and stated: a dissolve is not found, since it has no
+isolated sample to latch onto; a cut between two really similar shots may fall
+under the absolute floors; and the calibration rests on four fixtures of which
+only one is real material. Widening this corpus is what would stop the numbers
+above being provisional.
 
-## Mouvement de caméra et fenêtres stables
+## Camera movement and stable windows
 
-Le bougé ne répond pas à la question « la caméra bouge-t-elle » : il note un
-intervenant qui gesticule sur pied comme un plan à l'épaule, et ne voit pas un
-zoom. L'analyse mesure donc aussi le **mouvement global** entre deux
-échantillons, par corrélation de phase sur une grille de neuf blocs :
-translation horizontale et verticale, et zoom déduit de l'écart entre les
-déplacements des blocs. Un échantillon où moins de quatre blocs sont fiables
-(image uniforme ou qui change trop vite) est déclaré non mesuré, jamais
-immobile. Le cache passe en version 4 ; un cache en version 3 reste lisible,
-sans mouvement de caméra.
+Shake does not answer the question "is the camera moving": it rates a speaker
+who gesticulates on a tripod like a shoulder-mounted shot, and does not see a
+zoom. The analysis therefore also measures the **global motion** between two
+samples, by phase correlation on a grid of nine blocks: horizontal and vertical
+translation, and zoom deduced from the spread between the blocks'
+displacements. A sample where fewer than four blocks are reliable (uniform
+image or one that changes too fast) is declared not measured, never still. The
+cache goes to version 4; a version 3 cache stays readable, without camera
+movement.
 
-`list_shot_quality` ajoute à chaque plan un bloc `camera` : vitesse médiane,
-vitesse du 90e centile et pic de zoom. `list_stable_windows` (MCP) liste les
-portions d'un rush où la caméra tient : vitesse sous `max_speed`, zoom sous
-`max_zoom_per_mille` par seconde et netteté au-dessus de
-`min_sharpness_percent` de la médiane du rush, pendant au moins
-`min_duration_ms`. Les vitesses sont en pixels par seconde rapportés à une
-image de 1 080 pixels de large, quelle que soit la définition du rush. Chaque
-fenêtre est rendue en images du rush avec un `source_in` et une durée exacts,
-prêts pour un plan de coupe.
+`list_shot_quality` adds to each shot a `camera` block: median speed, 90th
+percentile speed and zoom peak. `list_stable_windows` (MCP) lists the portions
+of a source clip where the camera holds: speed under `max_speed`, zoom under
+`max_zoom_per_mille` per second and sharpness above `min_sharpness_percent` of
+the source clip's median, for at least `min_duration_ms`. Speeds are in pixels
+per second relative to an image 1,080 pixels wide, whatever the definition of
+the source clip. Each window is returned in source clip frames with an exact
+`source_in` and duration, ready for a cutaway.
 
-La réponse porte aussi un bloc `rush`, qu'il y ait une fenêtre ou non :
-vitesse médiane, part des intervalles mesurés au-delà de chaque limite
-(`too_fast_percent`, `too_much_zoom_percent`, `too_soft_percent`), plus longue
-plage dans toutes les limites (`longest_still`, sur la grille de l'analyse,
-même plus courte que `min_duration_ms`), intervalles mesurés et non mesurés.
-Avant le 6 novembre 2026, un rush sans fenêtre ne rendait qu'une liste vide,
-et un agent l'a lue comme « inutilisable » : il a laissé hors du film les
-meilleurs plans d'un shooting, des suivis à la main à 110–260 px/s en médiane.
-La mesure dit que la caméra bouge ; elle ne dit pas si c'est voulu. Sur ce
-shooting, un suivi qui garde son sujet et une fin de prise qui le perd se
-mesurent pareil, et le suivi y paraît même le moins régulier des deux, à
-quatre échantillons par seconde comme à la cadence des images : aucune
-mesure n'en décide, c'est l'image qui tranche.
+The response also carries a `rush` block, whether there is a window or not:
+median speed, share of the measured intervals beyond each limit
+(`too_fast_percent`, `too_much_zoom_percent`, `too_soft_percent`), longest
+range within all the limits (`longest_still`, on the analysis grid, even
+shorter than `min_duration_ms`), measured and unmeasured intervals. An empty
+list of windows does not mean that the source clip is unusable: the best shots
+of a photo shoot, hand-held tracking shots at 110–260 px/s in median, can fall
+outside every window. The measurement says that the camera moves; it does not
+say whether that is intended. On that shoot, a tracking shot that keeps its
+subject and the end of a take that loses it measure the same, and the tracking
+shot even looks the less steady of the two, at four samples per second as at
+the frame rate: no measurement decides it, the image settles it.
 
-Les défauts (80 px/s, 150 ‰/s, 72 %, 1,2 s) sont calés sur les 23 rushes à
-l'épaule d'une interview réelle, où la caméra bougeait à 73 px/s en médiane :
-ils ouvrent une fenêtre dans 11 rushes. Ils suivent le montage que l'auteur a
-jugé le meilleur sur ces rushes (ITW6b, 6 octobre) ; les premiers défauts,
-60 px/s et 1,6 s, n'en ouvraient que 6 et retiraient des dérives naturelles.
-L'estimation du zoom confond la parallaxe et un sujet qui bouge avec un zoom :
-sa médiane y était de 54 ‰/s, et une limite sous 100 environ écarte tout plan
-à l'épaule. 150 arrête encore un zoom volontaire.
+The defaults (80 px/s, 150 ‰/s, 72%, 1.2 s) are calibrated on the 23
+shoulder-mounted source clips of a real interview, where the camera moved at 73
+px/s in median: they open a window in 11 source clips. They follow the edit
+judged best on these source clips; the first defaults, 60 px/s and 1.6 s,
+opened only 6 and removed natural drifts. The zoom estimate confuses parallax
+and a moving subject with a zoom: its median there was 54 ‰/s, and a limit
+under about 100 rules out any shoulder-mounted shot. 150 still stops a
+deliberate zoom.
 
-## Images isolées
+## Isolated frames
 
-Quatre échantillons par seconde ne voient pas une image seule. Sur un film
-tourné pendant un shooting photo, un flash de studio a levé la luminance
-moyenne d'une image de 104 à 182 avant de redescendre : à 50 i/s, l'analyse
-ci-dessus le manque onze fois sur douze, et seul le rendu de contrôle l'a
-trouvé.
+Four samples per second do not see a single frame. On a film shot during a
+photo shoot, a studio flash raised the mean luminance of one frame from 104 to
+182 before it went back down: at 50 fps, the analysis above misses it eleven
+times out of twelve, and only the check render found it.
 
-`--isolated-frames` (MCP : `list_isolated_frames`, `analyze_isolated_frames`)
-passe donc **image par image**, en lecture seule, mais seulement sur les
-**plages source que la timeline lit**, à la vitesse de chaque plan et
-poignées de transition comprises : un plan de deux secondes à 2/1 est mesuré
-des images source 0 à 98, plus la marge (PRD38). Pour un film de 74 s tiré de 104 rushes, c'est une poignée de secondes par rush au
-lieu de leur totalité. Deux grandeurs par image, en entiers : la **luminance
-moyenne** en millièmes de niveau (104,0 s'écrit 104000) et l'**histogramme de
-luma** en pour-mille de pixels par casier. Le cache
-(`.cutmachine/isolatedframes/<media-id>.json`) ne contient aucun flottant et
-deux passes écrivent les mêmes octets.
+`--isolated-frames` (MCP: `list_isolated_frames`, `analyze_isolated_frames`)
+therefore goes **frame by frame**, read-only, but only over the **source ranges
+that the timeline reads**, at each clip's speed and transition handles
+included: a two-second clip at 2/1 is measured from source frames 0 to 98, plus
+the margin (PRD38). For a 74 s film drawn from 104 source clips, that is a
+handful of seconds per source clip instead of their whole length. Two
+quantities per frame, as integers: the **mean luminance** in thousandths of a
+level (104.0 is written 104000) and the **luma histogram** in per-mille of
+pixels per bin. The cache (`.cutmachine/isolatedframes/<media-id>.json`)
+contains no floating-point number and two passes write the same bytes.
 
-Est signalé un écart d'**une ou deux images** qui **revient au niveau de ses
-voisines**. La règle sépare les trois faux positifs par la forme, pas par
-l'amplitude : une coupe déplace le niveau et l'y laisse, une montée
-d'éclairage l'écarte d'un voisinage entier, un panoramique ne se pose jamais.
-Les deux déclencheurs — écart de niveau d'au moins 18 niveaux, ou 15 % des
-pixels changeant de casier — sont aussi rapportés au mouvement propre du
-voisinage, comme le sont les frontières de plans plus haut.
+A deviation of **one or two frames** that **returns to the level of its
+neighbours** is flagged. The rule separates the three false positives by shape,
+not by amplitude: a cut moves the level and leaves it there, a lighting ramp
+moves it away from a whole neighbourhood, a pan never settles. The two
+triggers — level deviation of at least 18 levels, or 15% of the pixels changing
+bin — are also related to the neighbourhood's own motion, as the shot
+boundaries are above.
 
-Pour le **dérush**, avant que rien ne soit monté, `--media <id>` (répété ;
-MCP : `media_ids`) mesure ces rushes **en entier**, qu'une timeline les lise
-ou non. C'est là qu'on repère les flashs d'un shooting pour les garder ou les
-écarter ; il n'y a plus besoin de monter chaque rush dans une timeline de
-dérush pour avoir des plages à mesurer.
+For the **dérush** (the review of source clips), before anything is edited,
+`--media <id>` (repeated; MCP: `media_ids`) measures these source clips **in
+full**, whether or not a timeline reads them. This is where the flashes of a
+photo shoot are spotted, to keep or to discard them; there is no need to edit
+each source clip into a dérush timeline to have ranges to measure.
 
-L'outil **situe, il ne juge pas**. Les deux versions plus rythmées du même
-film font de ces flashs une figure : huit plans commencent sur l'image de
-flash, calée sur un temps. Rien n'est donc nommé « erreur » ; chaque image
-est rendue avec son écart, le niveau retrouvé et les clips qui la jouent.
-Sur un rush dont un plan n'est pas à 1/1, ces clips sont trouvés par la règle
-de vitesse du moniteur et de l'export : une image qu'un plan accéléré saute
-n'est jouée par aucun clip, et un plan à 1/1 d'un rush à cadence double n'en
-joue qu'une sur deux. Un cache écrit avant PRD38 apparaît sous `unscanned`.
+The tool **locates, it does not judge**. The two more rhythmic versions of the
+same film make a figure of these flashes: eight clips start on the flash frame,
+set on a beat. Nothing is therefore named "error"; each frame is returned with
+its deviation, the level it returns to and the clips that play it. On a source
+clip of which a clip is not at 1/1, these clips are found by the speed rule of
+the monitor and of the export: a frame that a sped-up clip skips is played by
+no clip, and a 1/1 clip of a double-rate source clip plays only one in two. A
+cache written before PRD38 appears under `unscanned`.
 
-La même mesure tourne sur le fichier livré, dans `verify_export`, sur les
-images que sa comparaison compte `unverifiable` — c'est précisément là qu'un
-flash se cache, à demi-opacité dans une poignée de fondu, où il reste trouvé.
+The same measurement runs on the delivered file, in `verify_export`, on the
+frames that its comparison counts `unverifiable` — precisely where a flash
+hides, at half opacity in a fade handle, where it is still found.
 
-Ces seuils sont calés sur le seul cas mesuré (le flash ci-dessus, entier puis
-divisé par deux) et sur des séries synthétiques. Contrairement à ceux du
-contrôle qualité, aucun corpus de rushes ne les a balayés : c'est ce qui
-cesserait de les rendre provisoires.
+These thresholds are calibrated on the only case measured (the flash above,
+whole then halved) and on synthetic series. Unlike those of the quality
+control, no corpus of source clips has swept them: this is what would stop them
+being provisional.

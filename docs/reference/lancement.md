@@ -1,149 +1,147 @@
-# Lancement
+# Launching
 
-> Relu contre le code le 3 octobre 2026. Ce que fait le Finder et ce que
-> montre l'écran d'accueil ne sont pas vérifiés par lecture.
-
-La compilation produit une application macOS dans `build/CUTMACHINE.app`.
-Ouvrez-la par double-clic dans le Finder, depuis Spotlight après l’avoir copiée
-dans Applications, ou compilez-la si nécessaire puis lancez-la avec la cible
-`run-app` :
+The build produces a macOS application in `build/CUTMACHINE.app`. Open it by
+double-clicking in the Finder, from Spotlight after copying it into
+Applications, or build it if needed then launch it with the `run-app`
+target:
 
 ```sh
 cmake --build build --target run-app -j
 ```
 
-Pour ouvrir directement un bundle déjà compilé :
+To open an already built bundle directly:
 
 ```sh
 open build/CUTMACHINE.app
 ```
 
-Le binaire en ligne de commande reste également disponible et peut être lancé
-sans argument :
+The command-line binary also remains available and can be launched with no
+argument:
 
 ```sh
 ./build/cutmachine
 ```
 
-`./build/cutmachine --version` répond sans projet
-`{"ok":true,"version":"0.1.0","commit":"<hash court>","dirty":false}` : le
-numéro déclaré une fois dans `CMakeLists.txt`, que lit aussi le bundle, et le
-commit dont sort le binaire, relevé à chaque build. `dirty` dit qu'un fichier
-suivi différait de ce commit ; `unknown`, qu'il n'y avait pas de dépôt git.
+`./build/cutmachine --version` answers without a project
+`{"ok":true,"version":"0.1.0","commit":"<hash court>","dirty":false}`: the
+number declared once in `CMakeLists.txt`, which the bundle also reads, and the
+commit the binary comes from, recorded at each build. `dirty` says that a
+tracked file differed from that commit; `unknown`, that there was no git
+repository.
 
-## Ce qui manque à la machine
+## What the machine is missing
 
-`./build/cutmachine --check-setup` répond sans projet ni fenêtre, en un objet
-JSON `{"ok":…,"items":[…]}` (PRODUIT-2026-10b PRD21). Chaque élément porte un
-identifiant stable (`id`), un état (`state`), s'il est requis (`required`),
-ce que son absence empêche (`prevents`, et `tools` : les outils qui
-refuseront), ce qui a été trouvé (`found`), ce qui lui manque (`missing`),
-une phrase (`detail`), le nom du refus que donnent ses outils (`error`) et la
-réparation (`repair`).
+`./build/cutmachine --check-setup` answers without a project or a window, in
+one JSON object `{"ok":…,"items":[…]}` (PRODUIT-2026-10b PRD21). Each item
+carries a stable identifier (`id`), a state (`state`), whether it is required
+(`required`), what its absence prevents (`prevents`, and `tools`: the tools
+that will refuse), what was found (`found`), what is missing (`missing`), a
+sentence (`detail`), the name of the refusal its tools give (`error`) and the
+repair (`repair`).
 
-| `id` | Requis | Ce qui est vérifié |
+| `id` | Required | What is checked |
 |---|---|---|
-| `ffmpeg` | oui | le binaire que le moteur retient et ses capacités, comme `--check-ffmpeg` |
-| `whisper_model` | non | `CUTMACHINE_WHISPER_MODEL` : un fichier, lisible, non vide (le menu de la fenêtre garde son propre modèle, non lu) |
-| `mfa` | non | le Python de MFA, son exécutable `mfa` et `scripts/mfa_align.py`, trouvés ; Python n'est pas lancé |
-| `agent_key` | non | `ANTHROPIC_API_KEY` présente ou non, et d'où — jamais sa valeur ; le Trousseau du panneau Agent n'est pas consulté |
-| `archive_backup` | non | `CUTMACHINE_ARCHIVE_BACKUP_DIR` : le dossier où l'archive des projets est copiée chaque jour, absolu et existant ; sans réglage, aucune copie (DEC44, [Archive SQL](archive-projets.md#la-copie-de-sécurité)) |
-| `voice_over` | non | la voix off locale (GN6a, GENERATIF-2026-10) : le Python de son environnement, `scripts/voice_over.py` et le dossier des modèles, cherchés comme ceux de MFA (`CUTMACHINE_VOICE_PYTHON`, `CUTMACHINE_VOICE_SCRIPT`, `CUTMACHINE_VOICE_MODELS`, sinon `build/voice/env`, `scripts/` et `build/voice/models` à côté de l'exécutable), et ses deux modèles complets (`Qwen3-TTS-12Hz-1.7B-VoiceDesign` et `-Base`, chacun avec `config.json`, `model.safetensors` et `speech_tokenizer/model.safetensors`) ; Python n'est pas lancé. `optional_absent` quand rien n'est installé ni réglé, `incomplete` quand une partie l'est ; refus `VoiceOverNotFound` |
+| `ffmpeg` | yes | the binary the engine retains and its capabilities, like `--check-ffmpeg` |
+| `whisper_model` | no | `CUTMACHINE_WHISPER_MODEL`: a file, readable, non-empty (the window's menu keeps its own model, which is not read) |
+| `mfa` | no | MFA's Python, its `mfa` executable and `scripts/mfa_align.py`, found; Python is not launched |
+| `agent_key` | no | `ANTHROPIC_API_KEY` present or not, and from where — never its value; the Agent panel's Keychain is not consulted |
+| `archive_backup` | no | `CUTMACHINE_ARCHIVE_BACKUP_DIR`: the folder where the project archive is copied every day, absolute and existing; with no setting, no copy (DEC44, [SQL archive](archive-projets.md#the-backup-copy)) |
+| `voice_over` | no | the local voice-over (GN6a, GENERATIF-2026-10): the Python of its environment, `scripts/voice_over.py` and the models folder, searched like MFA's (`CUTMACHINE_VOICE_PYTHON`, `CUTMACHINE_VOICE_SCRIPT`, `CUTMACHINE_VOICE_MODELS`, otherwise `build/voice/env`, `scripts/` and `build/voice/models` next to the executable), and its two complete models (`Qwen3-TTS-12Hz-1.7B-VoiceDesign` and `-Base`, each with `config.json`, `model.safetensors` and `speech_tokenizer/model.safetensors`); Python is not launched. `optional_absent` when nothing is installed or set, `incomplete` when part of it is; refusal `VoiceOverNotFound` |
 
-Les états :
+The states:
 
-- `ok` ;
-- `missing` : absent, et ses outils refusent ;
-- `incomplete` : présent, mais il lui manque quelque chose (un FFmpeg sans
-  `libx265`, un modèle vide ou illisible, le Python de MFA sans son
-  exécutable, un modèle de voix off sans ses poids) ;
-- `optional_absent` : absent, et rien de requis n'en dépend.
+- `ok`;
+- `missing`: absent, and its tools refuse;
+- `incomplete`: present, but something is missing (an FFmpeg without
+  `libx265`, an empty or unreadable model, MFA's Python without its
+  executable, a voice-over model without its weights);
+- `optional_absent`: absent, and nothing required depends on it.
 
-Le code de sortie est 0 tant qu'aucun élément requis ne manque : un FFmpeg
-incomplet monte et exporte, et son élément dit ce qu'il ne peut pas faire.
-Sans FFmpeg, la réponse porte `"ok":false`, l'erreur `FfmpegNotFound` et sa
-phrase à côté des éléments, et la commande sort en 1.
+The exit code is 0 as long as no required item is missing: an incomplete
+FFmpeg opens and exports, and its item says what it cannot do. Without
+FFmpeg, the response carries `"ok":false`, the error `FfmpegNotFound` and its
+sentence next to the items, and the command exits with 1.
 
-Dans la fenêtre, l'écran d'accueil (« Bienvenue dans CUTMACHINE ») lit ce
-rapport en tâche de fond, sans retarder son affichage. Quand un élément requis
-manque (aujourd'hui FFmpeg seul), une ligne apparaît au pied de l'écran, à
-gauche de « Quitter », avec un bouton « Diagnostic… » : « FFmpeg
-introuvable : les vignettes, les formes d'onde et l'export vidéo ne
-fonctionneront pas. » Rien n'apparaît quand le requis est là, même si le
-modèle Whisper, MFA, la clé ou la connexion manquent, ni pour un FFmpeg
-incomplet (sans `libx265`, par exemple). Lancée avec un chemin de projet, l'application
-saute cet écran.
+In the window, the welcome screen ("Bienvenue dans CUTMACHINE", i.e. Welcome
+to CUTMACHINE) reads this report in the background, without delaying its
+display. When a required item is missing (FFmpeg is the only one), a line
+appears at the foot of the screen, to the left of "Quitter" (Quit), with a
+"Diagnostic…" button: "FFmpeg introuvable : les vignettes, les formes d'onde
+et l'export vidéo ne fonctionneront pas." (FFmpeg not found: thumbnails,
+waveforms and video export will not work.) Nothing appears when the required
+item is there, even if the Whisper model, MFA, the key or the connection are
+missing, nor for an incomplete FFmpeg (without `libx265`, for example).
+Launched with a project path, the application skips this screen.
 
-**CUTMACHINE ▸ Diagnostic de l'installation…** (la barre de menus existe dès
-qu'un projet est ouvert) et le bouton « Diagnostic… » ouvrent le rapport
-entier, en français, relu à chaque ouverture. Il donne un paragraphe par
-élément : son état (« prêt », « absent », « incomplet », « facultatif,
-absent »), ce qui a été trouvé, ce que son absence empêche et la marche à
-suivre — la variable, `~/.config/cutmachine/.env`, ou le menu quand il en
-existe un (**Modèle Whisper…**, **Moteur IA…**).
+**CUTMACHINE ▸ Diagnostic de l'installation…** (Installation diagnostic…)
+(the menu bar exists as soon as a project is open) and the "Diagnostic…"
+button open the whole report, in French, reread at each opening. It gives a
+paragraph per item: its state ("prêt", "absent", "incomplet", "facultatif,
+absent", i.e. ready, absent, incomplete, optional, absent), what was found,
+what its absence prevents and the steps to follow — the variable,
+`~/.config/cutmachine/.env`, or the menu when there is one (**Modèle
+Whisper…** (Whisper model…), **Moteur IA…** (AI engine…)).
 
-Un réglage de la fenêtre y compte, que `--check-setup` ne lit pas : une clé
-Anthropic enregistrée dans le Trousseau par **Moteur IA…**. Elle ou
-`ANTHROPIC_API_KEY` suffit à dire l'élément prêt, et le texte dit laquelle
-sert quoi. Le modèle Whisper n'est plus de ceux-là depuis le 24 octobre 2026
-(DEC23) : **CUTMACHINE ▸ Modèle Whisper…** écrit `CUTMACHINE_WHISPER_MODEL`
-dans `~/.config/cutmachine/.env`, le réglage que lisent aussi les agents et
-la ligne de commande (voir
-[Configurer le modèle](transcription.md#configurer-le-modèle)). « Copier le
-diagnostic » met ce texte dans le presse-papiers, suivi du JSON de
-`--check-setup`, pour l'envoyer à quelqu'un ; la valeur d'une clé n'y est
-jamais.
+One window setting counts there that `--check-setup` does not read: an
+Anthropic key recorded in the Keychain by **Moteur IA…**. It or
+`ANTHROPIC_API_KEY` is enough to call the item ready, and the text says which
+one is used for what. The Whisper model is not one of these (DEC23):
+**CUTMACHINE ▸ Modèle Whisper…** writes `CUTMACHINE_WHISPER_MODEL` into
+`~/.config/cutmachine/.env`, the setting that agents and the command line
+also read (see [Configuring the model](transcription.md#configuring-the-model)).
+"Copier le diagnostic" (Copy the diagnostic) puts this text on the clipboard,
+followed by the JSON of `--check-setup`, to send it to someone; a key's value
+is never in it.
 
-### Où MFA est cherché
+### Where MFA is searched
 
-`align_words` cherche chacun des trois fichiers de MFA dans cet ordre, et le
-premier trouvé l'emporte :
+`align_words` searches each of MFA's three files in this order, and the first
+one found wins:
 
-1. Sa variable (`CUTMACHINE_MFA_PYTHON`, `CUTMACHINE_MFA_ALIGNER`,
-   `CUTMACHINE_MFA_SCRIPT`), dans l'environnement puis dans
-   `~/.config/cutmachine/.env`. Une valeur qui ne désigne pas un fichier est
-   refusée : elle ne fait pas chercher ailleurs.
-2. À côté de l'exécutable : `<dossier>/mfa/env/bin/python`,
-   `<dossier>/mfa/env/bin/mfa`, `<dossier>/../scripts/mfa_align.py`, soit le
-   `build/` et le `scripts/` d'un checkout, quel que soit le dossier courant.
-   Pour l'application, le dossier qui contient `CUTMACHINE.app` compte aussi.
-3. Là où le build qui a produit le binaire les installe : une app copiée
-   dans Applications retrouve ainsi le MFA de son checkout.
-4. Le dossier courant.
+1. Its variable (`CUTMACHINE_MFA_PYTHON`, `CUTMACHINE_MFA_ALIGNER`,
+   `CUTMACHINE_MFA_SCRIPT`), in the environment then in
+   `~/.config/cutmachine/.env`. A value that does not designate a file is
+   refused: it does not make the search go elsewhere.
+2. Next to the executable: `<dossier>/mfa/env/bin/python`,
+   `<dossier>/mfa/env/bin/mfa`, `<dossier>/../scripts/mfa_align.py`, that is
+   the `build/` and `scripts/` of a checkout, whatever the current folder.
+   For the application, the folder that contains `CUTMACHINE.app` counts too.
+3. Where the build that produced the binary installs them: an app copied into
+   Applications thus finds the MFA of its checkout.
+4. The current folder.
 
-Le script lit les modèles dans `models/` à côté de l'environnement
-(`build/mfa/models`) : pour chaque langue, le modèle acoustique, le
-dictionnaire de prononciation et le modèle G2P des mots que le dictionnaire
-n'a pas (voir [Frontières alignées](transcription.md#frontières-alignées-et-mots-non-entendus)).
+The script reads the models in `models/` next to the environment
+(`build/mfa/models`): for each language, the acoustic model, the
+pronunciation dictionary and the G2P model for the words the dictionary does
+not have (see [Aligned boundaries](transcription.md#aligned-boundaries-and-unheard-words)).
 
-Introuvable, l'outil refuse avec l'erreur `MfaNotFound` (avant le
-1er novembre 2026, `NemoNotFound`), qui dit où chaque fichier a été cherché
-et quelle variable régler. Rien n'est téléchargé ni installé. L'environnement
-(conda, Kaldi, environ 1,3 Go) et les modèles (environ 310 Mo) vivent dans
-`build/mfa/` : un `rm -rf build` les emporte. Ils se refont à la main :
-micromamba 2.9.0 crée `build/mfa/env` depuis conda-forge
-(`montreal-forced-aligner=3.4.3`), et les modèles se téléchargent depuis les
-versions de `MontrealCorpusTools/mfa-models` (commandes dans le README du
-banc d'alignement).
+When not found, the tool refuses with the error `MfaNotFound`, which says
+where each file was searched and which variable to set. Nothing is downloaded
+or installed. The environment (conda, Kaldi, about 1.3 GB) and the models
+(about 310 MB) live in `build/mfa/`: an `rm -rf build` takes them away. They
+are rebuilt by hand: micromamba 2.9.0 creates `build/mfa/env` from
+conda-forge (`montreal-forced-aligner=3.4.3`), and the models are downloaded
+from the releases of `MontrealCorpusTools/mfa-models` (commands in the README
+of the alignment bench).
 
-### Où la diarisation est cherchée
+### Where diarization is searched
 
-`analyze_speakers` cherche trois fichiers, dans le même ordre que MFA :
+`analyze_speakers` searches three files, in the same order as MFA:
 
-1. Sa variable : `CUTMACHINE_DIARIZATION_PYTHON` (le Python de
-   l'environnement), `CUTMACHINE_DIARIZATION_SCRIPT` (`scripts/diarize.py`),
-   `CUTMACHINE_DIARIZATION_MODEL` (le modèle d'empreinte vocale).
-2. À côté de l'exécutable : `<dossier>/diarization/env/bin/python`,
+1. Its variable: `CUTMACHINE_DIARIZATION_PYTHON` (the environment's Python),
+   `CUTMACHINE_DIARIZATION_SCRIPT` (`scripts/diarize.py`),
+   `CUTMACHINE_DIARIZATION_MODEL` (the voiceprint model).
+2. Next to the executable: `<dossier>/diarization/env/bin/python`,
    `<dossier>/../scripts/diarize.py`,
    `<dossier>/diarization/models/wespeaker_en_voxceleb_resnet34_LM.onnx`.
-3. Là où le build qui a produit le binaire les installe.
-4. Depuis le dossier courant : `build/diarization/…` et `scripts/diarize.py`.
+3. Where the build that produced the binary installs them.
+4. From the current folder: `build/diarization/…` and `scripts/diarize.py`.
 
-Rien n'est téléchargé ni installé par le moteur. Ce qui manque est le refus
-`DiarizationNotFound`, qui nomme chaque endroit regardé. `--check-setup` ne
-le signale pas encore.
+Nothing is downloaded or installed by the engine. What is missing is the
+refusal `DiarizationNotFound`, which names each place looked at.
+`--check-setup` does not report it yet.
 
-L'environnement se fait à la main, une fois, sous `build/diarization/` :
+The environment is made by hand, once, under `build/diarization/`:
 
 ```sh
 python3 -m venv build/diarization/env
@@ -152,116 +150,116 @@ curl -L -o build/diarization/models/wespeaker_en_voxceleb_resnet34_LM.onnx \
   https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/wespeaker_en_voxceleb_resnet34_LM.onnx
 ```
 
-Les empreintes relevées le 12 novembre 2026 (SHA-256) : le modèle
-`e9848563da86f263117134dfd7ad63c92355b37de492b55e325400c9d9c39012`, la
-roue `sherpa_onnx-2.0.1-cp39-cp39-macosx_11_0_arm64`
+The checksums (SHA-256): the model
+`e9848563da86f263117134dfd7ad63c92355b37de492b55e325400c9d9c39012`, the
+wheel `sherpa_onnx-2.0.1-cp39-cp39-macosx_11_0_arm64`
 `a18f47204f6b2a1d81769e736ddf9fdfb23cff01021c17491f2faf097ced6677`,
-`sherpa_onnx_core-2.0.1` pour macOS arm64
+`sherpa_onnx_core-2.0.1` for macOS arm64
 `82ab505a835e616f568ba6804555969e1b5699341d2b18eb27f0083b068b61ff`.
 
-## Quel FFmpeg
+## Which FFmpeg
 
-Les bibliothèques FFmpeg sont liées à la compilation ; le **binaire** `ffmpeg`,
-lui, est lancé pour l'export, les vignettes, les proxies et les analyses. Le
-moteur le cherche une fois par processus et garde un chemin absolu, dans cet
-ordre :
+The FFmpeg libraries are linked at build time; the `ffmpeg` **binary**, on
+the other hand, is launched for export, thumbnails, proxies and analyses. The
+engine searches for it once per process and keeps an absolute path, in this
+order:
 
-1. `CUTMACHINE_FFMPEG`, dans l'environnement puis dans
-   `~/.config/cutmachine/.env` (le fichier des réglages locaux de la machine) ;
-2. un `ffmpeg` posé à côté de l'exécutable ;
-3. les dossiers du `PATH`.
+1. `CUTMACHINE_FFMPEG`, in the environment then in
+   `~/.config/cutmachine/.env` (the file of the machine's local settings);
+2. an `ffmpeg` placed next to the executable;
+3. the `PATH` folders.
 
-Une application ouverte depuis le Finder reçoit le `PATH` de `launchd`, où
-FFmpeg n'est pas : c'est le cas où le réglage sert. Depuis PRD21, l'écran
-d'accueil le dit dès l'ouverture.
+An application opened from the Finder receives the `PATH` of `launchd`, where
+FFmpeg is not: this is the case where the setting is useful. With PRD21, the
+welcome screen says so as soon as it opens.
 
 ```sh
 echo "CUTMACHINE_FFMPEG=$(command -v ffmpeg)" >> ~/.config/cutmachine/.env
 ```
 
-Une valeur qui ne désigne pas un exécutable est refusée, elle ne fait pas
-retomber sur le `PATH`. Sans binaire, chaque commande et chaque outil qui en
-a besoin refuse avec l'erreur `FfmpegNotFound`, qui dit où il a cherché et
-quelle variable régler.
+A value that does not designate an executable is refused; it does not fall
+back to the `PATH`. Without a binary, every command and every tool that needs
+one refuses with the error `FfmpegNotFound`, which says where it searched and
+which variable to set.
 
-Tous les FFmpeg n'ont pas ce que le moteur demande : les encodeurs
-`h264_videotoolbox`, `hevc_videotoolbox`, `libx264`, `libx265` et
-`prores_ks`. Le filtre `drawtext`, que le FFmpeg de `brew bundle` n'a pas,
-n'est plus demandé depuis le 9 octobre 2026 : les légendes sont dessinées par
-le moteur (LEGENDES-2026-10). Le moteur
-lit une fois les listes du binaire (`-filters`, `-encoders`) et vérifie avant
-chaque lancement : un export ou un outil qui a besoin d'une capacité absente
-refuse avec l'erreur `FfmpegCapabilityMissing`, le nom de l'encodeur et ce
-que son absence empêche, sans rien lancer d'autre.
+Not every FFmpeg has what the engine asks for: the encoders
+`h264_videotoolbox`, `hevc_videotoolbox`, `libx264`, `libx265` and
+`prores_ks`. The `drawtext` filter, which the FFmpeg of `brew bundle` does not
+have, is not required: captions are drawn by the engine
+(LEGENDES-2026-10). The engine reads the
+binary's lists once (`-filters`, `-encoders`) and checks before each launch:
+an export or a tool that needs a missing capability refuses with the error
+`FfmpegCapabilityMissing`, the name of the encoder and what its absence
+prevents, without launching anything else.
 
 ```sh
 ./build/cutmachine --check-ffmpeg
 ```
 
-répond sans projet : le binaire retenu, d'où il vient, sa version, et chaque
-capacité avec `available`. Le code de sortie est 0 dès qu'un binaire est
-trouvé, comme pour `--check-setup` (DEC32, 24 octobre 2026) : `complete` dit
-s'il a tout, et sinon `error` (`FfmpegCapabilityMissing`, ou
-`FfmpegProbeFailed` pour un binaire qui ne répond pas), `detail` et `missing`,
-chaque capacité absente avec ce qu'elle empêche, sont dans la réponse. Sans
-binaire, il sort en 1 avec `FfmpegNotFound`. Côté
-agent, les réponses d'`open_project` et de `create_project` portent une
-section `ffmpeg` quand le binaire manque ou qu'il lui manque quelque chose,
-et seulement dans ce cas.
+answers without a project: the binary retained, where it comes from, its
+version, and each capability with `available`. The exit code is 0 as soon as
+a binary is found, as for `--check-setup` (DEC32): `complete` says whether it
+has everything, and otherwise `error` (`FfmpegCapabilityMissing`, or
+`FfmpegProbeFailed` for a binary that does not answer), `detail` and
+`missing`, each missing capability with what it prevents, are in the
+response. Without a binary, it exits with 1 and `FfmpegNotFound`. On the
+agent side, the responses of `open_project` and `create_project` carry an
+`ffmpeg` section when the binary is missing or something is missing from it,
+and only in that case.
 
-## Boucle de développement
+## Development loop
 
-Le script de développement fournit une boucle proche de `npm run dev` pour
-l’application native : chaque modification des sources déclenche une
-compilation incrémentale, ferme proprement l’ancienne instance, puis ouvre le
-nouveau bundle. Il n’a besoin ni de Homebrew ni de `fswatch`.
+The development script provides a loop close to `npm run dev` for the native
+application: each change to the sources triggers an incremental build,
+cleanly closes the old instance, then opens the new bundle. It needs neither
+Homebrew nor `fswatch`.
 
 ```sh
 ./scripts/dev.sh
 ```
 
-Il ne s’agit pas d’un hot reload dans le processus : AppKit et les shaders
-Metal sont reconstruits, puis l’application redémarre. Le projet récent peut
-ensuite être rouvert depuis l’écran d’accueil.
+This is not an in-process hot reload: AppKit and the Metal shaders are
+rebuilt, then the application restarts. The recent project can then be
+reopened from the welcome screen.
 
-Une page d’accueil permet de créer un projet, d’ouvrir un fichier existant ou
-de reprendre l’un des huit projets récents. La création demande le nom et
-l’emplacement du package `.cutmachine-project`, initialise une première timeline,
-puis ouvre directement l’espace de montage.
+A home page lets you create a project, open an existing file or resume one
+of the eight recent projects. Creation asks for the name and location of the
+`.cutmachine-project` package, initialises a first timeline, then opens the
+editing workspace directly.
 
-Depuis le 24 octobre 2026 (DEC39, PHASES-2026-08), on change de projet sans
-repasser par l’écran d’accueil : **Fichier → Nouveau projet…** (le nom sur
-une feuille de la fenêtre, puis l’emplacement) et **Fichier → Ouvrir un
-projet…**. La fenêtre ne remplace pas son projet en place : elle vérifie
-l’autre (`src/ProjectSwitch.h` : lisible, pas ouvert ailleurs, pas le même),
-enregistre le sien, puis se ferme et un nouvel éditeur s’ouvre sur l’autre
-projet, une fois le verrou du premier rendu (`process::StartDetached`). Un
-export ou une tâche en cours dans la barre des tâches retient la fenêtre sur
-son projet, la raison dite sur une feuille ; le panneau Agent et un agent
-relayé repartent de zéro avec le nouvel éditeur.
+You change project without going back through the welcome screen (DEC39,
+PHASES-2026-08): **Fichier → Nouveau projet…** (File → New project…) (the
+name on a sheet of the window, then the location) and **Fichier → Ouvrir un
+projet…** (File → Open a project…). The window does not replace its project
+in place: it checks the other one (`src/ProjectSwitch.h`: readable, not open
+elsewhere, not the same), saves its own, then closes and a new editor opens
+on the other project, once the first one's lock is released
+(`process::StartDetached`). An export or a task in progress in the task bar
+holds the window on its project, the reason stated on a sheet; the Agent
+panel and a relayed agent start again from zero with the new editor.
 
-Pour le stockage, les sauvegardes, les médias liés et le partage entre machines,
-voir la [spécification de stockage des projets](../PROJECT_STORAGE_SPEC.md).
-**Fichier → Collecter le projet…** crée un package `.cutmachine-project`
-autonome contenant une copie vérifiée des originaux, un manifeste SHA-256 et
-un historique distinct par timeline, réécrit comme l'état : annuler dans la
-copie ne ramène pas un fichier du projet source. Les fichiers `src` des compositions motion
-voyagent aussi avec lui ; les limites des liaisons de chemins externes sont
-décrites dans la spécification de stockage. Ce package peut être transféré puis ouvert
-directement par CUTMACHINE sur un autre Mac. À l’ouverture, les empreintes sont
-revérifiées et tout original manquant ou modifié déclenche un avertissement.
-Un verrou de session empêche également deux instances d’écrire simultanément
-le même projet. Dans le package v2, chaque timeline vit dans son propre fichier
-`Timelines/<ULID>.json` et est sauvegardée transactionnellement avec le snapshot
-projet et les historiques. Les anciens fichiers JSON et packages v1 ne sont
-plus acceptés.
+For storage, saves, linked media and sharing between machines, see the
+[project storage specification](../PROJECT_STORAGE_SPEC.md). **Fichier →
+Collecter le projet…** (File → Collect the project…) creates a standalone
+`.cutmachine-project` package containing a verified copy of the originals, a
+SHA-256 manifest and a distinct history per timeline, rewritten like the
+state: undoing in the copy does not bring back a file of the source project.
+The `src` files of motion compositions travel with it too; the limits of
+external path bindings are described in the storage specification. This
+package can be transferred then opened directly by CUTMACHINE on another Mac.
+On opening, the checksums are verified again and any original that is missing
+or modified triggers a warning. A session lock also prevents two instances
+from writing the same project simultaneously. In the v2 package, each
+timeline lives in its own `Timelines/<ULID>.json` file and is saved
+transactionally with the project snapshot and the histories. Old JSON files
+and v1 packages are no longer accepted.
 
-Il reste possible d’ouvrir directement un projet depuis la ligne de commande en
-visant son fichier interne :
+It is still possible to open a project directly from the command line by
+pointing to its internal file:
 
 ```sh
 ./build/cutmachine ./Film.cutmachine-project/project.cutmachine.json
 ```
 
-Les chemins relatifs des sources sont résolus relativement au fichier JSON,
-pas au répertoire courant du processus.
+Relative source paths are resolved relative to the JSON file, not to the
+process's current directory.

@@ -1,344 +1,324 @@
 # Audio
 
-> Relu contre le code le 3 octobre 2026. Les gestes à la souris et ce qu'on
-> entend ne sont pas vérifiés par lecture ; les couleurs sont celles des
-> jetons de `src/UiTheme.h`.
+> The mouse gestures and what one hears are not verified by reading; the
+> colours are those of the tokens in `src/UiTheme.h`.
 
-Les flux audio des sources sont décodés par FFmpeg, puis
-convertis en PCM 16 bits stéréo 48 kHz par `libswresample`. Un `AVAudioSourceNode`
-mixte en temps réel uniquement les clips placés sur des pistes audio. Les clips
-vidéo sont toujours muets : aucun fallback de lecture ou d'export ne récupère
-leur audio. Un clip audio peut porter un gain exact en dB et des fondus
-d'entrée/sortie exacts :
-`SetClipAudioOperation` remplace atomiquement `gain_db`, `fade_in` et
-`fade_out`. Les deux durées sont des `RationalTime`; la même enveloppe est
-appliquée par la lecture et par l'export FFmpeg. Le schéma document v7 les
-sérialise pour chaque clip. Les documents v4 à v6 restent lisibles : ils
-reçoivent sans ambiguïté 0 dB et deux fondus nuls, puis sont réémis en v7.
-Le callback audio lit un plan immuable construit depuis la
-timeline et ne touche jamais directement au document éditable. `Espace` et
-`J/K/L` pilotent simultanément image et son, y compris la navette accélérée
-avant/arrière à 2× et 4× (échantillonnage accéléré, sans correction de pitch) ;
-un seek, un trim, un move, une
-fermeture de trou ou un undo reconstruit le plan de mixage au raccord exact.
-Les échantillons additionnés sont limités dans `[-1, 1]` pour éviter un
-dépassement numérique lors du mixage multipiste.
+The audio streams of the sources are decoded by FFmpeg, then converted to
+16-bit stereo 48 kHz PCM by `libswresample`. An `AVAudioSourceNode` mixes in
+real time only the clips placed on audio tracks. Video clips are always
+silent: no playback or export fallback picks up their audio. An audio clip can
+carry an exact gain in dB and exact fade-in/fade-out:
+`SetClipAudioOperation` atomically replaces `gain_db`, `fade_in` and
+`fade_out`. Both durations are `RationalTime` values; the same envelope is
+applied by playback and by the FFmpeg export. Document schema v7 serializes
+them for each clip. Documents v4 to v6 remain readable: they unambiguously
+receive 0 dB and two zero-length fades, then are written back as v7.
+The audio callback reads an immutable plan built from the timeline and never
+touches the editable document directly. `Espace` and `J/K/L` drive picture and
+sound together, including the accelerated forward/reverse shuttle at 2× and 4×
+(accelerated sampling, no pitch correction); a seek, a trim, a move, a gap
+closing or an undo rebuilds the mix plan at the exact junction.
+Summed samples are clamped to `[-1, 1]` to avoid numeric overflow when mixing
+several tracks.
 
-À l'ouverture d'un ancien projet, tout clip vidéo dont le drapeau de migration
-indique encore du son embarqué est séparé. L'application crée au besoin des
-pistes audio et émet une
-`DetachAudioOperation` par clip dans l'event log : le rectangle audio reçoit
-son propre ULID mais conserve exactement les mêmes `source_in`, durée et
-`timeline_in`. Tous les nouveaux montages créent directement cette paire avec
-`include_audio:false` sur la vidéo ; le son n'est donc jamais embarqué ni joué
-deux fois. Audio et image peuvent ensuite être déplacés, trimés,
-coupés ou supprimés indépendamment. Cette normalisation est persistée et reste
-annulable avec `Cmd+Z`. La fenêtre n'a ni bouton ni raccourci pour séparer un
-clip à la main : l'outil MCP `detach_audio` reste disponible pour migrer
-manuellement un ancien clip.
+When an old project is opened, every video clip whose migration flag still
+indicates embedded sound is split. The application creates audio tracks as
+needed and emits one `DetachAudioOperation` per clip in the event log: the
+audio rectangle receives its own ULID but keeps exactly the same `source_in`,
+duration and `timeline_in`. All new edits create this pair directly, with
+`include_audio:false` on the video, so the sound is never embedded nor played
+twice. Audio and picture can then be moved, trimmed, cut or deleted
+independently. This normalization is persisted and can still be undone with
+`Cmd+Z`. The window has no button or shortcut to split a clip by hand: the MCP
+tool `detach_audio` remains available to migrate an old clip manually.
 
-Les rectangles vidéo utilisent une palette grise, tandis que les rectangles
-audio utilisent une palette verte, même lorsqu'ils proviennent du même média.
-Chaque paire issue d'une séparation partage un `link_group_id` stable et une
-référence de phase rationnelle exacte. Avec **Sélection liée** active, cliquer,
-englober au lasso ou éditer un membre agit sur la paire ; le drag affiche les
-deux aperçus et émet une seule opération atomique :
-`MoveLinkedClipsOperation` ou `TrimLinkedClipsOperation` ; la suppression de
-la paire est une `ClearClipsOperation`. Avec le
-toggle désactivé, chaque rectangle reste indépendant. `Cmd+Shift+L` change le
-mode et `Option` le suspend pour un geste. Un déplacement audio indépendant
-affiche sur le rectangle un badge signé en images (`+3f`) ou, pour un décalage
-sub-frame, en échantillons (`-240smp`). Le retour à zéro est magnétique. Les
-anciens projets déjà séparés sont migrés par une `SetClipLinkOperation`
-atomique lorsque les temps source et timeline correspondent exactement.
+Video rectangles use a grey palette, audio rectangles a green one, even when
+they come from the same media. Each pair produced by a split shares a stable
+`link_group_id` and an exact rational phase reference. With **Sélection liée**
+(Linked Selection) on, clicking, lassoing or editing one member acts on the
+pair; a drag shows both previews and emits a single atomic operation:
+`MoveLinkedClipsOperation` or `TrimLinkedClipsOperation`; deleting the pair is
+a `ClearClipsOperation`. With the toggle off, each rectangle stays
+independent. `Cmd+Shift+L` switches the mode and `Option` suspends it for one
+gesture. An independent audio move shows on the rectangle a badge signed in
+frames (`+3f`) or, for a sub-frame offset, in samples (`-240smp`). Returning
+to zero is magnetic. Old projects that were already split are migrated by an
+atomic `SetClipLinkOperation` when the source and timeline times match
+exactly.
 
-Le déplacement manuel du playhead produit un scrub audio : chaque clic, drag
-dans la règle ou dans un trou, et chaque pas au clavier déclenche un grain de
-60 ms à la position demandée. Une enveloppe de 5 ms à l'entrée et à la sortie
-évite les clics ; un nouveau mouvement remplace immédiatement le grain en cours
-sans démarrer la lecture continue.
-En mode Image, les événements souris restent dédupliqués après quantification :
-tant que le curseur demeure dans la même frame, le grain n'est joué qu'une
-seule fois. Il n'est réarmé qu'en entrant dans une autre frame, ce qui évite les
-redémarrages très bruyants causés par les micro-mouvements sub-frame.
-En mode Image, les flèches déplacent le playhead d'une image (`Shift` : dix) ;
-en mode Échantillon, elles le déplacent d'un échantillon (`Shift` : dix). Le
-bandeau inférieur rappelle en permanence la grille active.
+Moving the playhead by hand produces an audio scrub: every click, every drag
+in the ruler or in a gap, and every keyboard step triggers a 60 ms grain at the
+requested position. A 5 ms envelope at the start and end prevents clicks; a
+new movement immediately replaces the grain in progress without starting
+continuous playback.
+In Image mode (Frame mode), mouse events stay deduplicated after quantization:
+as long as the cursor remains within the same frame, the grain is played only
+once. It is rearmed only when entering another frame, which avoids the very
+noisy restarts caused by sub-frame micro-movements.
+In Image mode, the arrow keys move the playhead by one frame (`Shift`: ten);
+in Échantillon mode (Sample mode), they move it by one sample (`Shift`: ten).
+The bottom strip always shows the active grid.
 
-## Mesurer le décalage entre deux sons d'une même prise
+## Measuring the offset between two sounds of the same take
 
-`measure_audio_offset` (MCP ; CLI `--measure-audio-offset`, SYNCHRO-2026-10
-SY1) dit de combien le son d'un rush est décalé de celui d'un autre : le
-fichier d'un enregistreur contre le son de la caméra, ou deux caméras sur la
-même prise. Il ne modifie rien. `offset` est la position du premier
-échantillon de `other_id` sur le temps de `reference_id`, exacte à
-48 000 échantillons par seconde (négative quand l'autre a démarré avant) ;
-`offset_frames` le redit en images de la référence, arrondi à la plus
-proche, pour la lecture seulement. La réponse donne aussi le recouvrement des
-deux sons, une confiance (`significance` : le pic au-dessus du hasard, en
-écarts ; `peak_ratio` : contre le meilleur pic ailleurs) et la dérive des
-deux horloges, mesurée sur trois fenêtres (tête, milieu, queue). Chaque son
-se lit sur le canal demandé (`mix`, `left`, `right`) : un enregistreur porte
-souvent la cravate d'un côté et la perche de l'autre.
+`measure_audio_offset` (MCP; CLI `--measure-audio-offset`, SYNCHRO-2026-10
+SY1) tells how far the sound of one source clip is offset from that of
+another: a recorder's file against the camera sound, or two cameras on the
+same take. It modifies nothing. `offset` is the position of the first sample
+of `other_id` on the time of `reference_id`, exact to 48,000 samples per
+second (negative when the other started earlier); `offset_frames` restates it
+in frames of the reference, rounded to the nearest, for reading only. The
+response also gives the overlap of the two sounds, a confidence
+(`significance`: the peak above chance, in standard deviations; `peak_ratio`:
+against the best peak elsewhere) and the drift of the two clocks, measured on
+three windows (head, middle, tail). Each sound is read on the requested
+channel (`mix`, `left`, `right`): a recorder often carries the lavalier on one
+side and the boom on the other.
 
-La mesure se fait en deux passes : une grossière, sur les attaques du son
-(là où il monte, ce qu'une réverbération ne déplace pas) et sur tous les
-décalages à la fois ; une fine, à l'échantillon, sur le son lui-même, pondéré
-par la phase (GCC-PHAT), qui garde l'arrivée du son direct nette dans une
-pièce qui résonne. Elle ne devine jamais : `NoOverlap` (moins de 2 s en
-commun), `WeakCorrelation` (pic à moins de 10 écarts du hasard : pas la même
-prise, ou trop peu), `AmbiguousPeak` (un autre décalage convient presque
-autant : un son tenu, une boucle, un tic), `ClockDrift` (plus d'une
-demi-image de dérive sur le recouvrement, à la cadence de l'image de la
-référence : un décalage unique serait faux en bout de prise ; aucune
-correction de vitesse n'est faite, décision du 8 octobre 2026).
+The measurement takes two passes: a coarse one, on the sound's onsets (where
+it rises, which reverberation does not move) and over all offsets at once; a
+fine one, to the sample, on the sound itself, phase-weighted (GCC-PHAT), which
+keeps the arrival of the direct sound sharp in a reverberant room. It never
+guesses: `NoOverlap` (less than 2 s in common), `WeakCorrelation` (peak less
+than 10 deviations from chance: not the same take, or too little signal),
+`AmbiguousPeak` (another offset fits almost as well: a sustained sound, a
+loop, a tic), `ClockDrift` (more than half a frame of drift over the overlap,
+at the frame rate of the reference: a single offset would be wrong at the end
+of the take; no speed correction is applied).
 
-Vérifié le 8 octobre sur des signaux de synthèse (`audio_offset_tests` :
-exact à l'échantillon malgré le gain, le bruit, un filtre et une pièce ; les
-refus) et sur deux fichiers : une voix de synthèse posée 1 s plus tôt dans
-un WAV d'enregistreur que dans une caméra MP4 (AAC) au son réverbéré, mesurée
-à −48 000 échantillons sans filtre et à −47 997 avec un passe-bas à 3,5 kHz,
-dont c'est le retard propre. Les seuils (10 écarts, rapport 1,5) restent à
-éprouver sur de vrais tournages : les six interviews de PRJC (le
-critère 2 de SY1) attendent le disque où sont leurs fichiers `Mix`.
+Verified on synthetic signals (`audio_offset_tests`: exact to the sample
+despite gain, noise, a filter and a room; the refusals) and on two files: a
+synthetic voice placed 1 s earlier in a recorder WAV than in a camera MP4
+(AAC) with reverberant sound, measured at −48,000 samples without a filter and
+at −47,997 with a 3.5 kHz low-pass, whose own delay that is. The thresholds
+(10 deviations, ratio 1.5) remain to be tested on real shoots.
 
-### Poser le son séparé sous l'image (SY2)
+### Laying the separate sound under the picture (SY2)
 
-`sync_audio` (MCP ; CLI `--sync-audio`) pose le son d'un enregistreur
-(`media_id`) sous un plan image (`clip_id`), sur une piste audio
-(`track_id`), en une seule annulation. Le décalage est mesuré entre le rush
-du plan et l'enregistreur comme le mesure `measure_audio_offset` (canaux
-`picture_channel`, `recorder_channel`), ou repris de sa réponse (`offset`) ;
-un refus de la mesure est le refus de l'outil, sous le même nom. Le son
-couvre la part du plan que l'enregistreur contient, sur les images de la
-timeline : un enregistreur lancé ou arrêté pendant le plan est rogné vers
-l'intérieur jusqu'à l'image suivante, et son point d'entrée garde
-l'échantillon mesuré. Il est lié au groupe du plan image avec sa phase
-exacte : déplacer, rogner ou couper l'image l'emporte. Le son de la caméra
-reste, lié, à sa place, et sa piste est coupée (`mute_camera_sound`, vrai
-par défaut ; décision du 8 octobre 2026). Le lot ne recouvre jamais ce que
-la piste contient déjà (`Overlap`). La réponse nomme le plan posé
-(`placed`) et, quand il a mesuré, la mesure (`measure`). Rien de nouveau dans
-le document : un collage, une liaison, une sortie de piste
-(`SeparateSound.h`).
+`sync_audio` (MCP; CLI `--sync-audio`) lays a recorder's sound (`media_id`)
+under a picture clip (`clip_id`), on an audio track (`track_id`), in a single
+undo step. The offset is measured between the clip's source clip and the
+recorder as `measure_audio_offset` measures it (channels `picture_channel`,
+`recorder_channel`), or taken from its response (`offset`); a refusal of the
+measurement is the tool's refusal, under the same name. The sound covers the
+part of the clip that the recorder contains, on timeline frames: a recorder
+started or stopped during the clip is trimmed inward to the next frame, and
+its in point keeps the measured sample. It is linked to the picture clip's
+group with its exact phase: moving, trimming or cutting the picture takes it
+along. The camera sound stays in place, linked, and its track is muted
+(`mute_camera_sound`, true by default). The batch never overlaps what the
+track already contains (`Overlap`). The response names the clip laid
+(`placed`) and, when it measured, the measurement (`measure`). Nothing new in
+the document: a paste, a link, a track output (`SeparateSound.h`).
 
-Avec `sound_clip_id` à la place de `media_id` et `track_id` (CLI
-`--sync-audio-clip`, 19 octobre 2026), le son de l'enregistreur est un plan
-déjà sur la timeline, comme l'Auto Align Clips de Resolve le prend. Il glisse
-sur sa piste jusqu'à être calé sous le plan image. Il garde son identifiant,
-son gain et ses fondus, et de sa propre plage ce qui tombe sous le plan, sur
-les images de la timeline, sans jamais lire plus de son média qu'avant. Il
-est lié de la même façon, la piste caméra coupée, en une annulation. Le lot
-ne recouvre jamais un autre plan de la piste (`Overlap`). Un son déjà calé
-et lié répond `unchanged`. Refusés avant toute mesure : le son du plan
-lui-même, un son lié à un autre plan, une vitesse, une piste verrouillée
+With `sound_clip_id` in place of `media_id` and `track_id` (CLI
+`--sync-audio-clip`), the recorder's sound is a clip already on the timeline,
+as Resolve's Auto Align Clips takes it. It slides along its track until it is
+aligned under the picture clip. It keeps its identifier, its gain and its
+fades, and, of its own range, what falls under the clip, on timeline frames,
+without ever reading more of its media than before. It is linked in the same
+way, with the camera track muted, in one undo step. The batch never overlaps
+another clip on the track (`Overlap`). A sound that is already aligned and
+linked answers `unchanged`. Refused before any measurement: the clip's own
+sound, a sound linked to another clip, a speed change, a locked track
 (`CheckSeparateSoundPair`).
 
-Dans la fenêtre, on sélectionne le plan image et le son de l'enregistreur
-(Maj-clic), puis clic droit ou menu Clip : « Aligner automatiquement les
-plans › Selon la forme d'onde ». Un clic droit sur un plan sélectionné garde
-la sélection. La mesure tourne en tâche de fond, et la barre des tâches la
-montre. Un refus se dit dans la barre d'état, en français, et rien n'est
-posé. Le geste n'a pas encore été fait à la main.
+In the window, select the picture clip and the recorder's sound (Shift-click),
+then right-click or use the Clip menu: « Aligner automatiquement les plans ›
+Selon la forme d'onde » (Auto Align Clips › By waveform). A right-click on a
+selected clip keeps the selection. The measurement runs in the background, and
+the task bar shows it. A refusal is reported in the status bar, in French, and
+nothing is laid. The gesture has not yet been done by hand.
 
-Essayé de bout en bout le 8 octobre, sur la voix de synthèse : posé à
-47 997/48 000 s de l'enregistreur sous un plan de 20 s, puis le film exporté
-(piste caméra coupée, seul le son posé audible) mesuré contre le rush de la
-caméra par `measure_audio_offset` : décalage 0, dérive 0 ; `verify_export`
-le dit exact, aucune image divergente.
+Tried end to end on the synthetic voice: laid at 47,997/48,000 s of the
+recorder under a 20 s clip, then the exported film (camera track muted, only
+the laid sound audible) measured against the camera's source clip by
+`measure_audio_offset`: offset 0, drift 0; `verify_export` reports it exact,
+no divergent frame.
 
-### Les coupes au mot emportent le son séparé (SY3)
+### Word cuts take the separate sound along (SY3)
 
-Un son d'enregistreur lié au plan image (même groupe de liaison, autre
-source) est coupé avec lui par `remove_words`, `remove_source_ranges`,
-`clean_disfluencies` et `tighten_pauses` (et leurs commandes au CLI) : aux
-mêmes instants, c'est-à-dire aux plages du plan image décalées de la
-différence exacte des phases des deux plans (`timeline_in − source_in`).
-Le son de la caméra, de même source, perd comme avant les mêmes images
-source. L'opération garde les plages traduites de chaque son séparé
-(`translated_links`), écrites seulement quand il y en a un : un journal
-d'avant, ou une coupe sans son séparé, garde ses octets. Les réponses les
-nomment sous `also_cut`. Un son séparé qui ne couvre pas toutes les plages
-n'est pas coupé, comme un membre de même source. Un son séparé sur une piste
-verrouillée refuse la coupe plutôt que de décrocher. Les rognages de bord
-(`ripple_trim`, `trim_boundary_air`, `close_junction_air`) prenaient déjà le
-membre le plus proche de chaque piste sans regarder sa source : le son séparé
-y perd la même tête ou la même queue, et garde sa phase.
+A recorder sound linked to the picture clip (same link group, other source) is
+cut with it by `remove_words`, `remove_source_ranges`, `clean_disfluencies`
+and `tighten_pauses` (and their CLI commands): at the same instants, that is,
+at the picture clip's ranges shifted by the exact difference of the two clips'
+phases (`timeline_in − source_in`). The camera sound, of the same source,
+loses the same source frames as before. The operation keeps the translated
+ranges of each separate sound (`translated_links`), written only when there is
+one: an earlier journal, or a cut without a separate sound, keeps its bytes.
+The responses name them under `also_cut`. A separate sound that does not cover
+all the ranges is not cut, like a member of the same source. A separate sound
+on a locked track refuses the cut rather than come loose. Edge trims
+(`ripple_trim`, `trim_boundary_air`, `close_junction_air`) already took the
+nearest member of each track without looking at its source: the separate sound
+loses the same head or the same tail there, and keeps its phase.
 
-`create_interview_short` lit les liens de la timeline où les spans ont été
-lus (14 octobre 2026). Quand le plan qui tient un segment est lié au son
-d'un enregistreur, le film le garde : le son de l'enregistreur sur une
-troisième piste, aux mêmes instants (la plage du segment décalée de la
-différence exacte des phases), dans le groupe de liaison du segment et ancré
-sur son image, si bien que `timeline_stats` n'y mesure aucune dérive ; le son
-de la caméra reste, lié, sur sa piste coupée, comme `sync_audio` le laisse.
-Un segment lu sur le son de l'enregistreur devient la plage de l'image, et
-le son de l'enregistreur est gardé à côté. L'opération écrit la piste et,
-pour chaque segment, la source et l'entrée du son séparé, seulement quand il
-y en a un : un journal d'avant garde ses octets. Refusés plutôt que
-devinés : un segment que l'enregistreur ne couvre pas en entier
-(`SourceOutOfBounds`), deux enregistreurs liés au même plan, un plan avec
-une vitesse.
+`create_interview_short` reads the timeline's links where the spans were read.
+When the clip that holds a segment is linked to a recorder's sound, the film
+keeps it: the recorder's sound on a third track, at the same instants (the
+segment's range shifted by the exact difference of the phases), in the
+segment's link group and anchored on its picture, so that `timeline_stats`
+measures no drift there; the camera sound stays, linked, on its muted track,
+as `sync_audio` leaves it. A segment read on the recorder's sound becomes the
+picture's range, and the recorder's sound is kept alongside. The operation
+writes the track and, for each segment, the source and in point of the
+separate sound, only when there is one: an earlier journal keeps its bytes.
+Refused rather than guessed: a segment that the recorder does not cover in
+full (`SourceOutOfBounds`), two recorders linked to the same clip, a clip with
+a speed change.
 
 
-## Le traitement du son du moteur
+## The engine's audio processing
 
-> FC5, FILMCRAFT-2026-10, 17 octobre 2026. Porté de FilmCraft
-> (`crates/audio-dsp`, MIT ou Apache-2.0, commit `09aaf9b`).
+> FC5, FILMCRAFT-2026-10. Ported from FilmCraft (`crates/audio-dsp`, MIT or
+> Apache-2.0, commit `09aaf9b`).
 
-Le moteur a sa propre bibliothèque de traitement du son (`src/AudioDsp*.h`),
-portable, sans dépendance : un égaliseur paramétrique de six bandes
-(`parametric_eq` : cloche, plateaux grave et aigu, passe-haut, passe-bas,
-sections RBJ du *Audio EQ Cookbook*), un passe-haut de Butterworth à 12 ou
-24 dB par octave (`high_pass`), un compresseur (`compressor` : seuil,
-rapport, genou, attaque, relâche, gain de compensation), un de-esser
-(`de_esser` : un plateau aigu dynamique), un limiteur de crête vraie à
-anticipation (`limiter`), un débruitage spectral (`denoise`) et un
-peigne de réjecteurs du secteur à 50 ou 60 Hz et de ses harmoniques
-(`de_hum`). **Rien n'y est branché** : ni l'export ni la lecture ne s'en
-servent. Le mixeur unique que la lecture et l'export partageraient
-(MOTION-MARQUE-2026-10) se décide avec l'auteur ; cette bibliothèque est ce
-sur quoi il se construira.
+The engine has its own audio processing library (`src/AudioDsp*.h`), portable
+and dependency-free: a six-band parametric equalizer (`parametric_eq`: bell,
+low and high shelves, high-pass, low-pass, RBJ sections from the *Audio EQ
+Cookbook*), a 12 or 24 dB per octave Butterworth high-pass (`high_pass`), a
+compressor (`compressor`: threshold, ratio, knee, attack, release, makeup
+gain), a de-esser (`de_esser`: a dynamic high shelf), a look-ahead true-peak
+limiter (`limiter`), a spectral denoiser (`denoise`) and a comb of mains notch
+filters at 50 or 60 Hz and its harmonics (`de_hum`). **None of it is wired
+in**: neither export nor playback uses it. The single mixer that playback and
+export would share (MOTION-MARQUE-2026-10) is still to be decided; this
+library is what it will be built on.
 
-Ce que chaque effet garantit, et que `audio_dsp_tests` vérifie :
+What each effect guarantees, and what `audio_dsp_tests` verifies:
 
-- il travaille en place sur des blocs flottants planaires, de toute
-  longueur, et sa sortie ne dépend pas du découpage en blocs, au bit près
-  (blocs de 1, 64, 1 000 échantillons, de taille variable, vides compris,
-  un réglage changé en cours) ;
-- il n'alloue rien en traitant, en recevant un réglage ou en se remettant
-  à zéro ;
-- il déclare son retard (`Latency()`, en échantillons), et une impulsion
-  sort là où il le dit : 271 échantillons pour le limiteur à 48 kHz (5 ms
-  d'anticipation et les deux demi-longueurs du filtre de crête vraie),
-  2 048 pour le débruitage (une trame), 0 pour les autres ;
-- à son réglage neutre (toutes les bandes à 0 dB, rapport 1, réduction
-  nulle, plafond à 0 dBTP sur un son qui ne l'atteint pas, quantité nulle,
-  passe-haut coupé), il rend le son tel quel, retardé de son retard, au bit
-  près ; le débruitage à 0 dB à 1e-6 près, la transformée et son inverse ;
-- chaque réglage a un identifiant stable, une plage, une unité et une
-  valeur par défaut, et rejoint une nouvelle valeur par une rampe de 20 ms,
-  échantillon par échantillon ;
-- un état récursif sous 1e-30 est remis à zéro : un long silence après un
-  son ne laisse aucun nombre dénormal.
+- it works in place on planar float blocks, of any length, and its output does
+  not depend on how the signal is split into blocks, to the bit (blocks of 1,
+  64, 1,000 samples, of varying size, empty ones included, a setting changed
+  midway);
+- it allocates nothing while processing, receiving a setting or resetting;
+- it declares its delay (`Latency()`, in samples), and an impulse comes out
+  where it says: 271 samples for the limiter at 48 kHz (5 ms of look-ahead and
+  the two half-lengths of the true-peak filter), 2,048 for the denoiser (one
+  frame), 0 for the others;
+- at its neutral setting (all bands at 0 dB, ratio 1, zero reduction, ceiling
+  at 0 dBTP on a sound that does not reach it, zero amount, high-pass off), it
+  returns the sound as is, delayed by its delay, to the bit; the denoiser at
+  0 dB to within 1e-6, the transform and its inverse;
+- each setting has a stable identifier, a range, a unit and a default value,
+  and reaches a new value through a 20 ms ramp, sample by sample;
+- a recursive state below 1e-30 is reset to zero: a long silence after a
+  sound leaves no denormal number.
 
-Mesuré le 17 octobre sous Linux : la réponse de chaque section, mesurée sur
-un sinus, suit la formule à moins de 5e-7 dB, et les filtres `equalizer`,
-`highpass`, `lowpass`, `lowshelf`, `highshelf` et `bandreject` de FFmpeg
-(les mêmes sections, en double ; FFmpeg 6.1.1 d'Ubuntu) donnent, sur une
-seconde de bruit, les mêmes échantillons flottants pour six d'entre eux et
-7e-12 d'écart au plus pour le réjecteur ; la tolérance du test est 1e-6
-(`audio_dsp_ffmpeg_tests`, sauté et dit sauté sans FFmpeg) ; le limiteur,
-poussé de 12 dB, ne laisse aucune crête vraie au-dessus de son plafond
-selon le mètre de `Loudness.h`, dont il partage le filtre de
-suréchantillonnage (et `NormalizeLoudness` garde ses sorties au bit près) ;
-le débruitage descend le bruit seul de 15,7 dB et porte le rapport signal
-sur bruit d'un sinus de 25,2 à 39,5 dB ; le de-hum descend 50 Hz de 60 dB et
-laisse 1 kHz à 0,001 dB près. Rien n'a été écouté.
+Measured under Linux: the response of each section, measured on a sine,
+follows the formula to within 5e-7 dB, and FFmpeg's `equalizer`, `highpass`,
+`lowpass`, `lowshelf`, `highshelf` and `bandreject` filters (the same sections,
+in double precision; Ubuntu's FFmpeg 6.1.1) give, over one second of noise, the
+same floating-point samples for six of them and at most 7e-12 of difference for
+the notch; the test tolerance is 1e-6 (`audio_dsp_ffmpeg_tests`, skipped, and
+reported as skipped, without FFmpeg); the limiter, pushed by 12 dB, leaves no
+true peak above its ceiling according to the meter of `Loudness.h`, whose
+oversampling filter it shares (and `NormalizeLoudness` keeps its outputs
+bit-identical); the denoiser lowers noise alone by 15.7 dB and raises the
+signal-to-noise ratio of a sine from 25.2 to 39.5 dB; the de-hum lowers 50 Hz
+by 60 dB and leaves 1 kHz within 0.001 dB. Nothing has been listened to.
 
-## Proposer un ducking sous une voix
+## Proposing ducking under a voice
 
-`propose_ducking` (MCP ; CLI `--propose-ducking`, FC6, FILMCRAFT-2026-10)
-lit le son d'un rush de voix (`media_id`, sur le canal `channel` : `mix`,
-`left` ou `right`) et dit où la voix parle, et quelle courbe de gain une
-musique posée dessous devrait suivre. **Il ne modifie rien** : le gain
-animé d'un plan n'existe pas encore (REEL-2026-09, R2), la courbe est une
-proposition, pour l'agent ou pour qui mixe. Porté de FilmCraft
+`propose_ducking` (MCP; CLI `--propose-ducking`, FC6, FILMCRAFT-2026-10) reads
+the sound of a voice source clip (`media_id`, on the channel `channel`: `mix`,
+`left` or `right`) and says where the voice speaks, and which gain curve music
+placed under it should follow. **It modifies nothing**: a clip's animated gain
+does not exist yet (REEL-2026-09, R2); the curve is a proposal, for the agent
+or for whoever mixes. Ported from FilmCraft
 (`crates/audio-dsp/src/ducking.rs`).
 
-Le son est décodé à 48 kHz et lu par trames de 10 ms (leur niveau RMS). Le
-plancher de bruit est un centile bas des niveaux (`floor_percentile`, 10 par
-défaut), trames de silence numérique (sous −100 dBFS) exclues : le seuil se
-place au-dessus du bruit de la pièce, pas à un niveau absolu, comme les
-creux d'`analyze_timeline_audio`. La parole commence quand le niveau passe
-`threshold_db` au-dessus du plancher (10 dB) et s'arrête quand il retombe
-`hysteresis_db` sous ce seuil (4 dB) : le creux d'un mot ne coupe pas la
-plage. Les trous plus courts que `bridge_ms` (300 ms) sont refermés, puis les
-plages plus courtes que `minimum_speech_ms` (200 ms) écartées : une toux,
-une porte.
+The sound is decoded at 48 kHz and read in 10 ms frames (their RMS level). The
+noise floor is a low percentile of the levels (`floor_percentile`, 10 by
+default), frames of digital silence (below −100 dBFS) excluded: the threshold
+sits above the room noise, not at an absolute level, like the troughs of
+`analyze_timeline_audio`. Speech starts when the level passes `threshold_db`
+above the floor (10 dB) and stops when it falls `hysteresis_db` below that
+threshold (4 dB): the dip of a word does not cut the range. Gaps shorter than
+`bridge_ms` (300 ms) are closed, then ranges shorter than `minimum_speech_ms`
+(200 ms) are discarded: a cough, a door.
 
-La courbe (`gain_curve`) est à 0 dB hors de la voix, descend de `depth_db`
-(12 dB) à partir de `attack_ms` (150 ms) avant chaque plage jusqu'à son
-début, tient jusqu'à sa fin, remonte en `release_ms` (400 ms). Entre deux
-points, la courbe est une droite en dB, et chaque point vaut 0 ou
-−`depth_db`. Deux plages dont les rampes se rejoindraient restent baissées
-entre elles. Une rampe qui commencerait avant le son commence avec lui ; une
-qui finirait après lui finit avec lui : la rampe est alors plus courte.
+The curve (`gain_curve`) is at 0 dB outside the voice, goes down by `depth_db`
+(12 dB) starting `attack_ms` (150 ms) before each range until its start, holds
+until its end, and comes back up over `release_ms` (400 ms). Between two
+points, the curve is a straight line in dB, and each point is worth 0 or
+−`depth_db`. Two ranges whose ramps would meet stay lowered between them. A
+ramp that would start before the sound starts with it; one that would end
+after it ends with it: the ramp is then shorter.
 
-Chaque temps est exact : un échantillon à 48 kHz, en `{value, rate}`, dans
-le temps du rush. Une durée qui ne tombe pas sur un échantillon entier est
-refusée (`InvalidInput`), jamais arrondie ; à 48 kHz, chaque milliseconde
-entière y tombe. La réponse donne les niveaux lus (`levels` : plancher,
-voix au 95ᵉ centile, seuils d'entrée et de sortie, en dBFS au centième), les
-réglages appliqués, les plages (`speech`), la courbe et `applied: false`.
-Un rush muet répond `silent: true`, sans plage. Comme `measure_audio_offset`,
-l'outil décode tout le son : il tourne en tâche de fond.
+Each time is exact: one sample at 48 kHz, as `{value, rate}`, in the source
+clip's time. A duration that does not fall on a whole sample is refused
+(`InvalidInput`), never rounded; at 48 kHz, every whole millisecond falls on
+one. The response gives the levels read (`levels`: floor, voice at the 95th
+percentile, input and output thresholds, in dBFS to the hundredth), the
+settings applied, the ranges (`speech`), the curve and `applied: false`. A
+silent source clip answers `silent: true`, with no range. Like
+`measure_audio_offset`, the tool decodes all of the sound: it runs in the
+background.
 
-Vérifié le 17 octobre sur des voix de synthèse (`audio_dsp_ducking_tests` :
-plages et courbe à l'échantillon, trou refermé, toux écartée, creux tenu par
-l'hystérésis, rampes fusionnées et coupées aux bords, refus). Pas encore sur
-une vraie voix, ni écouté sous une musique.
+Verified on synthetic voices (`audio_dsp_ducking_tests`: ranges and curve to
+the sample, gap closed, cough discarded, dip held by the hysteresis, ramps
+merged and clipped at the edges, refusals). Not yet on a real voice, nor
+listened to under music.
 
-## Rendre un stem sur les coupes
+## Rendering a stem on the cuts
 
-`render_sound` (MCP ; CLI `--call-tool <projet> render_sound`, SN7,
-SON-2026-10) rend une ditty (le format de
-[Dittytoy](https://dittytoy.net), avec `edit`, `at()` et `sleepUntil()` :
-voir [`tools/cutmachine-sound`](../../tools/cutmachine-sound/README.md)) sur
-les coupes de la timeline telle qu'elle est en mémoire, sans sauvegarde
-préalable. Avec `partition`, `ditty` est un jeu d'instruments et la
-partition dit ce qui joue et quand. Le stem est un WAV 24 bits dont le
-timecode BWF est le début de la timeline (`01:00:00:00`, ou
-`start_timecode`) ; sans `out`, il va dans `Sound/<nom>-seed<n>.wav` du
-paquet, et `stems: true` y ajoute un WAV par boucle.
+`render_sound` (MCP; CLI `--call-tool <projet> render_sound`, SN7,
+SON-2026-10) renders a ditty (the format of
+[Dittytoy](https://dittytoy.net), with `edit`, `at()` and `sleepUntil()`: see
+[`tools/cutmachine-sound`](../../tools/cutmachine-sound/README.md)) on the cuts
+of the timeline as it is in memory, without a prior save. With `partition`,
+`ditty` is a set of instruments and the score says what plays and when. The
+stem is a 24-bit WAV whose BWF timecode is the start of the timeline
+(`01:00:00:00`, or `start_timecode`); without `out`, it goes to
+`Sound/<nom>-seed<n>.wav` in the package, and `stems: true` adds one WAV per
+loop there.
 
-Le rendu est le JavaScript de `tools/cutmachine-sound`, joué par
-`cutmachine-sound-host` dans JavaScriptCore : un processus à part, posé à
-côté du moteur, seul porteur du droit `allow-jit`, arrêté après `timeout`
-secondes (`SoundTimeout`). La réponse est le rapport de `cm-sound render`
-(`out`, `sha256`, pics, `loops` et leurs `triggers` avec leurs `notes` si
-demandés, `edit`), et le fichier est celui que la CLI Node écrit, à l'octet
-(vérifié par `sound_project_tests`). Une ditty qui lève une erreur, une partition qui
-nomme une coupe absente sont refusées avec les mots du rendu
-(`SoundRenderFailed`). Sans hôte, sous Linux, `SoundHostMissing`. Ensuite :
-`ingest_media` du stem, puis `place_sound_stem`.
+The rendering is the JavaScript of `tools/cutmachine-sound`, played by
+`cutmachine-sound-host` in JavaScriptCore: a separate process, placed next to
+the engine, the sole holder of the `allow-jit` entitlement, stopped after
+`timeout` seconds (`SoundTimeout`). The response is the report of `cm-sound
+render` (`out`, `sha256`, peaks, `loops` and their `triggers` with their
+`notes` if requested, `edit`), and the file is the one the Node CLI writes, to
+the byte (verified by `sound_project_tests`). A ditty that throws an error, a
+score that names a missing cut are refused with the words of the rendering
+(`SoundRenderFailed`). Without the host, under Linux, `SoundHostMissing`.
+Next: `ingest_media` of the stem, then `place_sound_stem`.
 
-Une partition peut s'écrire depuis un motif [Strudel](https://strudel.cc) :
-`cm-sound strudel` (CLI Node seulement, SN9) en fait les notes, au temps
-exact de chaque cycle et, avec le montage, jusqu'à sa fin ;
-`instruments/strudel.js` répond aux noms de ses sons.
+A score can be written from a [Strudel](https://strudel.cc) pattern:
+`cm-sound strudel` (Node CLI only, SN9) turns it into notes, at the exact time
+of each cycle and, with the edit, up to its end; `instruments/strudel.js`
+answers the names of its sounds.
 
-## Poser un stem rendu à son timecode
+## Placing a rendered stem at its timecode
 
-`place_sound_stem` (MCP ; CLI `--call-tool <projet> place_sound_stem`, SN4,
-SON-2026-10) pose sur la timeline un stem que
-`tools/cutmachine-sound` a rendu depuis ce projet (`render --project`),
-là où son timecode BWF le dit, en une seule annulation. Le stem est d'abord
-ingéré (`ingest_media`) ; l'outil prend son `media_id`, jamais un temps.
+`place_sound_stem` (MCP; CLI `--call-tool <projet> place_sound_stem`, SN4,
+SON-2026-10) places on the timeline a stem that
+`tools/cutmachine-sound` rendered from this project (`render --project`),
+where its BWF timecode says, in a single undo step. The stem is first ingested
+(`ingest_media`); the tool takes its `media_id`, never a time.
 
-Le rendu écrit dans le chunk `bext` l'échantillon de la première image de
-la timeline, au timecode de début qu'utilise l'export EDL (`01:00:00:00`,
-`start_timecode` sinon), par une seule règle : la frame `f` tombe sur
-l'échantillon `round(f × den × fréquence / num)`, un demi arrondi vers le
-haut. L'outil inverse cette règle : la frame dont l'échantillon est le
-timecode du stem, ou un refus nommé quand aucune ne l'a (un stem rendu pour
-une autre cadence, un autre début ou une autre timeline n'est jamais
-rapproché de la frame voisine). Un stem qui commencerait avant la première
-image est refusé, comme un fichier dont la longueur n'est plus celle de la
-médiathèque, un média qui a une image ou un WAV sans `bext`.
+The rendering writes in the `bext` chunk the sample of the timeline's first
+frame, at the start timecode that the EDL export uses (`01:00:00:00`,
+`start_timecode` otherwise), by a single rule: frame `f` falls on sample
+`round(f × den × fréquence / num)`, a half rounded up. The tool inverts this
+rule: the frame whose sample is the stem's timecode, or a named refusal when
+none has it (a stem rendered for another frame rate, another start or another
+timeline is never snapped to the neighbouring frame). A stem that would start
+before the first frame is refused, as is a file whose length is no longer that
+of the media pool, a media that has a picture, or a WAV without `bext`.
 
-Le plan couvre les images entières que le stem recouvre, depuis la
-première : la fin du stem dans sa dernière image (une queue de réverbération,
-une fréquence qui ne divise pas la cadence) n'est pas posée, et
-`placed.not_laid` dit combien. Sans `track_id`, une piste audio est ajoutée
-au-dessus de toutes les autres ; avec, le plan y est collé sans jamais
-recouvrir ce qu'elle contient (`Overlap`). La réponse nomme le plan, la
-piste, la première image et leur nombre (`placed`). Rien de nouveau dans le
-document : un ajout de piste et un collage, en un lot (`SoundStem.h`).
+The clip covers the whole frames that the stem overlaps, from the first: the
+end of the stem within its last frame (a reverb tail, a frequency that does not
+divide the frame rate) is not laid, and `placed.not_laid` says how much.
+Without `track_id`, an audio track is added above all the others; with it, the
+clip is pasted there without ever overlapping what it contains (`Overlap`). The
+response names the clip, the track, the first frame and their count
+(`placed`). Nothing new in the document: a track addition and a paste, in one
+batch (`SoundStem.h`).
 
-Vérifié par `sound_stem_tests` (en-tête BWF lu avant ou après les données,
-inversion exacte à 25, 23,976 et 29,97 drop-frame, refus, annuler et refaire
-à l'octet) et `mcp_tools_tests` ; sur un vrai projet à 23,976 i/s, un stem
-à 44,1 kHz posé sur ses 234 images, puis retiré à l'octet par `undo`. Rien
-n'a été écouté, ni vérifié dans Resolve.
-
+Verified by `sound_stem_tests` (BWF header read before or after the data,
+exact inversion at 25, 23.976 and 29.97 drop-frame, refusals, undo and redo to
+the byte) and `mcp_tools_tests`; on a real project at 23.976 fps, a 44.1 kHz
+stem placed on its 234 frames, then removed to the byte by `undo`. Nothing has
+been listened to, nor verified in Resolve.

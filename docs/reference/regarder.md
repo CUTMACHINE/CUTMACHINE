@@ -1,220 +1,210 @@
-# Regarder un plan
+# Looking at a shot
 
-> Relu contre le code le 3 octobre 2026. Le constat qui ouvre la section et
-> ce que montrent les images ne sont pas vérifiés par lecture.
+> The observation that opens this section and what the images show are not
+> verified by reading.
 
-Mesurer ne suffit pas, et le manque s'est constaté sur un vrai montage : un
-plan noté `Sharp` / `Steady` — donc parfaitement propre — était inutilisable
-en coupe parce qu'il montrait quelqu'un **en train de parler**. Le spectateur
-voyait une bouche articuler autre chose que ce qu'il entendait. Aucun seuil
-sur la variance du laplacien n'attrape ça ; un monteur l'attrape d'un coup
-d'œil.
+Measuring is not enough, and the gap showed on a real edit: a shot rated
+`Sharp` / `Steady` — so perfectly clean — was unusable in a cut because it
+showed someone **talking**. The viewer saw a mouth articulating something other
+than what they heard. No threshold on the Laplacian variance catches that; an
+editor catches it at a glance.
 
-`read_frame` (MCP) renvoie donc l'image elle-même, en JPEG, à côté de sa
-réponse texte. Soit `clip_id` avec une `position` (`Start`, `Middle`, `End`
-— jamais un timecode, le moteur résout l'image), soit `media_id` avec un
-`source_in` exact pour inspecter un rush qui n'est pas encore monté. Un rush
-absent de son chemin est refusé `MediaMissing`, avec le chemin cherché. En
-mode strict, `read_frame` sur un `media_id` n'a pas besoin de `timeline_id`.
+`read_frame` (MCP) therefore returns the image itself, as a JPEG, next to its
+text response. Either `clip_id` with a `position` (`Start`, `Middle`, `End` —
+never a timecode, the engine resolves the frame), or `media_id` with an exact
+`source_in` to inspect a source clip that is not edited yet. A source clip
+missing from its path is refused with `MediaMissing`, with the path searched. In
+strict mode, `read_frame` on a `media_id` does not need a `timeline_id`.
 
-Le partage du travail reste le même que partout ailleurs : ce qui est
-**prouvable** est décidé par le code ([`ShotQuality.h`](../../src/ShotQuality.h)),
-ce qui demande un regard reçoit une image
-([`FrameCapture.h`](../../src/FrameCapture.h)). Rien dans `FrameCapture` ne décide,
-il rend.
+The division of labour is the same as everywhere else: what is **provable** is
+decided by code ([`ShotQuality.h`](../../src/ShotQuality.h)), what needs a look
+gets an image ([`FrameCapture.h`](../../src/FrameCapture.h)). Nothing in
+`FrameCapture` decides, it renders.
 
-Côté transport, l'image traverse MCP comme un bloc `image` à côté du bloc
-`text`, et le chat intégré la fait suivre au modèle dans le `tool_result`.
-Elle n'est transmise qu'aux fournisseurs dont l'API accepte une image dans un
-résultat d'outil ; ailleurs le texte passe et l'image est écartée, plutôt que
-remplacée par une description que le modèle prendrait pour une observation.
+On the transport side, the image crosses MCP as an `image` block next to the
+`text` block, and the built-in chat forwards it to the model in the
+`tool_result`. It is passed only to providers whose API accepts an image in a
+tool result; elsewhere the text goes through and the image is dropped, rather
+than replaced by a description that the model would take for an observation.
 
-# Regarder le montage en planches
+# Looking at the edit as sheets
 
-Une image isolée ne permet pas de juger le rythme ou la continuité d'un
-montage. `--contact-sheet` (MCP : `contact_sheet`) rend donc les milieux des
-plans réellement visibles, après occultation par les pistes vidéo supérieures.
-`--cut-sheet` (MCP : `cut_sheet`) place côte à côte, pour chaque raccord
-visible retenu, la dernière image avant la coupe et la première image après.
+A single image does not allow judging the rhythm or continuity of an edit.
+`--contact-sheet` (MCP: `contact_sheet`) therefore renders the midpoints of the
+clips that are actually visible, after occlusion by the upper video tracks.
+`--cut-sheet` (MCP: `cut_sheet`) places side by side, for each selected visible
+junction, the last frame before the cut and the first frame after.
 
-Les deux commandes produisent un JPEG et un JSON qui relie chaque cellule à
-son `clip_id`, son `source_id`, sa position timeline et son `source_in`, tous
-exprimés en `RationalTime`. Elles passent par la vue SDR du pipeline couleur du
-document : un rush log est présenté comme dans le moniteur, pas comme une image
-délavée tirée directement du fichier. Aucune donnée du projet n'est modifiée.
+Both commands produce a JPEG and a JSON that ties each cell to its `clip_id`,
+its `source_id`, its timeline position and its `source_in`, all expressed as
+`RationalTime`. They go through the SDR view of the document's colour pipeline:
+a log source clip is shown as in the monitor, not as a washed-out image taken
+straight from the file. No project data is modified.
 
-Par défaut, une cellule montre la source du plan, sans son étalonnage ni le
-look de séquence. Avec `--graded` (MCP : `graded: true`), chaque cellule est
-le plan tel que `read_frame` avec `graded: true` le montre : étalonné, look
-compris, dans la vue SDR de Record, calculé par le moteur par la même chaîne
-(DEC29, 24 octobre 2026). Le JSON porte alors `"graded":true`. Une planche
-étalonnée décode une image par cellule, là où la planche ordinaire les lit
-toutes dans un seul appel à FFmpeg : elle est plus lente. `media_sheet` ne la
-prend pas : un rush n'a pas d'étalonnage tant qu'un plan ne le pose pas.
+By default, a cell shows the clip's source, without its grade or the sequence
+look. With `--graded` (MCP: `graded: true`), each cell is the clip as
+`read_frame` with `graded: true` shows it: graded, look included, in Record's
+SDR view, computed by the engine through the same chain (DEC29). The JSON then
+carries `"graded":true`. A graded sheet decodes one image per cell, where the
+ordinary sheet reads them all in a single call to FFmpeg: it is slower.
+`media_sheet` does not take it: a source clip has no grade until a clip applies
+one.
 
-Par défaut, une planche contient au plus 24 images. Si le montage en offre
-davantage, le moteur échantillonne uniformément du début à la fin ; une planche
-de raccords ne casse jamais une paire. `--max-images` ajuste la borne en CLI,
-et `max_images` l'ajuste en MCP (1 à 64 pour `contact_sheet`, 2 à 64 pour
-`cut_sheet`).
+By default, a sheet contains at most 24 images. If the edit offers more, the
+engine samples uniformly from start to end; a sheet of junctions never breaks a
+pair. `--max-images` adjusts the bound in the CLI, and `max_images` adjusts it
+in the MCP (1 to 64 for `contact_sheet`, 2 to 64 for `cut_sheet`).
 
-Une timeline sans plan visible n'a rien à montrer en planche de contact, ni
-une timeline sans raccord visible (un seul plan, des plans séparés par des
-trous, un titre posé sur un plan) en planche de raccords : la commande et
-l'outil refusent en `ValidationFailed`, par une phrase qui commence par
-`nothing to show:` et dit pourquoi, et n'écrivent rien (PRD39).
+A timeline with no visible clip has nothing to show in a contact sheet, nor a
+timeline with no visible junction (a single clip, clips separated by gaps, a
+title placed on a clip) in a sheet of junctions: the command and the tool
+refuse with `ValidationFailed`, with a sentence that begins with
+`nothing to show:` and says why, and write nothing (PRD39).
 
-Une cellule a la forme de la séquence (320 × 180 en 16:9, 180 × 320 en 9:16) :
-pas de bandeau noir, et un rush d'une autre forme y est ajusté comme dans le
-moniteur.
+A cell has the shape of the sequence (320 × 180 in 16:9, 180 × 320 in 9:16): no
+black bar, and a source clip of another shape is fitted there as in the
+monitor.
 
-Pour le **dérush**, avant tout montage, `--media-sheet` (MCP : `media_sheet`)
-regarde des rushes plutôt qu'une timeline : un seul rush donne `max_images`
-images réparties sur la prise, plusieurs rushes donnent l'image du milieu de
-chacun ; 24 au plus par défaut, comme les autres planches, par la commande
-comme par l'outil. Les cellules prennent la forme du premier rush, et chaque
-cellule donne son `source_id` et son `source_in`, et son `shot_id` : la
-description de plan qui la couvre, ou `null` si personne ne l'a encore
-décrite (PLANS-2026-10, ci-dessous).
+For the **dérush** (the review of source clips), before any editing,
+`--media-sheet` (MCP: `media_sheet`) looks at source clips rather than a
+timeline: a single source clip gives `max_images` images spread over the take,
+several source clips give the middle image of each; at most 24 by default, like
+the other sheets, by the command as by the tool. The cells take the shape of
+the first source clip, and each cell gives its `source_id`, its `source_in`, and
+its `shot_id`: the shot description that covers it, or `null` if no one has
+described it yet (PLANS-2026-10, below).
 
-# Décrire les plans une fois, les chercher ensuite
+# Describing shots once, searching them afterwards
 
-> Écrit le 21 octobre 2026 (PLANS-2026-10, PL1 à PL4). Prouvé par les
-> tests sous Linux ; pas encore employé sur un vrai projet.
+> PLANS-2026-10, PL1 to PL4. Proven by the tests under Linux; not yet used on a
+> real project.
 
-La parole des rushes est indexée (mots datés, blocs) ; l'image l'est par
-des descriptions de plan, écrites une fois par qui a regardé — un modèle ou
-une personne — et gardées dans le projet. Une description porte sur une
-plage d'un rush, en temps exact (`source_in`, `duration`, dans le temps du
-rush, comme un plan de la timeline), et dit :
+The speech of the source clips is indexed (timed words, blocks); the picture is
+indexed by shot descriptions, written once by whoever looked — a model or a
+person — and kept in the project. A description covers a range of a source
+clip, in exact time (`source_in`, `duration`, in the source clip's time, like a
+timeline clip), and states:
 
-| Champ | Valeurs |
+| Field | Values |
 |---|---|
-| `size` (fermé) | `extreme_wide` (très large), `wide` (large, ensemble), `full` (plan moyen, en pied), `medium` (américain, taille), `medium_close` (rapproché poitrine), `close` (gros plan, serré), `extreme_close` (très gros plan, très serré), `insert` (objet, détail) |
-| `movement` (fermé) | `static`, `handheld` (épaule), `pan`, `tilt`, `zoom_in`, `zoom_out`, `push_in` et `pull_out` (travelling avant, arrière), `tracking` (travelling, suivi), `crane` (grue), `aerial` (drone) |
-| `quality` (fermé) | `good` par défaut ; `usable` et `poor` exigent une `reserve` qui dit pourquoi |
-| `subjects`, `keywords` (libres) | 8 sujets de 80 octets, 16 mots-clés de 40 au plus, sans doublon à la casse et aux accents près |
-| `action`, `place`, `reserve` (libres) | 300, 120 et 200 octets au plus |
-| `author_kind`, `author`, `described_at` | `model` ou `person`, son nom, l'heure UTC `AAAA-MM-JJTHH:MM:SSZ` |
+| `size` (closed) | `extreme_wide` (very wide), `wide` (wide, establishing), `full` (medium full, full length), `medium` (cowboy, waist), `medium_close` (chest close-up), `close` (close-up, tight), `extreme_close` (extreme close-up, very tight), `insert` (object, detail) |
+| `movement` (closed) | `static`, `handheld` (shoulder), `pan`, `tilt`, `zoom_in`, `zoom_out`, `push_in` and `pull_out` (dolly in, dolly out), `tracking` (tracking, following), `crane` (crane), `aerial` (drone) |
+| `quality` (closed) | `good` by default; `usable` and `poor` require a `reserve` that says why |
+| `subjects`, `keywords` (free) | 8 subjects of 80 bytes, 16 keywords of 40 at most, with no duplicates ignoring case and accents |
+| `action`, `place`, `reserve` (free) | 300, 120 and 200 bytes at most |
+| `author_kind`, `author`, `described_at` | `model` or `person`, its name, the UTC time `AAAA-MM-JJTHH:MM:SSZ` |
 
-Les plages d'un rush ne se chevauchent pas, restent dans le rush, et un rush
-sans image n'en a pas. Tout refus nomme le champ.
+The ranges of a source clip do not overlap, stay within the source clip, and a
+source clip with no picture has none. Every refusal names the field.
 
-**Écrire** : `describe_shots` (MCP, ou `--call-tool`) prend `media_id`,
-`shots` (une entrée par plage ; `shot_id` pour remplacer une description
-existante), `remove_shot_ids`, `author` (obligatoire avec `shots`),
-`author_kind` (`model` par défaut) et `described_at` (maintenant par
-défaut). Une plage qui chevauche une description qu'on ne remplace ni ne
-retire est refusée, en nommant les deux. Un appel est une opération,
-`SetMediaShots` (la liste entière du rush, l'inverse est la précédente),
-et un seul `undo`. En ligne de commande, `--apply-op` la prend telle que le
-journal l'écrit.
+**Writing**: `describe_shots` (MCP, or `--call-tool`) takes `media_id`, `shots`
+(one entry per range; `shot_id` to replace an existing description),
+`remove_shot_ids`, `author` (required with `shots`), `author_kind` (`model` by
+default) and `described_at` (now by default). A range that overlaps a
+description that is neither replaced nor removed is refused, naming both. A
+call is one operation, `SetMediaShots` (the source clip's whole list, the
+inverse is the previous one), and a single `undo`. On the command line,
+`--apply-op` takes it as the journal writes it.
 
-**Chercher** : `search_shots` filtre sur les champs fermés (`sizes`,
-`movements`, `qualities`, `author_kind`, `min_duration`, `media_ids` ;
-n'importe laquelle des valeurs d'un filtre, tous les filtres à la fois) et
-sur des mots (`text`) : chacun doit paraître dans les sujets, l'action, le
-lieu, les mots-clés ou la réserve, sans égard à la casse ni aux accents
-français, comme sous-chaîne (« velo » trouve « vélos »). La réponse suit
-l'ordre de la médiathèque puis du temps, jamais un classement ; `total`
-compte tout, `limit` (50 par défaut, 500 au plus) borne la liste. Chaque
-plan donne sa plage exacte à couper et `look` : les arguments de
-`read_frame` (l'image du milieu de la plage) et de `media_sheet` pour le
-voir.
+**Searching**: `search_shots` filters on the closed fields (`sizes`,
+`movements`, `qualities`, `author_kind`, `min_duration`, `media_ids`; any one
+of the values of a filter, all the filters at once) and on words (`text`): each
+must appear in the subjects, action, place, keywords or reserve, ignoring case
+and French accents, as a substring ("velo" finds "vélos"). The response follows
+the media pool's order then time, never a ranking; `total` counts everything,
+`limit` (50 by default, 500 at most) bounds the list. Each shot gives its exact
+range to cut and `look`: the arguments of `read_frame` (the middle image of the
+range) and of `media_sheet` to see it.
 
-**Ce qui n'est pas décrit** : `describe` donne `described_shots` pour
-chaque rush qui a une image (0 : à décrire), `media_sheet` le `shot_id` de
-chaque cellule, `list_stable_windows` les `shot_ids` qui couvrent chaque
-fenêtre et `undescribed_windows`, `search_shots` les `undescribed_media` de
-sa portée.
+**What is not described**: `describe` gives `described_shots` for each source
+clip that has a picture (0: to be described), `media_sheet` the `shot_id` of
+each cell, `list_stable_windows` the `shot_ids` that cover each window and
+`undescribed_windows`, `search_shots` the `undescribed_media` of its scope.
 
-Les descriptions vivent dans le document (version 19 dès qu'un rush en a
-une) et non dans un cache à côté du média comme la transcription ou la
-qualité de plan : elles ne se recalculent pas gratuitement. Un binaire
-antérieur refuse donc le projet au lieu de les perdre.
+The descriptions live in the document (version 19 as soon as a source clip has
+one) and not in a cache next to the media like the transcription or the shot
+quality: they cannot be recomputed for free. An earlier binary therefore
+refuses the project instead of losing them.
 
-# Regarder un raccord tel qu'il est livré
+# Looking at a junction as it is delivered
 
-> Écrit le 7 octobre 2026 d'après le catalogue du binaire (IA-2026-09 IA4),
-> et joué au CLI sur un projet d'essai.
+> From the binary's catalogue (IA-2026-09 IA4), and played at the CLI on a test
+> project.
 
-Une planche montre ce que les rushes contiennent aux bornes des plans ; elle
-ne montre ni le fondu, ni l'opacité, ni le cadrage animé, ni le carton, ni
-le son. `inspect_cut` (MCP, ou `--call-tool`) rend une courte fenêtre autour
-d'un raccord par le graphe de l'export lui-même — toutes les couches,
-opacités, étalonnages, cadrages et clés, transitions, légendes, look et le
-mix avec ses gains et ses fondus — puis la relit : ce qu'il montre est le
-film livré à cet endroit.
+A sheet shows what the source clips contain at the bounds of the clips; it
+shows neither the fade, nor the opacity, nor the animated framing, nor the
+title card, nor the sound. `inspect_cut` (MCP, or `--call-tool`) renders a
+short window around a junction through the export's own graph — all the layers,
+opacities, grades, framings and keys, transitions, captions, look and the mix
+with its gains and fades — then rereads it: what it shows is the film as
+delivered at that point.
 
-Le raccord se nomme par `clip_id` (sa tête, ou sa queue avec `at_tail`) ou
-par une `position` de la timeline ; `before` et `after` disent combien de
-montage rendre de chaque côté (1 s par défaut, 5 s au plus, en images
-entières de la timeline). La réponse donne :
+The junction is named by `clip_id` (its head, or its tail with `at_tail`) or by
+a timeline `position`; `before` and `after` say how much of the edit to render
+on each side (1 s by default, 5 s at most, in whole timeline frames). The
+response gives:
 
-- les images choisies (`images`, 2 à 12, 6 par défaut) en une bande JPEG,
-  avec leurs images et temps exacts ; la dernière image avant la coupe et
-  la première à la coupe y sont toujours ;
-- le niveau du mix image par image (dBFS) et de chaque côté de la coupe ;
-- les mots que le montage doit dire dans la fenêtre (`expected_words`) ;
-  sans transcription en cache pour les pistes son, la liste est vide et
-  `expected_words_unavailable` dit pourquoi ;
-- des `alerts` à examiner : un mot que la coupe traverse et, avec
-  `transcribe` et un modèle Whisper local configuré (refusé sinon), les mots
-  attendus mais pas entendus dans une lecture neuve du mix de la fenêtre, ou
-  entendus mais pas attendus. Une alerte n'est pas un verdict : une question
-  faible peut être audible pour un spectateur et pas pour le modèle.
+- the chosen images (`images`, 2 to 12, 6 by default) in a JPEG band, with
+  their exact frames and times; the last frame before the cut and the first at
+  the cut are always in it;
+- the mix level frame by frame (dBFS) and on each side of the cut;
+- the words that the edit must say in the window (`expected_words`); with no
+  cached transcription for the sound tracks, the list is empty and
+  `expected_words_unavailable` says why;
+- `alerts` to examine: a word that the cut crosses and, with `transcribe` and a
+  configured local Whisper model (refused otherwise), the words expected but not
+  heard in a fresh reading of the window's mix, or heard but not expected. An
+  alert is not a verdict: a quiet line may be audible to a viewer and not to the
+  model.
 
-Une livraison HLG est montrée par la vue SDR, comme Record la montre. Rien
-du projet n'est modifié.
+An HLG delivery is shown through the SDR view, as Record shows it. Nothing in
+the project is modified.
 
-La fenêtre est rendue à deux fois la taille de la plus grande image qu'on en
-tire (une image de la bande ou une image d'analyse), sans jamais dépasser
-celle de la séquence : le graphe compose légendes, motion, flou et cadrages
-pour la taille qu'il livre, comme pour un export en 1080 d'une séquence 4K.
-Avant le 6 novembre 2026, elle était rendue en pleine définition, en virgule
-flottante 32 bits puis sans perte : 5,5 s par jonction pour une revue de
-36 coupes sur un short 1080×1920, alors que ses images font 240 pixels.
+The window is rendered at twice the size of the largest image drawn from it (a
+band image or an analysis image), without ever exceeding that of the sequence:
+the graph composites captions, motion, blur and framings for the size it
+delivers, as for a 1080 export of a 4K sequence. Rendering at full definition,
+in 32-bit floating point then lossless, would cost 5.5 s per junction for a
+review of 36 cuts on a 1080×1920 short, while its images are 240 pixels.
 
-Avec `band: true` (RACCORDS-2026-10 RC2), les images sont rendues en
-**bande** : celles d'avant la coupe sur une ligne, une barre rouge, celles
-depuis la coupe, et dessous la forme d'onde du mix de toute la fenêtre, la
-coupe en rouge et un trait gris là où tombe chaque image.
+With `band: true` (RACCORDS-2026-10 RC2), the images are rendered as a
+**band**: those before the cut on one line, a red bar, those from the cut on,
+and below them the waveform of the mix of the whole window, the cut in red and
+a grey line where each image falls.
 
-# Visionner les raccords
+# Reviewing the junctions
 
-> Écrit le 21 octobre 2026 (RACCORDS-2026-10 RC1, RC2). Joué sous Linux sur
-> des médias synthétiques seulement ; ni sur Mac, ni sur un vrai film.
+> RACCORDS-2026-10 RC1, RC2. Played under Linux on synthetic media only; neither
+> on a Mac, nor on a real film.
 
-Un agent ne regarde pas le film et ne l'écoute pas. `review_cuts` (MCP ;
-CLI : `--review-cuts <projet> <image.jpg> [--timeline <id>] [--frame <n>]...
-[--max-bands <n>]`) le fait pour lui à chaque **jonction** : une image où,
-sur une piste vidéo visible ou une piste son audible, un plan touche le
-suivant. Chaque fenêtre est rendue comme celle d'`inspect_cut`, par le
-graphe de l'export (1 s de chaque côté par défaut, `side` jusqu'à 5 s), puis
-mesurée :
+An agent does not watch the film and does not listen to it. `review_cuts` (MCP;
+CLI: `--review-cuts <projet> <image.jpg> [--timeline <id>] [--frame <n>]...
+[--max-bands <n>]`) does it for the agent at every **junction**: a frame where,
+on a visible video track or an audible sound track, a clip touches the next.
+Each window is rendered like that of `inspect_cut`, through the export's graph
+(1 s on each side by default, `side` up to 5 s), then measured:
 
-| Signal | Mesure | Alerte |
+| Signal | Measure | Alert |
 |---|---|---|
-| Ambiance | 10ᵉ centile des niveaux de 10 ms du mix, de chaque côté | `ambience_jump` : ≥ 6 dB d'écart |
-| Voix | 90ᵉ centile, quand il dépasse l'ambiance de 10 dB des deux côtés | `voice_jump` : ≥ 6 dB d'écart |
-| Bord | les 30 ms qui touchent la coupe, contre l'ambiance de leur côté | `sound_cut_live` : ≥ 12 dB au-dessus, et ≥ −50 dBFS |
-| Mots | les mots des transcriptions que la coupe traverse | `word_crosses_cut` |
-| Image | dernière image avant / première après : écart moyen et histogramme, en ‰ | `jump_cut` : ≤ 80 ‰ et ≤ 150 ‰ |
-| Mouvement | les deux images de chaque côté | `motion_interrupted` : ≥ 30 ‰ avant, ≤ 8 ‰ après, même scène (≤ 250 ‰) |
+| Ambience | 10th percentile of the mix's 10 ms levels, on each side | `ambience_jump`: ≥ 6 dB apart |
+| Voice | 90th percentile, when it exceeds the ambience by 10 dB on both sides | `voice_jump`: ≥ 6 dB apart |
+| Edge | the 30 ms that touch the cut, against the ambience on their side | `sound_cut_live`: ≥ 12 dB above, and ≥ −50 dBFS |
+| Words | the words of the transcriptions that the cut crosses | `word_crosses_cut` |
+| Picture | last frame before / first after: mean difference and histogram, in ‰ | `jump_cut`: ≤ 80 ‰ and ≤ 150 ‰ |
+| Motion | the two frames on each side | `motion_interrupted`: ≥ 30 ‰ before, ≤ 8 ‰ after, same scene (≤ 250 ‰) |
 
-Un **raccord franc** (le plan suivant lit sa source là où le précédent
-s'arrête, à vitesse 1) est mesuré et ne lève rien. Les alertes de son ne
-valent que là où le son coupe, celles d'image là où l'image coupe. Le
-rapport déclare ses seuils (`thresholds`) ; ils ne se règlent pas à l'appel.
-**Une alerte est une mesure à examiner, pas un verdict** : un jump cut ou
-une coupe sèche dans l'ambiance peuvent être voulus, et l'absence d'alerte
-ne dit pas qu'un raccord est bon.
+A **straight cut** (the next clip reads its source where the previous one
+stops, at speed 1) is measured and raises nothing. The sound alerts count only
+where the sound cuts, the picture alerts where the picture cuts. The report
+declares its thresholds (`thresholds`); they cannot be set at call time.
+**An alert is a measurement to examine, not a verdict**: a jump cut or a dry
+cut in the ambience may be intended, and the absence of an alert does not say
+that a junction is good.
 
-Par défaut, toutes les jonctions sont revues (60 au plus ; les autres sont
-listées dans `not_reviewed`) ; `positions` ou `clip_ids` (têtes de plans)
-en nomment certaines. La réponse joint une planche de **bandes**
-(`max_bands`, 6 par défaut, 12 au plus ; `images_per_side`, 3 par défaut),
-les jonctions qui ont une alerte d'abord, dans l'ordre du film ; chaque
-jonction dit sa `band`. Chaque fenêtre est un rendu : compter quelques
-secondes par jonction. Si le projet change pendant la revue, l'outil refuse
-plutôt que de mêler deux montages. Rien du projet n'est modifié.
+By default, all junctions are reviewed (60 at most; the others are listed in
+`not_reviewed`); `positions` or `clip_ids` (clip heads) name some of them. The
+response attaches a sheet of **bands** (`max_bands`, 6 by default, 12 at most;
+`images_per_side`, 3 by default), the junctions that have an alert first, in the
+film's order; each junction says its `band`. Each window is a render: count a
+few seconds per junction. If the project changes during the review, the tool
+refuses rather than mix two edits. Nothing in the project is modified.

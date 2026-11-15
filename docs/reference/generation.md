@@ -1,297 +1,286 @@
-# Génération payante (fal.ai)
+# Paid generation (fal.ai)
 
-> Écrit le 21 octobre 2026 avec le code (GENERATIF-2026-10).
-> Prouvé sous Linux contre un faux fal.ai ; jamais appelé contre le vrai
-> service. La moitié macOS (`GenerationTransport.mm`) compile depuis le
-> 21 octobre, sans avoir été exécutée.
+> Written with the code (GENERATIF-2026-10).
+> Proven under Linux against a fake fal.ai. The macOS half
+> (`GenerationTransport.mm`) compiles but has not been run; real calls are
+> listed under Creative uses.
 
-Le moteur peut demander à un service payant de fabriquer un média, avec la
-clé de la personne. Sept usages : l'extension d'une image à un autre format
-(`expand_image`, modèle `fal-ai/bria/expand`), et depuis le 11 novembre 2026
-[six usages créatifs](#les-usages-créatifs). Chaque génération est facturée
-sur le compte fal.ai de la personne. Aucun service central : le moteur parle
-directement à fal.ai.
+The engine can ask a paid service to make a medium, with the person's key.
+Seven uses: extending an image to another aspect ratio (`expand_image`, model
+`fal-ai/bria/expand`), and [six creative uses](#creative-uses). Each
+generation is billed to the person's fal.ai account. There is no central
+service: the engine talks directly to fal.ai.
 
-La voix off, elle, se génère sur la machine, sans service et sans dépense
-(GN6, DEC47) : voir [la voix off, en local](#la-voix-off-en-local).
+The voice-over, by contrast, is generated on the machine, with no service and
+no spending (GN6, DEC47): see [the voice-over, locally](#the-voice-over-locally).
 
-## La règle
+## The rule
 
-**On ne génère que si la personne l'a demandé explicitement.** Un agent peut
-proposer une génération (`propose_generation`, gratuit) ; il ne la lance
-(`generate_media`) qu'après le oui de la personne, coût compris. Sans
-demande, il propose et attend. Il ne met jamais `confirmed_by_person: true`
-à sa place.
+**Nothing is generated unless the person has explicitly asked for it.** An
+agent may propose a generation (`propose_generation`, free); it launches it
+(`generate_media`) only after the person's yes, cost included. Without a
+request, it proposes and waits. It never sets `confirmed_by_person: true` in
+the person's place.
 
-## Ce que la génération ne fait pas
+## What generation does not do
 
-Tranché par l'auteur le 23 octobre 2026 (DEC2 de
-GENERATIF-2026-10), et écrit dans la
-description de `generate_media`, de `propose_generation` et dans les skills
-`monter-un-reel` et `monter-une-itw` :
+Decided in DEC2 of GENERATIF-2026-10, and
+written in the description of `generate_media`, of `propose_generation` and in
+the `monter-un-reel` and `monter-une-itw` skills:
 
-- **rien qui fasse dire ou faire à une personne filmée ce qu'elle n'a ni
-  dit ni fait, sans son accord** : ni voix, ni visage, ni corps. Amendé par
-  l'auteur le 11 novembre 2026 (DEC51,
-  PARITE-2026-11) : le doublage, la
-  synchronisation des lèvres et un avatar tiré d'une image que le moteur
-  n'a pas générée agissent sur une personne filmée, et ne partent qu'avec
-  `consent_of_filmed_person: true`. Confirmé par l'auteur le 12 novembre
-  (« Je confirme DEC51 »). Avant le 11, la règle n'avait pas d'exception ;
-- **l'extension d'image (`expand_image`) seulement sur un plan sans
-  personne** ; le 9:16 d'une interview passe par le cadrage
-  (`set_clip_framing`, `track_subject_framing`) ;
-- **une musique générée seulement d'un modèle dont la licence couvre la
-  publicité payante**, ce qui n'est vérifié ni pour Stable Audio ni pour
-  Lyria (aucun modèle de musique n'est branché aujourd'hui).
+- **nothing that makes a filmed person say or do what they have neither said
+  nor done, without their consent**: no voice, no face, no body. Amended by
+  DEC51 (PARITE-2026-11): dubbing, lip-sync
+  and an avatar drawn from an image the engine did not generate act on a
+  filmed person, and go out only with `consent_of_filmed_person: true`;
+- **image extension (`expand_image`) only on a shot with no person in it**;
+  the 9:16 version of an interview goes through framing (`set_clip_framing`,
+  `track_subject_framing`);
+- **generated music only from a model whose licence covers paid advertising**,
+  which is verified neither for Stable Audio nor for Lyria (no music model is
+  wired in today).
 
-Le moteur ne vérifie pas ces règles lui-même : il ne sait pas encore dire
-de façon fiable si un plan montre une personne. C'est une consigne dite à
-l'agent, et l'invite de permission de `generate_media` est l'endroit où la
-personne voit ce qui partirait.
+The engine does not check these rules itself: it cannot yet say reliably
+whether a shot shows a person. It is an instruction given to the agent, and
+the permission prompt of `generate_media` is where the person sees what would
+go out.
 
-## Les deux outils
+## The two tools
 
-**`propose_generation`** ne dépense rien. Arguments : `kind`
-(`"expand_image"`), `media_id`, `aspect_ratio` (`"9:16"`), `source_time`
-(l'image d'un rush, en temps du média, exact), et en option `prompt`,
-`negative_prompt` (en anglais), `seed`, `frames` (longueur du plan produit,
-125 par défaut). Elle rend :
+**`propose_generation`** spends nothing. Arguments: `kind` (`"expand_image"`),
+`media_id`, `aspect_ratio` (`"9:16"`), `source_time` (the frame of a source
+clip, in media time, exact), and optionally `prompt`, `negative_prompt` (in
+English), `seed`, `frames` (length of the clip produced, 125 by default). It
+returns:
 
-- `proposal_id`, valable trente minutes dans cette session, une seule fois ;
-- `request` : ce qui partirait chez fal.ai (`canvas_size`,
-  `original_image_size`, `original_image_location` calculés par le moteur,
-  le prompt, la graine), l'image source exceptée ;
-- `announced_cost` (`null` : le moteur ne connaît aucun prix) et
-  `cost_note`, qui renvoie à la page du modèle ;
-- `source`, `clip`, `verified` (ce qui a été vérifié de l'API et ce qui ne
-  l'a pas été), `ready.key` et `ready.transport` ;
-- `next` : montrer la proposition à la personne et attendre.
+- `proposal_id`, valid for thirty minutes in this session, once only;
+- `request`: what would go to fal.ai (`canvas_size`, `original_image_size`,
+  `original_image_location` computed by the engine, the prompt, the seed),
+  the source image excepted;
+- `announced_cost` (`null`: the engine knows no price) and `cost_note`, which
+  points to the model's page;
+- `source`, `clip`, `verified` (what has been verified of the API and what has
+  not), `ready.key` and `ready.transport`;
+- `next`: show the proposal to the person and wait.
 
-Le canevas est le plus petit au format demandé, côtés pairs, qui contient
-l'image à sa taille, centrée ; refusé s'il dépasse 5000×5000 pixels ou si
-l'image en couvrirait moins de 15 %, les deux bornes du modèle.
+The canvas is the smallest one at the requested aspect ratio, with even sides,
+that contains the image at its size, centred; refused if it exceeds 5000×5000
+pixels or if the image would cover less than 15% of it, the model's two
+limits.
 
-**`generate_media`** dépense. Arguments : `proposal_id`,
-`confirmed_by_person: true`, et `timeline_id` comme tout outil d'édition (la
-provenance entre dans l'historique de cette timeline). Il envoie l'image
-source sur le stockage de fal.ai (expiration demandée : une heure), lance le
-modèle, télécharge l'image, la garde dans le paquet
-(`generated/<proposal_id>.png`) et en tire un plan
-(`generated/<proposal_id>.mp4`, H.264, BT.709), qu'il ajoute à la
-bibliothèque par l'ingest ordinaire, puis il pose sa provenance. Le plan
-tenait lieu d'image fixe, que la bibliothèque ne prenait pas ; elle la prend
-depuis le 24 octobre 2026 (REEL-2026-09 R4), mais la génération n'a pas
-changé et pose toujours ce plan.
+**`generate_media`** spends. Arguments: `proposal_id`,
+`confirmed_by_person: true`, and `timeline_id` like any editing tool (the
+provenance goes into that timeline's history). It sends the source image to
+fal.ai's storage (requested expiry: one hour), launches the model, downloads
+the image, keeps it in the package (`generated/<proposal_id>.png`) and makes a
+clip from it (`generated/<proposal_id>.mp4`, H.264, BT.709), which it adds to
+the library through the ordinary ingest, then it sets its provenance. The clip
+stood in for a still image, which the library did not accept; it does now
+(REEL-2026-09 R4), but generation has not changed and still sets this clip.
 
-Refus, **sans rien dépenser**, et la proposition reste valable :
-`ConfirmationRequired` (pas de `confirmed_by_person: true`),
-`UnsupportedOperation` (pas de transport : la version sans interface, sous
-Linux, ne génère rien ; ou pas de projet ouvert), `GenerationKeyMissing`
-(pas de clé). Refus sans rien dépenser, la proposition close :
-`ProposalUnavailable` (inconnue dans cette session, expirée ou déjà servie).
-Après l'envoi, `GenerationFailed` ou `IoError` disent si fal.ai a reçu la
-demande, et qu'elle peut être facturée.
+Refusals, **with nothing spent**, and the proposal stays valid:
+`ConfirmationRequired` (no `confirmed_by_person: true`),
+`UnsupportedOperation` (no transport: the version without an interface, under
+Linux, generates nothing; or no project open), `GenerationKeyMissing` (no
+key). Refusal with nothing spent, the proposal closed: `ProposalUnavailable`
+(unknown in this session, expired or already served). After the upload,
+`GenerationFailed` or `IoError` say whether fal.ai received the request, and
+that it may be billed.
 
-## Les usages créatifs
+## Creative uses
 
-> PA12, PARITE-2026-11, 11 novembre 2026.
-> Requêtes et réponses lues dans la documentation publique de chaque modèle
-> ce jour-là ; prouvé contre un faux fal.ai. `stock_image`, `avatar` et
-> `dubbing` ont été appelés pour de vrai le 13 novembre 2026
-> (ce qui est revenu) ;
-> `stock_video` et `lipsync` jamais.
+> PA12, PARITE-2026-11. Requests and responses
+> read from each model's public documentation; proven against a fake fal.ai.
+> `stock_image`, `avatar` and `dubbing` have been called for real
+> (what came back);
+> `stock_video` and `lipsync` never.
 
-| `kind` | Ce qu'il fait | Ce qu'il lit | Modèle | Prix annoncé le 11 novembre 2026 |
+| `kind` | What it does | What it reads | Model | Announced price |
 |---|---|---|---|---|
-| `stock_video` | un plan muet fabriqué d'après un texte | `prompt` ; `duration_seconds` (3 à 15, 5 par défaut) ; `aspect_ratio` (`16:9`, `9:16`, `1:1`, celui de la timeline par défaut) | `fal-ai/kling-video/v3/pro/text-to-video` | 0,112 $ par seconde |
-| `stock_image` | une image à la taille de la timeline | `prompt` ; `seed` | `fal-ai/flux-2-pro` | 0,03 $ le premier mégapixel, 0,015 $ les suivants |
-| `avatar` | un présentateur de synthèse qui dit un son | `media_id` (une image, ou une image d'un rush à `source_time`) ; `audio_media_id` et sa plage | `fal-ai/kling-video/ai-avatar/v2/standard` | 0,0562 $ par seconde |
-| `lipsync` | les lèvres d'une personne filmée recalées sur un autre son | `media_id` et sa plage ; `audio_media_id` et sa plage | `fal-ai/sync-lipsync/v2` | 3 $ par minute |
-| `dubbing` | les voix d'un film dans une autre langue, lèvres inchangées | `media_id` et sa plage ; `target_language` (deux lettres) | `fal-ai/elevenlabs/dubbing` | 0,6 $ par minute entamée |
-| `edit_video` | un plan retouché par un texte, son mouvement gardé : une personne ou une chose remplacée, un lieu ou une allure changés | `media_id` et sa plage (3 à 30 s) ; `prompt` (obligatoire) ; `reference_media_ids` (0 à 4 images fixes) ; `resolution` (`720p`, `1080p` par défaut) | `kling/v4/video-to-video/edit` | 0,094 $ la seconde en 720p, 0,141 $ en 1080p, sur l'entrée plus la sortie (lu le 13 novembre 2026) |
+| `stock_video` | a silent shot made from a text | `prompt`; `duration_seconds` (3 to 15, 5 by default); `aspect_ratio` (`16:9`, `9:16`, `1:1`, the timeline's by default) | `fal-ai/kling-video/v3/pro/text-to-video` | $0.112 per second |
+| `stock_image` | an image at the timeline's size | `prompt`; `seed` | `fal-ai/flux-2-pro` | $0.03 for the first megapixel, $0.015 for each after |
+| `avatar` | a synthetic presenter who speaks a sound | `media_id` (an image, or a frame of a source clip at `source_time`); `audio_media_id` and its range | `fal-ai/kling-video/ai-avatar/v2/standard` | $0.0562 per second |
+| `lipsync` | the lips of a filmed person re-timed to another sound | `media_id` and its range; `audio_media_id` and its range | `fal-ai/sync-lipsync/v2` | $3 per minute |
+| `dubbing` | the voices of a film in another language, lips unchanged | `media_id` and its range; `target_language` (two letters) | `fal-ai/elevenlabs/dubbing` | $0.6 per started minute |
+| `edit_video` | a shot retouched by a text, its motion kept: a person or a thing replaced, a place or a look changed | `media_id` and its range (3 to 30 s); `prompt` (required); `reference_media_ids` (0 to 4 still images); `resolution` (`720p`, `1080p` by default) | `kling/v4/video-to-video/edit` | $0.094 per second at 720p, $0.141 at 1080p, on the input plus the output |
 
-Une plage est `source_time` et `duration` (`audio_source_time` et
-`audio_duration` pour le son) : le média entier quand on ne dit rien,
-300 secondes au plus. Le moteur découpe l'extrait lui-même (H.264 et AAC,
-1920 au plus sur le grand côté ; WAV pour un son seul) et l'envoie sur le
-stockage de fal.ai ; un extrait de plus de 90 Mo est refusé avant toute
-dépense. L'image part telle que le fichier l'encode : un rush en log reste
-en log, et ce que le modèle en fait n'a pas été regardé.
+A range is `source_time` and `duration` (`audio_source_time` and
+`audio_duration` for the sound): the whole medium when nothing is said, 300
+seconds at most. The engine cuts the excerpt itself (H.264 and AAC, 1920 at
+most on the long side; WAV for a sound alone) and sends it to fal.ai's
+storage; an excerpt over 90 MB is refused before any spending. The image goes
+out as the file encodes it: a log source clip stays log, and what the model
+does with it has not been looked at.
 
-**Ce qui revient n'a pas toujours la taille demandée** (relevé le
-13 novembre 2026) : `stock_image` a rendu 1072×1920 pour 1080×1920,
-`avatar` un film de 720×1280 à 30 images par seconde, avec des gestes des
-mains ; `dubbing` garde la taille, la cadence et la durée du rush, rend le
-son en mono, et double toutes les voix qu'on y entend, hors champ compris.
-Le prix facturé ne revient pas dans la réponse.
+**What comes back is not always the requested size**: `stock_image` returned
+1072×1920 for 1080×1920, `avatar` a 720×1280 film at 30 frames per second,
+with hand gestures; `dubbing` keeps the size, frame rate and duration of the
+source clip, returns the sound in mono, and dubs every voice heard in it,
+off-screen ones included. The price billed does not come back in the
+response.
 
-**`edit_video`** (PA14, 13 novembre 2026 ; appelé pour de vrai ce
-jour-là). Le texte dit ce qui change et ce qui reste ; il nomme le plan
-`@Video1` et les images `@Image1`, `@Image2`… dans l'ordre. Sans image, le
-texte suffit.
+**`edit_video`** (PA14; called for real). The text says what changes and what
+stays; it names the shot `@Video1` and the images `@Image1`, `@Image2`… in
+order. Without an image, the text is enough.
 
-- **Les bornes du modèle sont dites avant tout envoi** : une plage de 3 à
-  30 secondes, aucun côté sous 700 pixels (après la réduction à 1920 du
-  grand côté), 4 images fixes au plus (le modèle ne publie pas sa propre
-  borne ; quatre est celle de ses voisins).
-- **Le prix est calculé dans la proposition** (`estimated_cost`) : le tarif
-  fois la durée d'entrée plus celle de sortie, en secondes entières.
-  5 secondes en 1080p : environ 1,41 $.
-- **Un plan HLG ou log part converti en Rec.709.** Le modèle répond
-  « Failed to load video » à une vidéo marquée HLG (mesuré, deux fois) et
-  peint en Rec.709 quoi qu'on lui donne. Le moteur envoie donc l'image
-  Rec.709 du plan, par la transformation que `read_frame` montre sous
-  gestion couleur, que le projet gère la couleur ou non. Les autres usages
-  envoient toujours l'image telle que le fichier l'encode.
-- **Ce qui revient** (un essai) : la taille du plan (1080×1920), en
-  Rec.709, à **24 images par seconde** pour un plan à 25, avec une piste
-  son. Ce qui n'est pas nommé dans le texte est resté en place sur cet
-  essai ; rien dans la documentation du modèle ne le promet.
-- **L'accord de la personne filmée** est requis dès que le plan ou une
-  seule image de référence n'a pas été généré par le moteur.
+- **The model's limits are stated before anything is sent**: a range of 3 to
+  30 seconds, no side under 700 pixels (after the long side is reduced to
+  1920), at most 4 still images (the model does not publish its own limit;
+  four is that of its neighbours).
+- **The price is computed in the proposal** (`estimated_cost`): the rate times
+  the input duration plus the output duration, in whole seconds. 5 seconds at
+  1080p: about $1.41.
+- **An HLG or log clip is converted to Rec.709 before it goes out.** The model
+  answers "Failed to load video" to a video tagged HLG (measured, twice) and
+  paints in Rec.709 whatever it is given. The engine therefore sends the
+  clip's Rec.709 image, through the transform that `read_frame` shows under
+  colour management, whether or not the project manages colour. The other uses
+  always send the image as the file encodes it.
+- **What comes back** (one trial): the clip's size (1080×1920), in Rec.709, at
+  **24 frames per second** for a 25 fps clip, with a sound track. What the
+  text does not name stayed in place in that trial; nothing in the model's
+  documentation promises it.
+- **The filmed person's consent** is required as soon as the clip or even a
+  single reference image was not generated by the engine.
 
-Un extrait vidéo, pour tout usage, est une image et un son, rien d'autre :
-la piste de timecode du rush et ses métadonnées ne partent pas.
+A video excerpt, for any use, is a picture and a sound, nothing else: the
+source clip's timecode track and its metadata do not go out.
 
-Un argument d'un autre usage est refusé par son nom, plutôt qu'ignoré une
-fois l'argent dépensé. Ce que l'usage a fabriqué entre dans la bibliothèque
-tel que le service le rend (`generated/<proposal_id>.mp4` ou `.png`), avec
-sa provenance.
+An argument that belongs to another use is refused by name, rather than
+ignored once the money is spent. What the use made enters the library as the
+service returns it (`generated/<proposal_id>.mp4` or `.png`), with its
+provenance.
 
-**L'accord de la personne filmée.** `lipsync` et `dubbing` agissent toujours
-sur une personne filmée ; un `avatar` aussi, sauf quand son image est un
-média que le moteur a généré. La proposition le dit (`needs_consent`), et
-`generate_media` refuse alors (`ConsentRequired`, sans rien dépenser, la
-proposition restant valable) tant que l'appel ne porte pas
-`consent_of_filmed_person: true`. Le moteur ne peut pas vérifier un accord :
-comme `confirmed_by_person`, c'est une affirmation de l'appelant, que seule
-la personne qui signe le film peut faire. L'accord n'est pas écrit dans le
-document : la provenance n'a pas de champ pour lui.
+**The filmed person's consent.** `lipsync` and `dubbing` always act on a
+filmed person; so does an `avatar`, except when its image is a medium the
+engine generated. The proposal says so (`needs_consent`), and
+`generate_media` then refuses (`ConsentRequired`, with nothing spent, the
+proposal staying valid) as long as the call does not carry
+`consent_of_filmed_person: true`. The engine cannot verify a consent: like
+`confirmed_by_person`, it is an assertion by the caller, which only the person
+who signs the film can make. The consent is not written in the document: the
+provenance has no field for it.
 
-**Pas de correction du regard.** fal.ai ne propose aucun modèle qui le
-fasse (cherché le 11 novembre 2026 ; `fal-ai/eye-correct` répond 404).
+**No gaze correction.** fal.ai offers no model that does it (searched for;
+`fal-ai/eye-correct` answers 404).
 
-## La provenance
+## Provenance
 
-Un média généré porte `generation` dans le document (`describe` le rend) :
-`service`, `model`, `kind`, `prompt`, `seed` (celle que le service a
-rendue), `created_at` (UTC), `announced_cost`, `request_id`,
-`source_media_id`, et pour une voix fabriquée par le moteur
-`reference_text`, les mots qu'elle dit. Elle est posée par
-`SetMediaGenerationOperation`, réversible comme toute opération.
+A generated medium carries `generation` in the document (`describe` returns
+it): `service`, `model`, `kind`, `prompt`, `seed` (the one the service
+returned), `created_at` (UTC), `announced_cost`, `request_id`,
+`source_media_id`, and for a voice made by the engine `reference_text`, the
+words it says. It is set by `SetMediaGenerationOperation`, reversible like any
+operation.
 
-Depuis le 24 octobre 2026 (DEC36 de
-GENERATIF-2026-10) :
+Under DEC36 of GENERATIF-2026-10:
 
-- **une provenance ne s'efface que par Annuler** : une opération qui la
-  viderait ou la remplacerait par une autre est refusée (`InvalidOperation`,
-  « only undo removes it »), par quelque surface qu'elle arrive, `--apply-op`
-  compris ; reposer la même provenance ne change rien et passe ; l'inverse
-  d'un ingest (`RemoveIngestedMedia`, DEC32) appliqué comme une édition, qui
-  retirerait le média et sa provenance, est refusé de même ;
-- **chaque plan d'un média généré porte le badge `GÉNÉRÉ`** dans la
-  timeline, après la marque de l'agent et avant la vitesse ;
-- **`check_timeline` liste ces plans sous `generated`**, toujours présent,
-  vide quand rien n'est généré : le compte rendu de l'agent en tire une
-  ligne par plan. Aucune mention n'est imposée à la livraison.
+- **a provenance is only erased by Annuler (Undo)**: an operation that would
+  empty it or replace it with another is refused (`InvalidOperation`, "only
+  undo removes it"), whichever surface it arrives from, `--apply-op`
+  included; setting the same provenance again changes nothing and goes
+  through; the inverse of an ingest (`RemoveIngestedMedia`, DEC32) applied as
+  an edit, which would remove the medium and its provenance, is refused in the
+  same way;
+- **each clip of a generated medium carries the `GÉNÉRÉ` (generated) badge**
+  in the timeline, after the agent's mark and before the speed;
+- **`check_timeline` lists these clips under `generated`**, always present,
+  empty when nothing is generated: the agent's report draws one line per clip
+  from it. No mention is imposed at delivery.
 
-Pas de code de confirmation dans la fenêtre : l'invite de permission de
-`generate_media` est le verrou. Un plafond de dépense par projet viendra en
-préférence locale, une fois les prix relevés (GN5). Un document qui en porte une déclare la
-version 20 : un binaire plus ancien le refuse au lieu de perdre la marque.
-L'image et le plan sont dans le paquet : le projet se rouvre et s'exporte
-sans fal.ai.
+There is no confirmation code in the window: the permission prompt of
+`generate_media` is the lock. A per-project spending cap will come as a local
+preference, once the prices are recorded (GN5). A document that carries a
+provenance declares version 20: an older binary refuses it instead of losing
+the mark. The image and the clip are in the package: the project reopens and
+exports without fal.ai.
 
-## La voix off, en local
+## The voice-over, locally
 
-> Écrit le 8 novembre 2026 avec le code (GN6b de
-> GENERATIF-2026-10). Prouvé contre un
-> faux script, puis avec les vrais modèles du banc sur un projet jetable.
-> L'installation sous `build/voice` est GN6c.
+> GN6b of GENERATIF-2026-10, written with
+> the code. Proven against a fake script, then with the bench's real models
+> on a throwaway project. The installation under `build/voice` is GN6c.
 
-Qwen3-TTS (Apache 2.0) tourne sur la machine, lancé par le moteur comme MFA
-(`scripts/voice_over.py`, voir `--check-setup`, élément `voice_over`). Rien
-ne part sur un serveur, rien ne se paie.
+Qwen3-TTS (Apache 2.0) runs on the machine, launched by the engine like MFA
+(`scripts/voice_over.py`, see `--check-setup`, item `voice_over`). Nothing
+goes to a server, nothing is paid.
 
-**`design_voice`** fabrique une voix. Arguments : `description` (la voix, en
-anglais : genre, âge, timbre, débit, style), `language` (code ISO 639-1,
-`fr` par défaut, l'une des dix langues du modèle), `seed` facultative. Le
-modèle VoiceDesign dit une phrase de référence fixée par le moteur dans la
-langue choisie ; le WAV va dans `Sound/voix-<id>.wav` du paquet, entre dans
-la bibliothèque et reçoit sa provenance : `service: "local"`,
-`kind: "voice_design"`, `model` le dépôt et la révision des poids,
-`prompt` la description, `reference_text` la phrase dite. Deux appels avec
-la même description donnent deux voix différentes : on garde celle que la
-personne retient.
+**`design_voice`** makes a voice. Arguments: `description` (the voice, in
+English: gender, age, timbre, pace, style), `language` (ISO 639-1 code, `fr`
+by default, one of the model's ten languages), optional `seed`. The
+VoiceDesign model says a reference sentence fixed by the engine in the chosen
+language; the WAV goes to `Sound/voix-<id>.wav` in the package, enters the
+library and receives its provenance: `service: "local"`,
+`kind: "voice_design"`, `model` the repository and revision of the weights,
+`prompt` the description, `reference_text` the sentence spoken. Two calls with
+the same description give two different voices: keep the one the person
+chooses.
 
-**`generate_voice_over`** fait dire un texte par cette voix. Arguments :
-`voice_media_id`, `text`, `language` (celle du texte, `fr` par défaut ; elle
-peut différer de celle de la voix), `seed`. Le modèle Base clone la voix à
-partir de son WAV et de ses mots, ce qui la garde d'une prise à l'autre ; le
-WAV va dans `Sound/voix-off-<id>.wav`, marqué `kind: "voice_over"`,
-`source_media_id` la voix, `prompt` le texte. Le texte part tel quel : les
-chiffres, les dates et les heures s'écrivent comme ils doivent se dire quand
-c'est important. Le plan se pose ensuite par `insert_clip`.
+**`generate_voice_over`** has this voice say a text. Arguments:
+`voice_media_id`, `text`, `language` (the text's, `fr` by default; it may
+differ from the voice's), `seed`. The Base model clones the voice from its WAV
+and its words, which keeps it the same from one take to the next; the WAV
+goes to `Sound/voix-off-<id>.wav`, marked `kind: "voice_over"`,
+`source_media_id` the voice, `prompt` the text. The text goes out as is:
+numbers, dates and times are written as they should be said when it matters.
+The clip is then placed with `insert_clip`.
 
-**Le moteur ne clone que ses propres voix** (DEC49) :
-`generate_voice_over` refuse (`NotAnEngineVoice`) tout média qui n'est pas
-une voix fabriquée par `design_voice` — un enregistrement, un rush, une
-interview, une voix off. Le refus tombe avant que le modèle ne tourne. Une
-provenance ne s'écrit que par une génération et ne s'efface que par Annuler
-(DEC36) : elle ne se fabrique pas par les outils.
+**The engine only clones its own voices** (DEC49): `generate_voice_over`
+refuses (`NotAnEngineVoice`) any medium that is not a voice made by
+`design_voice` — a recording, a source clip, an interview, a voice-over. The
+refusal comes before the model runs. A provenance is only written by a
+generation and only erased by Annuler (DEC36): it cannot be fabricated through
+the tools.
 
-**Pas de proposition ni d'invite de permission** (DEC48) : rien ne se
-dépense, et les deux outils n'entrent pas dans la liste de ceux qui vont à
-la personne. Mais on ne génère une voix que si la personne l'a demandé ; les
-descriptions le disent. Chaque appel bloque pendant que le modèle tourne
-(environ une minute pour une voix, deux fois la durée du texte pour une voix
-off) : une tâche de fond ne peut ni ingérer ni marquer un média, donc ni
-l'un ni l'autre ne tourne en fond. Le calcul ne se voit pas dans la barre
-des tâches de la fenêtre et ne s'y annule pas, même quand l'appel passe par
-l'app.
+**No proposal and no permission prompt** (DEC48): nothing is spent, and the
+two tools are not in the list of those that go to the person. But a voice is
+only generated if the person has asked for it; the descriptions say so. Each
+call blocks while the model runs (about a minute for a voice, twice the
+duration of the text for a voice-over): a background task can neither ingest
+nor mark a medium, so neither runs in the background. The computation does
+not show in the window's task bar and cannot be cancelled there, even when the
+call goes through the app.
 
-Un document qui porte une voix et ses mots déclare la version 25 : un
-binaire plus ancien le refuse au lieu de perdre les mots, sans lesquels la
-voix ne se clone plus. Les WAV sont dans le paquet : le projet se rouvre et
-s'exporte sans le modèle. Un plan de montage (`prepare_edit_plan`) ne peut
-pas prendre `design_voice`, `generate_voice_over` ni `generate_media` comme
-étape : ils ingèrent ce qu'ils fabriquent, ce que la copie du plan ne sait
-pas faire.
+A document that carries a voice and its words declares version 25: an older
+binary refuses it instead of losing the words, without which the voice can no
+longer be cloned. The WAVs are in the package: the project reopens and exports
+without the model. An edit plan (`prepare_edit_plan`) cannot take
+`design_voice`, `generate_voice_over` or `generate_media` as a step: they
+ingest what they make, which the plan's copy cannot do.
 
-## La clé
+## The key
 
-Lue dans le trousseau de macOS, puis dans `FAL_KEY`. Jamais écrite dans un
-fichier suivi, un journal, une trace ou une réponse ; une erreur de fal.ai
-qui la contiendrait sort masquée. Pour l'enregistrer une fois :
+Read from the macOS keychain, then from `FAL_KEY`. Never written to a tracked
+file, a log, a trace or a response; a fal.ai error that contained it comes out
+masked. To store it once:
 
 ```sh
 security add-generic-password -s com.cutmachine.generation -a fal-api-key -w
 ```
 
-La clé ne part que vers `queue.fal.run` et `rest.fal.ai`, jamais vers
-l'adresse de dépôt de l'image ni vers celle du résultat.
+The key only goes to `queue.fal.run` and `rest.fal.ai`, never to the image's
+upload address or to the result's.
 
-## Qui empêche un agent de dépenser seul
+## What stops an agent from spending on its own
 
-Le moteur ne distingue pas le oui de la personne de celui de l'agent : un
-agent qui écrit `confirmed_by_person: true` sans avoir demandé a menti. Ce
-qui l'arrête est le client qui montre l'appel à la personne :
+The engine does not distinguish the person's yes from the agent's: an agent
+that writes `confirmed_by_person: true` without having asked has lied. What
+stops it is the client that shows the call to the person:
 
-- **Claude Code, par MCP** : la permission de l'outil
-  `mcp__cutmachine__generate_media`, côté utilisateur, fait foi. Elle doit
-  être demandée à chaque appel : ne mets pas cet outil dans une règle
-  `allow`, et pas de `bypassPermissions` pour une session qui peut générer.
-  Les annotations MCP de l'outil (`External`) disent qu'il n'est pas en
-  lecture seule et touche un service extérieur.
-- **Le panneau Agent, par un agent de code (ACP)** : `generate_media` n'est
-  plus approuvé d'office comme les autres outils du moteur ; il va à la
-  personne, sans l'option « toujours ». Sans personne pour répondre, il est
-  refusé. Mais un adaptateur réglé pour tout permettre ne demande rien au
-  panneau.
-- **La boucle intégrée du panneau** (protocole Anthropic ou Ollama) ne
-  montre aucun appel avant de le lancer : elle refuse `generate_media`
+- **Claude Code, through MCP**: the permission for the tool
+  `mcp__cutmachine__generate_media`, on the user's side, is what counts. It
+  must be asked for on every call: do not put this tool in an `allow` rule,
+  and no `bypassPermissions` for a session that can generate. The tool's MCP
+  annotations (`External`) say it is not read-only and touches an outside
+  service.
+- **The Agent panel, through a coding agent (ACP)**: `generate_media` is no
+  longer approved by default like the engine's other tools; it goes to the
+  person, without the « toujours » (always) option. With nobody to answer, it
+  is refused. But an adapter set to allow everything asks the panel for
+  nothing.
+- **The panel's built-in loop** (Anthropic or Ollama protocol) shows no call
+  before launching it: it refuses `generate_media`
   (`ConfirmationRequired`).
 
-Le CLI (`--call-tool`) n'a pas de session : une proposition n'y survit pas
-à l'appel, et `generate_media` y refuse toute proposition.
+The CLI (`--call-tool`) has no session: a proposal does not survive the call
+there, and `generate_media` refuses any proposal there.

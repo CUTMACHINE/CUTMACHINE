@@ -1,12 +1,7 @@
-# Commandes headless
+# Headless commands
 
-> Relu contre le code le 3 octobre 2026 ; les exemples de `--apply-op`,
-> `--apply-project-op`, des plans d'édition et de `--create-project` ont été
-> rejoués sur un projet d'essai. Non vérifiés : ce que fait Claude Code de
-> `.mcp.json`, et After Effects.
-
-Ces commandes s'exécutent avant toute initialisation d'AppKit, de Metal ou du
-décodage média :
+These commands run before any initialisation of AppKit, Metal or media
+decoding:
 
 ```sh
 ./build/cutmachine --create-project ./Film.cutmachine-project "Film"
@@ -143,243 +138,238 @@ curl -sS http://127.0.0.1:8765/mcp -H 'Content-Type: application/json' \
   ./Film.cutmachine-project/project.cutmachine.json '<groupe>'
 ```
 
-`--create-project` accepte `--format LARGEURxHAUTEUR@CADENCE` (par exemple
-`1080x1920@25` ou `3840x2160@24000/1001`) pour créer directement la séquence
-au format de livraison, et rend l'identifiant de sa timeline. Cette timeline
-porte une piste image et une piste son, comme une timeline ajoutée par
-`add_timeline`, et la réponse les nomme, chacune avec son alias (`T1`,
-`T2`) : un premier plan s'insère sans créer de piste.
+`--create-project` accepts `--format LARGEURxHAUTEUR@CADENCE` (for example
+`1080x1920@25` or `3840x2160@24000/1001`) to create the sequence directly in
+the delivery format, and returns the identifier of its timeline. This
+timeline carries a picture track and a sound track, like a timeline added by
+`add_timeline`, and the response names them, each with its alias (`T1`,
+`T2`): a first clip is inserted without creating a track.
 
-`cutmachine --help` liste toutes les commandes avec leurs arguments ;
-`cutmachine --help <commande>` (avec ou sans les deux tirets) ou
-`cutmachine <commande> --help` donne l'usage d'une seule, en texte brut,
-code 0. Une ligne de commande refusée répond `ValidationFailed`, code de
-sortie 2, commandes motion comprises : une commande inconnue est nommée, avec
-la plus proche quand c'est une faute de frappe ; une commande connue dit ce
-qui ne va pas (`--create-project is missing <folder> <name>`, `unknown
---describe option '--frob'`, `--export option '--codec' needs a value`,
-`--contact-sheet option '--timeline' is given twice`, `--export-resolve-xml
-option '--resolve-scaling' does not take 'zoom'`) et donne sa ligne d'usage,
-celle de `--help`. `--describe`, `--shot-quality-report`, `--isolated-frames`
-et `--locate-source-frame` mettent `"ok":true` devant leur rapport, inchangé ;
-les outils MCP qui rendent les mêmes rapports répondent sans (PRD39). Un chemin de projet où rien n'existe est refusé en `IoError` avec le
-chemin ; un dossier qui existe sans être un paquet garde `unsupported project
-package`. Un projet écrit par un CUTMACHINE plus récent le dit, avec la
-version trouvée et la plus haute que ce binaire lit. `--ingest` répond
-`ok:true` avec `added`, `skipped`, `ignored` et `errors` ; quand il n'a rien
-pu lire (aucun fichier ajouté, aucun déjà connu), il refuse en `IoError`,
-code 1, avec ces quatre champs sous `result`. Un dossier dont une partie
-seulement échoue reste un succès. `ingest_media` répond de même. Depuis le
-24 octobre 2026 (DEC32, PRODUIT-2026-10),
-un ingest est une opération, `IngestMediaOperation` : les nouveaux rushes et
-les rushes connus reclassés forment une seule entrée du journal de la
-timeline active, que l'outil `undo` (ou `Cmd+Z` dans l'app) reprend et que
-`redo` rejoue, octet pour octet. `--bin <id>` (l'argument `bin_id` de
-`ingest_media`, ULID ou alias ; `""` pour la racine) range ce qui est
-ingéré dans ce chutier, y compris un rush déjà connu, qui y est déplacé ;
-sans lui, les nouveaux rushes vont à la racine et les connus restent où ils
-sont. Un chutier que le projet n'a pas est refusé avant toute lecture
-(`UnknownBin` au CLI, `ValidationFailed` au MCP, qui résout l'identifiant
-comme pour tout outil). Seules deux réparations restent hors du journal,
-comme avant : une entrée de version 1 complétée par la sonde, et une entrée
-complète sans source qui en reçoit une.
+`cutmachine --help` lists all the commands with their arguments;
+`cutmachine --help <commande>` (with or without the two dashes) or
+`cutmachine <commande> --help` gives the usage of a single one, as plain text,
+exit code 0. A refused command line answers `ValidationFailed`, exit code 2,
+motion commands included: an unknown command is named, with the closest one
+when it is a typo; a known command says what is wrong (`--create-project is
+missing <folder> <name>`, `unknown --describe option '--frob'`, `--export
+option '--codec' needs a value`, `--contact-sheet option '--timeline' is
+given twice`, `--export-resolve-xml option '--resolve-scaling' does not take
+'zoom'`) and gives its usage line, the one from `--help`. `--describe`,
+`--shot-quality-report`, `--isolated-frames` and `--locate-source-frame` put
+`"ok":true` in front of their report, unchanged; the MCP tools that return
+the same reports answer without it (PRD39). A project path where nothing
+exists is refused with `IoError` and the path; a folder that exists without
+being a package keeps `unsupported project package`. A project written by a
+newer CUTMACHINE says so, with the version found and the highest one this
+binary reads. `--ingest` answers `ok:true` with `added`, `skipped`, `ignored`
+and `errors`; when it could read nothing (no file added, none already known),
+it refuses with `IoError`, code 1, with these four fields under `result`. A
+folder of which only part fails remains a success. `ingest_media` answers the
+same way. An ingest is an operation, `IngestMediaOperation` (DEC32,
+PRODUIT-2026-10): the new source clips and
+the known source clips reclassified form a single entry of the active
+timeline's journal, which the `undo` tool (or `Cmd+Z` in the app) takes back
+and `redo` replays, byte for byte. `--bin <id>` (the `bin_id` argument of
+`ingest_media`, ULID or alias; `""` for the root) files what is ingested into
+that bin, including an already known source clip, which is moved there;
+without it, new source clips go to the root and known ones stay where they
+are. A bin the project does not have is refused before any reading
+(`UnknownBin` at the CLI, `ValidationFailed` over MCP, which resolves the
+identifier as for any tool). Only two repairs stay outside the journal: a
+version 1 entry completed by the probe, and a complete entry with no source
+that receives one.
 
-`--mcp-serve` ouvre le serveur MCP local (boucle locale uniquement). Le projet
-est facultatif : lancé sans projet, le serveur ne répond qu'à `create_project`,
-`open_project`, `get_procedure`, à la lecture de l'archive des projets et aux
-outils `after_*`, qui adressent un projet After et non le projet CUTMACHINE
-(MOTION-AFTER-2026-09 MA10) ; il refuse tout autre outil avec `NoProjectOpen`. Un run peut
-ainsi partir d'un dossier de rushes sans quitter MCP : `create_project`, puis
-`ingest_media`, qui fait ce que fait `--ingest`. Le serveur tient le verrou de
-session du projet ouvert et un seul : ouvrir ou créer un autre projet
-verrouille et lit le nouveau d'abord, puis relâche le précédent ; un refus
-(chemin faux, projet tenu ailleurs, paquet illisible) laisse le précédent
-ouvert et le dit. `--ingest` prend désormais ce même verrou : il est refusé tant que
-l'application, un serveur ou `--call-tool` tient le projet, parce qu'un ingest
-écrit à côté laissait périmé le projet qu'un serveur garde en mémoire.
+`--mcp-serve` opens the local MCP server (loopback only). The project is
+optional: launched without a project, the server answers only `create_project`,
+`open_project`, `get_procedure`, reading the project archive and the `after_*`
+tools, which address an After project and not the CUTMACHINE project
+(MOTION-AFTER-2026-09 MA10); it refuses any other tool with `NoProjectOpen`.
+A run can thus start from a folder of source clips without leaving MCP:
+`create_project`, then `ingest_media`, which does what `--ingest` does. The
+server holds the session lock of the open project, and only one: opening or
+creating another project locks and reads the new one first, then releases the
+previous one; a refusal (wrong path, project held elsewhere, unreadable
+package) leaves the previous one open and says so. `--ingest` takes this same
+lock: it is refused as long as the application, a server or `--call-tool`
+holds the project, because an ingest written on the side left stale the
+project that a server keeps in memory.
 
-`--profile <nom>` choisit les outils que le serveur sert, en stdio comme sur
-HTTP (PROFIL-2026-11). Un client charge dans
-le contexte de son modèle chaque outil listé : le catalogue entier pèse
-environ 87 000 tokens. `full`, le défaut, sert tout ; `motion` sert le motion,
-les clips de motion et le pont After en entier, plus ce qu'il faut autour
-(projet, timelines, clips, musique, regard, export, annulation, tâches) : 63
-outils sur 210 le 9 novembre 2026, environ 23 000 tokens. Un outil hors
-profil est refusé par son nom, `ToolNotInProfile`, qui dit comment l'avoir ;
-les consignes du serveur disent le profil et ne citent que ce qu'il sert, et
-stderr l'écrit au démarrage (« Profile 'motion': 63 of 210 tools »). Deux
-autres profils (PA10, PARITE-2026-11) :
-`itw` sert en entier la parole, les légendes et la session, plus ce que cite
-la procédure `monter-une-itw` et ce qu'un film demande autour ; `reel` sert en
-entier les réglages d'un plan, les images, le son, la génération, les clips
-de motion et la session, plus ce que cite `monter-un-reel`. Chacun sert un
-peu plus de la moitié du catalogue : le gain est moindre que pour `motion`.
-Relayé
-vers la fenêtre, qui sert tout le catalogue, le serveur stdio répond lui-même
-à `initialize`, à `tools/list` et aux appels hors profil. Un nom inconnu, ou
-l'option sans valeur, arrête le démarrage (`ValidationFailed`, avec les
-noms possibles). `--tools --profile <nom>` imprime ce que le profil liste.
-Un profil choisit ce qu'on montre au client ; ce n'est pas une permission.
+`--profile <nom>` chooses the tools the server serves, in stdio as on HTTP
+(PROFIL-2026-11). A client loads every listed
+tool into its model's context: the whole catalogue weighs about 87,000
+tokens. `full`, the default, serves everything; `motion` serves motion,
+motion clips and the After bridge in full, plus what is needed around them
+(project, timelines, clips, music, looking, export, undo, tasks): 63 tools
+out of 210, about 23,000 tokens. A tool outside the profile is refused by
+name, `ToolNotInProfile`, which says how to get it; the server's instructions
+state the profile and cite only what it serves, and stderr writes it at
+startup ("Profile 'motion': 63 of 210 tools"). Two other profiles (PA10,
+PARITE-2026-11): `itw` serves speech,
+captions and the session in full, plus what the `monter-une-itw` procedure
+cites and what a film needs around it; `reel` serves clip settings, pictures,
+sound, generation, motion clips and the session in full, plus what
+`monter-un-reel` cites. Each serves a little more than half of the catalogue:
+the gain is smaller than for `motion`. Relayed to the window, which serves
+the whole catalogue, the stdio server itself answers `initialize`,
+`tools/list` and calls outside the profile. An unknown name, or the option
+with no value, stops startup (`ValidationFailed`, with the possible names).
+`--tools --profile <nom>` prints what the profile lists. A profile chooses
+what is shown to the client; it is not a permission.
 
-Sur HTTP, le serveur ne répond qu'à un client local. Écouter sur la boucle
-locale écarte les autres machines, pas une page web ouverte dans un
-navigateur de celle-ci : chaque requête est donc contrôlée avant d'atteindre
-un outil. `Host`, s'il est envoyé, doit désigner `127.0.0.1`, `localhost` ou
-`[::1]`, avec ou sans port. `Origin`, s'il est envoyé, doit être une origine
-de boucle locale (`http://127.0.0.1`, `http://localhost` ou `http://[::1]`,
-quel que soit le port) : toute autre valeur, `null` compris, reçoit 403. Un
-`POST` doit annoncer `Content-Type: application/json`, sinon 415. Le serveur
-ne renvoie jamais d'en-tête `Access-Control-*`. Le corps JSON d'un refus dit
-quoi corriger. Un client qui n'est pas un navigateur (curl, un client MCP)
-n'envoie pas d'`Origin` et passe comme avant, pourvu qu'il annonce
-`application/json`.
+Over HTTP, the server answers only a local client. Listening on the loopback
+rules out other machines, but not a web page open in a browser on this one:
+every request is therefore checked before reaching a tool. `Host`, if sent,
+must designate `127.0.0.1`, `localhost` or `[::1]`, with or without a port.
+`Origin`, if sent, must be a loopback origin (`http://127.0.0.1`,
+`http://localhost` or `http://[::1]`, whatever the port): any other value,
+`null` included, gets 403. A `POST` must announce `Content-Type:
+application/json`, otherwise 415. The server never returns an
+`Access-Control-*` header. The JSON body of a refusal says what to correct. A
+client that is not a browser (curl, an MCP client) sends no `Origin` and
+passes through, provided that it announces `application/json`.
 
-`--token <jeton>` exige en plus `Authorization: Bearer <jeton>` sur chaque
-requête ; sans lui, ou avec un autre, la réponse est 401 avec
-`WWW-Authenticate: Bearer`. Sans l'option, le jeton est lu dans
-`CUTMACHINE_MCP_TOKEN` (environnement, ou `~/.config/cutmachine/.env`) ;
-l'option l'emporte. La variable est préférable : les arguments d'un
-processus se lisent avec `ps` depuis n'importe quel compte de la machine, et
-le binaire ne peut qu'effacer la valeur après l'avoir lue. Le jeton n'est
-jamais affiché ni journalisé ; vide ou inutilisable (blanc, caractère de
-contrôle, non ASCII), il empêche le serveur de démarrer. Sans jeton, tout
-processus de la machine qui peut ouvrir le port reste accepté : les
-configurations existantes pointent sur l'URL nue. `--stdio` refuse `--token`
-et ne lit pas la variable.
+`--token <jeton>` additionally requires `Authorization: Bearer <jeton>` on
+every request; without it, or with another, the response is 401 with
+`WWW-Authenticate: Bearer`. Without the option, the token is read from
+`CUTMACHINE_MCP_TOKEN` (environment, or `~/.config/cutmachine/.env`); the
+option wins. The variable is preferable: a process's arguments can be read
+with `ps` from any account on the machine, and the binary can only erase the
+value after reading it. The token is never displayed or logged; empty or
+unusable (blank, control character, non-ASCII), it prevents the server from
+starting. Without a token, any process on the machine that can open the port
+is still accepted: existing configurations point at the bare URL. `--stdio`
+refuses `--token` and does not read the variable.
 
-`initialize` répond la version du protocole demandée si le serveur la
-connaît (`2024-11-05`, `2025-03-26`, `2025-06-18`, `2025-11-25`), et
-`2025-11-25` sinon ; `serverInfo` porte la version que rend
-`cutmachine --version`.
+`initialize` answers the requested protocol version if the server knows it
+(`2024-11-05`, `2025-03-26`, `2025-06-18`, `2025-11-25`), and `2025-11-25`
+otherwise; `serverInfo` carries the version that `cutmachine --version`
+returns.
 
-Le serveur sert aussi les procédures de montage que le binaire embarque, les
-skills du dépôt (`monter-une-itw`, `motion-design`, `monter-un-reel`).
-`get_procedure` répond sans projet ouvert : sans argument la liste (nom,
-description, fichiers et tailles), avec `name` le `SKILL.md` et ses
-fichiers, avec `name` et `file` ce fichier ; un fichier Markdown vient avec
-ses liens résolus (`links`). Un chemin absolu ou qui contient `..` est
-refusé. Chaque procédure est aussi un prompt MCP (`prompts/list`,
-`prompts/get`) ; `initialize` déclare la capacité `prompts`.
-`--procedure [<nom> [<fichier>]]` rend les mêmes réponses.
+The server also serves the editing procedures that the binary embeds, the
+repository's skills (`monter-une-itw`, `motion-design`, `monter-un-reel`).
+`get_procedure` answers with no project open: with no argument the list
+(name, description, files and sizes), with `name` the `SKILL.md` and its
+files, with `name` and `file` that file; a Markdown file comes with its links
+resolved (`links`). An absolute path, or one that contains `..`, is refused.
+Each procedure is also an MCP prompt (`prompts/list`, `prompts/get`);
+`initialize` declares the `prompts` capability.
+`--procedure [<nom> [<fichier>]]` returns the same answers.
 
-`train_caption_breaks` répond lui aussi sans projet ouvert : il entraîne la
-découpe apprise des cartons sur des sous-titres livrés et la mesure contre la
-règle (RM3, voir [Export](export.md#légendes)). En ligne de commande :
-`--train-caption-breaks <corpus>... [--evaluate <corpus>]... [--install]
-[--folds <n>] [--epochs <n>] [--step <n>]` rend la même réponse, chaque
-chemin relatif lu depuis le dossier courant.
+`train_caption_breaks` also answers with no project open: it trains the
+learned splitting of title cards on delivered subtitles and measures it
+against the rule (RM3, see [Export](export.md#captions)). On the command
+line: `--train-caption-breaks <corpus>... [--evaluate <corpus>]... [--install]
+[--folds <n>] [--epochs <n>] [--step <n>]` returns the same answer, each
+relative path read from the current folder.
 
-Le serveur reçoit les lots JSON-RPC quelle que soit la version : un tableau
-de réponses, aucune pour une notification ; `initialize` est refusé dans un
-lot. Sur HTTP, un `MCP-Protocol-Version` qui ne nomme pas l'une des quatre
-versions reçoit 400 ; sans l'en-tête rien ne change. Une réponse JSON-RPC
-postée par un client reçoit 400 (elle est ignorée sur stdio). Un corps se lit
-par son seul `Content-Length` : deux valeurs différentes, ou autre chose qu'un
-nombre, reçoivent 400 ; un corps `chunked` reçoit 411. Un `GET` reçoit 405
-avec `Allow: POST`. `--port` prend un entier de 1 à 65535, ou 0 pour un port
-libre choisi par le système et affiché dans la bannière.
+The server receives JSON-RPC batches whatever the version: an array of
+responses, none for a notification; `initialize` is refused in a batch. Over
+HTTP, an `MCP-Protocol-Version` that does not name one of the four versions
+gets 400; without the header nothing changes. A JSON-RPC response posted by a
+client gets 400 (it is ignored on stdio). A body is read by its
+`Content-Length` alone: two different values, or anything other than a
+number, get 400; a `chunked` body gets 411. A `GET` gets 405 with `Allow:
+POST`. `--port` takes an integer from 1 to 65535, or 0 for a free port chosen
+by the system and displayed in the banner.
 
-`--mcp-serve --stdio` sert le même protocole sur l'entrée et la sortie
-standard, un message JSON-RPC par ligne : c'est le transport qu'un client MCP
-lance lui-même. Le dépôt en déclare un dans [`.mcp.json`](../../.mcp.json), si bien
-qu'une session Claude Code ouverte ici voit les outils du moteur
-(`mcp__cutmachine__describe`, `mcp__cutmachine__insert_clip`…) sans serveur à
-lancer à la main ni `--call-tool` dans un shell — à condition que
-`build/cutmachine` soit compilé ; Claude Code demande une fois d'approuver ce
-serveur, et `claude mcp reset-project-choices` revient sur ce choix. Ce
-transport ne prend pas de `--port` ; la sortie standard ne porte que le
-protocole, tout autre message (la bannière, les journaux) va sur la sortie
-d'erreur, et fermer l'entrée standard arrête le serveur, qui relâche le
-projet. Un serveur par session, un projet ouvert à la fois : tout ce que dit
-le paragraphe précédent s'applique, sauf pour un projet que l'application tient
-ouvert : `open_project` n'est pas refusé, le serveur relaie alors chaque appel
-à la fenêtre qui le tient (AX1), et sa réponse le dit (`app: true`). La
-fenêtre garde son projet jusqu'à ce que CUTMACHINE se ferme : `create_project`
-et `open_project` d'un autre projet y sont refusés en `UnsupportedOperation`,
-avec le chemin vers un autre projet, et `ingest_media` passe par l'import de
-la fenêtre, avec la réponse de `--ingest` (F2.4, voir
-[Agent intégré](agent-integre.md#le-projet-du-panneau)). Dans ce
-mode, `get_editor_view` lit ce que l'éditeur regarde : la timeline à l'écran,
-la tête de lecture (exacte, et en image de la séquence), les plans sous la
-tête de lecture sur chaque piste avec l'image source que chacun y joue, la
-sélection, les marqueurs sur lesquels ou dans lesquels se trouve la tête de
-lecture (un marqueur avec `duration_frames` est un passage), et la plage
-In/Out que l'éditeur a posée (`marked_range` : `in` et `out` tels que
-`delete_timeline_range` les prend, la sortie exclue, `valid` quand les deux
-sont posés dans l'ordre). C'est ce qu'un agent lit quand l'éditeur dit « ce
-plan », « ici », « ce passage », « entre l'entrée et la sortie ». État
-d'interface, en lecture seule ; un serveur sans fenêtre le refuse en
-`UnsupportedOperation` (AX5, D5).
+`--mcp-serve --stdio` serves the same protocol on standard input and output,
+one JSON-RPC message per line: this is the transport that an MCP client
+launches itself. The repository declares one in [`.mcp.json`](../../.mcp.json),
+so that a Claude Code session opened here sees the engine's tools
+(`mcp__cutmachine__describe`, `mcp__cutmachine__insert_clip`…) with no server
+to launch by hand and no `--call-tool` in a shell — provided that
+`build/cutmachine` is built; Claude Code asks once to approve this server,
+and `claude mcp reset-project-choices` reverts that choice. This transport
+takes no `--port`; standard output carries only the protocol, every other
+message (the banner, the logs) goes to standard error, and closing standard
+input stops the server, which releases the project. One server per session,
+one project open at a time: everything the previous paragraph says applies,
+except for a project that the application holds open: `open_project` is not
+refused, the server then relays each call to the window that holds it (AX1),
+and its response says so (`app: true`). The window keeps its project until
+CUTMACHINE closes: `create_project` and `open_project` of another project are
+refused there with `UnsupportedOperation`, with the path to another project,
+and `ingest_media` goes through the window's import, with the response of
+`--ingest` (F2.4, see [Built-in agent](agent-integre.md#the-panels-project)).
+In this mode, `get_editor_view` reads what the editor is looking at: the
+timeline on screen, the playhead (exact, and as a frame of the sequence), the
+clips under the playhead on each track with the source frame each plays
+there, the selection, the markers the playhead is on or inside (a marker with
+`duration_frames` is a span), and the In/Out range the editor has set
+(`marked_range`: `in` and `out` as `delete_timeline_range` takes them, the
+out exclusive, `valid` when both are set in order). This is what an agent
+reads when the editor says "this clip", "here", "this passage", "between the
+in and the out". Interface state, read-only; a server with no window refuses
+it with `UnsupportedOperation` (AX5, D5).
 
-`capture_editor_window` montre la même fenêtre en image (VQA5) : l'app la
-dessine elle-même, hors écran, avec la barre de titre, les panneaux, Source,
-Record et la timeline, si bien que la capture marche fenêtre couverte ou
-derrière une autre application, sans permission d'enregistrement de l'écran.
-`region` choisit la fenêtre entière (`window`, par défaut) ou une surface
-(`timeline`, `record`, `source` ; une surface masquée est refusée en
-`ValidationFailed`), `scale` un pixel par point (1, par défaut) ou deux. La
-réponse porte l'image en JPEG et un texte : sa taille, et où chaque surface
-s'y trouve, en pixels depuis le coin haut gauche. Ce que macOS ajoute en
-composant l'écran manque : le verre des bords de défilement et du champ de
-recherche, et l'atténuation des libellés secondaires, plus clairs ici qu'à
-l'écran. Record garde un temps son image précédente quand un plan attend son
-décodeur : la capture est alors refusée (`IoError`) plutôt que rendue avec un
-trou. Un serveur sans fenêtre la refuse en `UnsupportedOperation`.
+`capture_editor_window` shows the same window as an image (VQA5): the app
+draws it itself, off screen, with the title bar, the panels, Source, Record
+and the timeline, so that the capture works with the window covered or behind
+another application, without screen recording permission. `region` chooses
+the whole window (`window`, the default) or one surface (`timeline`,
+`record`, `source`; a hidden surface is refused with `ValidationFailed`),
+`scale` one pixel per point (1, the default) or two. The response carries the
+image as JPEG and a text: its size, and where each surface is in it, in
+pixels from the top left corner. What macOS adds when compositing the screen
+is missing: the glass of scroll edges and of the search field, and the
+dimming of secondary labels, lighter here than on screen. Record keeps its
+previous image for a moment when a clip is waiting for its decoder: the
+capture is then refused (`IoError`) rather than returned with a hole. A
+server with no window refuses it with `UnsupportedOperation`.
 
-### Sortie vidéo de l'éditeur
+### Editor video output
 
-`get_video_output` liste les écrans connectés et l'état du clean feed :
-`selected_screen_id` conserve le choix local, `active_screen_id` nomme la
-sortie effectivement allumée, `enabled` dit si elle l'est. Chaque écran
-porte son UUID stable (`id`), son nom, ses dimensions en pixels et
-`editor_screen`. `set_video_output` choisit cet UUID avec `screen_id`, ou une
-chaîne vide pour arrêter la sortie. L'écran de l'éditeur et un écran absent
-sont refusés en `ValidationFailed`, sans perdre le choix précédent. Le
-choix est enregistré dans les préférences de la machine, sans opération de
-montage. La présentation est `rec709_sdr`, comme Record. Les deux outils
-demandent un projet relayé à la fenêtre (`app: true`) ; un serveur sans
-fenêtre les refuse en `UnsupportedOperation`.
+`get_video_output` lists the connected screens and the state of the clean
+feed: `selected_screen_id` keeps the local choice, `active_screen_id` names
+the output actually lit, `enabled` says whether it is. Each screen carries
+its stable UUID (`id`), its name, its dimensions in pixels and
+`editor_screen`. `set_video_output` chooses this UUID with `screen_id`, or an
+empty string to stop the output. The editor's screen and an absent screen are
+refused with `ValidationFailed`, without losing the previous choice. The
+choice is saved in the machine's preferences, with no editing operation. The
+presentation is `rec709_sdr`, like Record. Both tools require a project
+relayed to the window (`app: true`); a server with no window refuses them
+with `UnsupportedOperation`.
 
-### Journal du moteur
+### Engine log
 
-Un serveur (`--mcp-serve`, stdio ou HTTP) et l'application écrivent une ligne
-par événement dans `~/Library/Logs/CUTMACHINE/cutmachine.log`, et sous Linux
-dans `~/.local/state/cutmachine/cutmachine.log` (PRODUIT-2026-10b PRD35,
-HEADLESS-2026-10). L'heure est en UTC, à la milliseconde.
+A server (`--mcp-serve`, stdio or HTTP) and the application write one line
+per event in `~/Library/Logs/CUTMACHINE/cutmachine.log`, and on Linux in
+`~/.local/state/cutmachine/cutmachine.log` (PRODUIT-2026-10b PRD35,
+HEADLESS-2026-10). The time is in UTC, to the millisecond.
 
-- **Au démarrage** : la surface (`mcp-stdio`, `mcp-http`, `app`), la version,
-  le commit (`-dirty` si l'arbre différait) et le pid.
-- **Pour chaque appel d'outil** : l'outil, `ok` ou le nom de l'erreur, la
-  durée en millisecondes, et la timeline quand l'appel nomme un
+- **At startup**: the surface (`mcp-stdio`, `mcp-http`, `app`), the version,
+  the commit (`-dirty` if the tree differed) and the pid.
+- **For each tool call**: the tool, `ok` or the name of the error, the
+  duration in milliseconds, and the timeline when the call names a
   `timeline_id`.
-- **À l'arrêt** : `stop`, ou `stop signal=15` si le processus est arrêté par
-  `SIGTERM`, `SIGINT` ou `SIGHUP`.
-- **Si le processus tombe** : `crash signal=11` ou `crash terminate`. Le
-  rapport de plantage du système suit comme avant, et le pid le relie à la
-  ligne.
+- **At shutdown**: `stop`, or `stop signal=15` if the process is stopped by
+  `SIGTERM`, `SIGINT` or `SIGHUP`.
+- **If the process crashes**: `crash signal=11` or `crash terminate`. The
+  system's crash report follows as usual, and the pid links it to the line.
 
-Jamais les arguments ni les réponses : un nom d'outil ou un `timeline_id` qui
-n'a pas la forme d'un identifiant est écrit `?`. Les commandes ponctuelles
-(`--describe`, `--call-tool`, `--export`…) n'écrivent rien. Ce que la session
-du serveur répond seule (`get_task`, `cancel_task`, `list_tasks`, rejeu d'une
-clé d'idempotence) n'a pas de ligne.
+Never the arguments or the responses: a tool name or a `timeline_id` that
+does not have the shape of an identifier is written `?`. One-off commands
+(`--describe`, `--call-tool`, `--export`…) write nothing. What the server
+session answers on its own (`get_task`, `cancel_task`, `list_tasks`, replay
+of an idempotency key) has no line.
 
-Plusieurs processus écrivent le même fichier. Il passe à `cutmachine.log.1`
-à 5 Mo, et un seul ancien fichier est gardé. `CUTMACHINE_LOG_DIR` remplace
-le dossier (les suites de test écrivent dans `build/test-logs`), et
-`CUTMACHINE_LOG=0` coupe tout.
+Several processes write the same file. It rolls over to `cutmachine.log.1`
+at 5 MB, and only one old file is kept. `CUTMACHINE_LOG_DIR` replaces the
+folder (the test suites write into `build/test-logs`), and
+`CUTMACHINE_LOG=0` turns everything off.
 
-Une intervention d'agent s'annule d'un seul Annuler. `--apply-op` accepte un
-lot, `{"type":"Batch","label":"…","operations":[…]}` : au plus 256
-opérations, appliquées dans l'ordre et refusées en entier dès que l'une l'est,
-qui forment une seule entrée du journal. Un client dont l'intervention couvre
-plusieurs appels d'outil l'encadre : `begin_intervention` rend un jeton sans
-rien écrire, `end_intervention` regroupe en une entrée nommée les pas appliqués
-depuis à cette timeline — un seul pas aussi, qui devient un lot d'une
-opération sous le libellé (PRD40) —, et refuse, en laissant l'historique tel quel, si
-celui-ci a été défait sous le début de l'intervention. Le panneau Agent de
-l'application le fait à chaque consigne, sauf si le montage a été modifié à la
-main pendant le tour.
+An agent intervention is undone with a single Undo. `--apply-op` accepts a
+batch, `{"type":"Batch","label":"…","operations":[…]}`: at most 256
+operations, applied in order and refused as a whole as soon as one is, which
+form a single journal entry. A client whose intervention spans several tool
+calls brackets it: `begin_intervention` returns a token without writing
+anything, `end_intervention` groups into one named entry the steps applied
+since then to this timeline — a single step too, which becomes a batch of one
+operation under the label (PRD40) —, and refuses, leaving the history as it
+is, if the history has been undone below the start of the intervention. The
+application's Agent panel does this at each instruction, unless the edit was
+modified by hand during the turn.
 
 ```sh
 ./build/cutmachine --call-tool ./Film.cutmachine-project/project.cutmachine.json \
@@ -388,29 +378,29 @@ main pendant le tour.
   end_intervention '{"intervention":"<jeton>","label":"Resserrer la question 2"}'
 ```
 
-Un agent peut aussi **proposer** une intervention au lieu de l'appliquer : c'est
-un second mode de travail, à côté du montage direct, pas à sa place.
-`prepare_edit_plan` exécute des étapes — des outils d'édition du catalogue avec
-leurs arguments — sur une copie de la timeline : rien n'est sauvegardé,
-journalisé ni activé. Les alias (`A1`, `A2`…) sont résolus une seule fois, sur
-la timeline telle qu'elle est au départ : supprimer `A1` puis `A2` supprime les
-deux plans vus, jamais l'ancien `A3`. La réponse est mesurée par le moteur :
-nombre d'opérations, durées avant et après, delta (identifiants créés compris),
-compte rendu de chaque étape, et `base_doc_hash`, la révision de la timeline sur
-laquelle le plan a été préparé. `apply_edit_plan` l'applique en un seul pas
-d'annulation, avec les mêmes identifiants que l'aperçu ; si la timeline a changé
-entre-temps, il refuse avec `StaleRevision` sans rien appliquer.
-`get_edit_plan` rend le plan sérialisé par le moteur (`plan_json`, ses
-opérations exactes et les identifiants générés), sans rien écrire : c'est ce
-qu'on garde avant `commit_run_step`, pour qu'un redémarrage du serveur ne
-change pas l'édition proposée (voir
-[Étapes durables](orchestration-montage.md)).
-`discard_edit_plan` l'oublie. Qui pilote décide : un client MCP peut appliquer
-ses propres plans. Un serveur garde au plus 8 plans par timeline en mémoire
-(64 Mio en tout), jamais dans le projet. Chaque appel de la CLI étant une session à part, la CLI garde le plan
-dans un fichier qu'on lui nomme, hors du projet, et `--call-tool` refuse
-`prepare_edit_plan`, `apply_edit_plan` et `discard_edit_plan` (il ne trouve
-aucun plan à rendre par `get_edit_plan`, `UnknownPlan`) :
+An agent can also **propose** an intervention instead of applying it: this is
+a second way of working, next to direct editing, not in its place.
+`prepare_edit_plan` executes steps — editing tools of the catalogue with
+their arguments — on a copy of the timeline: nothing is saved, journaled or
+activated. Aliases (`A1`, `A2`…) are resolved only once, on the timeline as
+it is at the start: deleting `A1` then `A2` deletes the two clips seen, never
+the former `A3`. The response is measured by the engine: number of
+operations, durations before and after, delta (created identifiers
+included), report of each step, and `base_doc_hash`, the revision of the
+timeline on which the plan was prepared. `apply_edit_plan` applies it as a
+single undo step, with the same identifiers as the preview; if the timeline
+has changed in the meantime, it refuses with `StaleRevision` without applying
+anything. `get_edit_plan` returns the plan serialised by the engine
+(`plan_json`, its exact operations and the generated identifiers), without
+writing anything: this is what you keep before `commit_run_step`, so that a
+server restart does not change the proposed edit (see
+[Durable steps](orchestration-montage.md)). `discard_edit_plan` forgets it.
+Whoever drives decides: an MCP client can apply its own plans. A server keeps
+at most 8 plans per timeline in memory (64 MiB in all), never in the project.
+Since each CLI call is a separate session, the CLI keeps the plan in a file
+that you name for it, outside the project, and `--call-tool` refuses
+`prepare_edit_plan`, `apply_edit_plan` and `discard_edit_plan` (it finds no
+plan to return for `get_edit_plan`, `UnknownPlan`):
 
 ```sh
 ./build/cutmachine --prepare-edit-plan ./Film.cutmachine-project/project.cutmachine.json \
@@ -420,169 +410,167 @@ aucun plan à rendre par `get_edit_plan`, `UnknownPlan`) :
 ./build/cutmachine --discard-edit-plan ./plan.json
 ```
 
-Sans `--word-by-word`, le SRT part des limites exactes de la transcription par
-mot, puis les regroupe par proximité temporelle et unité syntaxique française.
-Le découpage global vise **18 caractères par seconde en moyenne** : ce n'est
-pas un plafond par carton, donc une proposition peut ponctuellement dépasser
-18 CPS pour ne pas séparer un déterminant de son nom, un sujet de son verbe ou
-une préposition de son complément. Les fins de phrase et les pauses d'au moins
-700 ms restent des frontières obligatoires. `--word-by-word` conserve, lui,
-chaque limite brute pour le contrôle d'alignement dans Resolve.
+Without `--word-by-word`, the SRT starts from the exact limits of the
+word-level transcription, then groups them by temporal proximity and French
+syntactic unit. The overall splitting aims at **18 characters per second on
+average**: this is not a ceiling per title card, so a proposal may
+occasionally exceed 18 CPS in order not to separate a determiner from its
+noun, a subject from its verb or a preposition from its complement. Sentence
+endings and pauses of at least 700 ms remain mandatory boundaries.
+`--word-by-word` keeps every raw limit for alignment checking in Resolve.
 
-`--after-request` pilote l'instance locale d'After Effects avec le même
-contrat strict que les outils MCP et le chat intégré. Le workflow sûr ouvre
-d'abord une nouvelle copie de travail avec `open_project_copy`, puis inventorie
-les métrages avec `list_footage` — un média hors ligne se rend en mire SMPTE
-sans lever d'erreur — et les IDs avec `list_comps` et `describe_comp` avant
-toute mutation. `render_frame` écrit une frame en PNG : c'est le seul moyen de
-regarder le résultat d'une modification au lieu de le déduire d'un arbre de
-propriétés. Voir
+`--after-request` drives the local After Effects instance with the same
+strict contract as the MCP tools and the built-in chat. The safe workflow
+first opens a new working copy with `open_project_copy`, then inventories the
+footage with `list_footage` — an offline media item is rendered as SMPTE bars
+without raising an error — and the IDs with `list_comps` and `describe_comp`
+before any mutation. `render_frame` writes a frame as PNG: it is the only way
+to look at the result of a modification instead of deducing it from a
+property tree. See
 [`tools/after-bridge/README.md`](../../tools/after-bridge/README.md).
 
-Les outils MCP qui modifient une timeline acceptent eux aussi le champ
-optionnel `timeline_id`. Sans ce champ, ils conservent le comportement
-historique et ciblent la timeline active. Pour rendre l'identifiant obligatoire
-sur cette machine — utile aux scripts qui pilotent plusieurs montages — activer
-le garde-fou local puis relancer CUTMACHINE ou `--mcp-serve` :
+The MCP tools that modify a timeline also accept the optional `timeline_id`
+field. Without this field, they keep the historical behaviour and target the
+active timeline. To make the identifier mandatory on this machine — useful
+for scripts that drive several edits — enable the local safeguard then
+relaunch CUTMACHINE or `--mcp-serve`:
 
 ```sh
 defaults write com.cutmachine.editor CMRequireExplicitTimeline -bool true  # CUTMACHINE.app
 defaults write cutmachine CMRequireExplicitTimeline -bool true  # build/cutmachine
 ```
 
-L'application lit le domaine `com.cutmachine.editor` ; le binaire
-`build/cutmachine` (`--mcp-serve`, `--call-tool`, plans d'édition) lit le
-domaine `cutmachine`.
+The application reads the `com.cutmachine.editor` domain; the
+`build/cutmachine` binary (`--mcp-serve`, `--call-tool`, edit plans) reads
+the `cutmachine` domain.
 
-Pour une session : `open_project` ou `create_project` avec
-`require_timeline: true` (la réponse dit `require_timeline`), ou
-`./build/cutmachine --mcp-serve <projet> --stdio --require-timeline`. C'est
-le mode d'une série, plusieurs agents sur plusieurs timelines d'un projet
+For a session: `open_project` or `create_project` with
+`require_timeline: true` (the response says `require_timeline`), or
+`./build/cutmachine --mcp-serve <projet> --stdio --require-timeline`. This is
+the mode of a series, several agents on several timelines of a project
 (skill `monter-une-itw`, `serie.md`).
 
-Tout outil qui édite **ou lit** une timeline est alors refusé sans
-`timeline_id` (`TimelineRequired`, qui nomme les timelines du projet). Ce
-réglage reste dans `NSUserDefaults` ou dans la session et n'est jamais écrit
-dans le projet. Lire un rush n'est pas lire une timeline : `read_frame` avec
-`media_id` (sans `clip_id`) passe sans `timeline_id`. `media_sheet`,
-`list_source_words`, `list_stable_windows` et les analyses audio ne visent
-aucune timeline ; `locate_source_frame` et `list_clip_tempo_beats` placent
-leur rush sur une timeline et la nomment.
+Any tool that edits **or reads** a timeline is then refused without
+`timeline_id` (`TimelineRequired`, which names the project's timelines). This
+setting stays in `NSUserDefaults` or in the session and is never written into
+the project. Reading a source clip is not reading a timeline: `read_frame`
+with `media_id` (without `clip_id`) passes without `timeline_id`.
+`media_sheet`, `list_source_words`, `list_stable_windows` and the audio
+analyses target no timeline; `locate_source_frame` and
+`list_clip_tempo_beats` place their source clip on a timeline and name it.
 
-Les lectures d'une timeline — `describe`, `get_timeline_transcript`,
+Reads of a timeline — `describe`, `get_timeline_transcript`,
 `timeline_stats`, `check_timeline`, `list_shot_quality`, `contact_sheet`,
 `cut_sheet`, `list_disfluencies`, `list_speech_onsets`, `locate_source_frame`,
-`read_frame` et `list_multicam_groups` — prennent elles aussi un `timeline_id` optionnel, et
-lisent la timeline nommée **sans l'activer** ; en mode strict, elles aussi
-doivent nommer leur timeline. En CLI, `--describe`, `--timeline-stats` et
-`--check-timeline` prennent `--timeline <id>`. Le panneau Agent de l'application ne lit que la timeline à
-l'écran : il refuse d'en lire une autre plutôt que d'en changer.
+`read_frame` and `list_multicam_groups` — also take an optional
+`timeline_id`, and read the named timeline **without activating it**; in
+strict mode, they too must name their timeline. On the CLI, `--describe`,
+`--timeline-stats` and `--check-timeline` take `--timeline <id>`. The
+application's Agent panel reads only the timeline on screen: it refuses to
+read another rather than switch to it.
 
-### Historique d'une timeline
+### History of a timeline
 
-`describe` avec `only: ["history"]` rend le journal de la timeline lue
-(`timeline_id`, sinon l'active), accompagné de `total` et `applied`. Ses
-entrées viennent dans l'ordre, chacune avec :
+`describe` with `only: ["history"]` returns the journal of the timeline read
+(`timeline_id`, otherwise the active one), along with `total` and `applied`.
+Its entries come in order, each with:
 
-- son rang ;
-- son type tel que le journal l'écrit, ou `Batch` ;
-- son libellé s'il en a un ;
-- le nombre d'opérations qu'elle applique ;
-- `undone: true` si elle est au-delà du curseur d'annulation.
+- its rank;
+- its type as the journal writes it, or `Batch`;
+- its label if it has one;
+- the number of operations it applies;
+- `undone: true` if it is beyond the undo cursor.
 
-La réponse ne porte que les 200 dernières entrées, et l'historique n'est
-jamais dans la réponse par défaut. Une entrée `DeleteGap` est toute édition
-qui écrit le contenu de pistes : un blanc fermé, une insertion ou un
-écrasement depuis le moniteur Source, une suppression de plage.
-`clips_added` et `clips_removed` les distinguent (0 et 0 pour un blanc
-fermé). Le journal ne garde ni date ni auteur. La création d'une timeline
-(`add_timeline`, `clone_timeline`, `create_timeline_variants`,
-`create_interview_short`) est un pas du journal du projet : l'historique de
-la timeline commence à sa première édition. Une intervention d'un seul pas y
-figure comme un `Batch` d'une opération, avec son libellé. `--describe` n'a pas
-d'équivalent : `--call-tool <projet> describe '{"only":["history"]}'`.
-Une entrée qui porte un motif (ci-dessous) liste ses raisons sous `motifs`.
+The response carries only the last 200 entries, and the history is never in
+the default response. A `DeleteGap` entry is any edit that writes track
+content: a closed gap, an insert or an overwrite from the Source monitor, a
+range deletion. `clips_added` and `clips_removed` tell them apart (0 and 0 for
+a closed gap). The journal keeps neither date nor author. The creation of a
+timeline (`add_timeline`, `clone_timeline`, `create_timeline_variants`,
+`create_interview_short`) is a step of the project journal: the timeline's
+history starts at its first edit. A single-step intervention appears there as
+a `Batch` of one operation, with its label. `--describe` has no equivalent:
+`--call-tool <projet> describe '{"only":["history"]}'`. An entry that
+carries a motive (below) lists its reasons under `motifs`.
 
-### Ce qui a changé depuis un état
+### What changed since a state
 
-> PA9, PARITE-2026-11, 11 novembre 2026.
+> PA9, PARITE-2026-11.
 
-Un agent garde son modèle de la timeline et le corrige avec le delta de
-chaque édition. Entre deux de ses tours, la personne monte dans la fenêtre :
-le modèle est alors faux sans que rien le dise. `list_changes` prend dans
-`since` le `doc_hash` du dernier résultat d'édition que l'agent a vu, et
-rend **un** delta de cet état à maintenant (les plans créés, modifiés,
-retirés, décalés, comme le delta d'une édition), avec les entrées du journal
-entre les deux. Sans `since`, il nomme seulement l'état courant, à redonner
-la fois suivante.
+An agent keeps its model of the timeline and corrects it with the delta of
+each edit. Between two of its turns, the person edits in the window: the
+model is then wrong without anything saying so. `list_changes` takes in
+`since` the `doc_hash` of the last edit result the agent saw, and returns
+**one** delta from that state to now (clips created, modified, removed,
+shifted, like the delta of an edit), with the journal entries in between.
+Without `since`, it only names the current state, to be passed back the next
+time.
 
-- `changed` dit si les deux états diffèrent. Le delta n'a pas de mot pour
-  tout : un marqueur renommé, le réglage d'un style, une piste verrouillée
-  laissent un delta vide sous `changed: true`, et le type des entrées dit
-  quoi relire.
-- `undone: true` : l'état demandé est au-delà du curseur d'annulation. La
-  timeline est revenue en arrière, les entrées listées ont été annulées.
-- `found: false` : le journal ne mène plus à cet état (annulé, puis
-  d'autres éditions ; ou à plus de 500 entrées). Ce n'est pas une erreur :
-  on relit la timeline avec `describe`.
+- `changed` says whether the two states differ. The delta has no word for
+  everything: a renamed marker, a style setting, a locked track leave an
+  empty delta under `changed: true`, and the type of the entries says what to
+  reread.
+- `undone: true`: the requested state is beyond the undo cursor. The timeline
+  has gone back, the listed entries were undone.
+- `found: false`: the journal no longer leads to that state (undone, then
+  other edits; or more than 500 entries back). It is not an error: reread the
+  timeline with `describe`.
 
-Le journal ne garde pas d'auteur : les entrées qui suivent la dernière de
-l'agent sont celles de quelqu'un d'autre. Rejeter d'un coup ce qu'un agent
-a fait reste `undo` sur son intervention repliée (`end_intervention`).
+The journal keeps no author: the entries that follow the agent's last one are
+someone else's. Rejecting in one go what an agent did remains `undo` on its
+folded intervention (`end_intervention`).
 
-### Le motif d'une édition
+### The motive of an edit
 
-Le document garde ce qui a été fait ; le journal garde aussi pourquoi
-(MOTIF-2026-10). Chaque outil qui écrit dans le journal d'une timeline —
-toutes les éditions, `end_intervention` et `apply_edit_plan`, mais ni `undo`
-ni `redo`, qui déplacent des entrées — prend un argument `motif` :
+The document keeps what was done; the journal also keeps why (MOTIF-2026-10).
+Every tool that writes into a timeline's journal — all edits,
+`end_intervention` and `apply_edit_plan`, but neither `undo` nor `redo`,
+which move entries — takes a `motif` argument:
 
 ```json
 {"reason": "duplicate", "note": "garde la 2e prise", "author": "agent",
  "marker_id": "K3"}
 ```
 
-- `reason`, un vocabulaire fermé : `hesitation`, `pause`, `boundary_air`,
-  `duplicate` (doublon de propos), `selection` (choix du propos), `cutaway`,
-  `rhythm`, `brief`, `marker`, `format`, `captions`, `technical`, `other` (qui
-  demande une note) ;
-- `note`, une ligne de 280 caractères au plus ;
-- `author` : `agent` (par défaut), `person` ou `procedure` ;
-- `marker_id`, le marqueur auquel l'édition répond, résolu comme tout
-  identifiant (alias, ID complet, préfixe) ;
-- `params`, un objet, pour un appelant qui veut noter ses propres seuils.
+- `reason`, a closed vocabulary: `hesitation`, `pause`, `boundary_air`,
+  `duplicate` (a repeated point), `selection` (choice of what is said),
+  `cutaway`, `rhythm`, `brief`, `marker`, `format`, `captions`, `technical`,
+  `other` (which requires a note);
+- `note`, a line of at most 280 characters;
+- `author`: `agent` (the default), `person` or `procedure`;
+- `marker_id`, the marker the edit responds to, resolved like any identifier
+  (alias, full ID, prefix);
+- `params`, an object, for a caller who wants to record its own thresholds.
 
-Il faut une `reason` ou une `note`. `rule` est refusé : seul le code d'un
-outil nomme sa règle. Un outil qui n'écrit dans aucun journal de timeline
-refuse `motif` par son nom ; le catalogue le lit lui-même, aucun outil ne le
-voit. `tighten_pauses`, `clean_disfluencies`, `trim_boundary_air`,
-`close_junction_air`, `generate_captions` et `conform_sequence` écrivent
-leur propre raison, leur `rule` (leur nom) et leurs `params` (seuils lus,
-valeurs par défaut comprises) ; l'appelant n'y ajoute que `author`, `note` et
-`marker_id`, et une autre raison est refusée avant toute coupe. Un pas de
-plan prend son motif dans ses `arguments` ; `apply_edit_plan` couvre de son
-motif les membres qu'aucun pas n'a expliqués, `end_intervention` de même pour
-les entrées qu'il replie, chacune gardant le sien. `--apply-op <projet> <op>
-'<motif>'` pose un motif sur une opération écrite à la main.
+A `reason` or a `note` is required. `rule` is refused: only a tool's code
+names its rule. A tool that writes into no timeline journal refuses `motif`
+by name; the catalogue reads this itself, no tool sees it.
+`tighten_pauses`, `clean_disfluencies`, `trim_boundary_air`,
+`close_junction_air`, `generate_captions` and `conform_sequence` write their
+own reason, their `rule` (their name) and their `params` (thresholds read,
+defaults included); the caller adds only `author`, `note` and `marker_id`,
+and another reason is refused before any cut. A plan step takes its motive
+from its `arguments`; `apply_edit_plan` covers with its motive the members
+that no step explained, `end_intervention` likewise for the entries it folds,
+each keeping its own. `--apply-op <projet> <op> '<motif>'` sets a motive on
+an operation written by hand.
 
-Les éditions du projet le prennent aussi (MOTIF6) : `add_timeline`,
-`clone_timeline`, `create_timeline_variants`, `create_interview_short`,
-`rename_timeline`, `set_timeline_bin`, `remove_timeline`,
-`set_active_timeline` et `choose_timeline_variant`. Une entrée du journal du
-projet porte au plus un
-motif (`add_timeline` avec `activate` en écrit deux, chacune sous le motif
-de l'appel) ; son `marker_id` se résout sur la timeline active.
-`--apply-project-op <projet> <op> '<motif>'` pose un motif sur une
-opération de projet écrite à la main.
+Project edits take it too (MOTIF6): `add_timeline`, `clone_timeline`,
+`create_timeline_variants`, `create_interview_short`, `rename_timeline`,
+`set_timeline_bin`, `remove_timeline`, `set_active_timeline` and
+`choose_timeline_variant`. A project journal entry carries at most one motive
+(`add_timeline` with `activate` writes two, each under the call's motive);
+its `marker_id` is resolved on the active timeline.
+`--apply-project-op <projet> <op> '<motif>'` sets a motive on a project
+operation written by hand.
 
-`choose_timeline_variant` écrit au journal du projet le choix entre des
-timelines (variantes, clones, déclinaisons) : `timeline_id`, la timeline
-retenue ; `alternative_timeline_ids`, celles parmi lesquelles elle l'a été
-(au moins une, présentes, chacune une fois) ; `activate` pour la rendre
-active. Il exige `motif`, avec son `author` : `person` quand la personne a
-choisi, `agent` quand le choix a été laissé à l'agent. Le choix est une
-trace : il ne change rien au projet, sinon la timeline active si on le
-demande.
+`choose_timeline_variant` writes into the project journal the choice between
+timelines (variants, clones, versions): `timeline_id`, the timeline kept;
+`alternative_timeline_ids`, those among which it was chosen (at least one,
+present, each once); `activate` to make it active. It requires `motif`, with
+its `author`: `person` when the person chose, `agent` when the choice was
+left to the agent. The choice is a trace: it changes nothing in the project,
+except the active timeline if asked.
 
 ```json
 {"timeline_id": "01K…", "alternative_timeline_ids": ["01K…", "01K…"],
@@ -590,136 +578,135 @@ demande.
            "note": "la plus serrée tient la chute"}}
 ```
 
-`list_motifs` (`timeline_id`, `reason`, `rule`, `journal`, tous facultatifs)
-relit le journal en effet, regroupé par raison, règle et paramètres : chaque
-groupe liste ses entrées (rang dans l'historique, auteur, note, marqueur) et
-ce que chaque membre a touché (plan, plages de source coupées, rognages
-d'air). `operations_without_motif` compte ce que personne n'a expliqué. Les
-entrées annulées n'y sont pas. Avec `journal: "project"`, il relit le
-journal du projet : chaque entrée dit les timelines qu'elle nomme (créée,
-source d'un clone, variantes, retenue et alternatives d'un choix), par leur
-nom dans le projet tel qu'il est, `removed: true` pour une timeline retirée
-depuis ; il ne prend alors pas de `timeline_id`.
+`list_motifs` (`timeline_id`, `reason`, `rule`, `journal`, all optional)
+reads the journal back as it stands, grouped by reason, rule and parameters:
+each group lists its entries (rank in the history, author, note, marker) and
+what each member touched (clip, source ranges cut, air trims).
+`operations_without_motif` counts what nobody explained. Undone entries are
+not included. With `journal: "project"`, it reads the project journal back:
+each entry says the timelines it names (created, source of a clone, variants,
+kept one and alternatives of a choice), by their name in the project as it
+is, `removed: true` for a timeline removed since; it then takes no
+`timeline_id`.
 
-Le motif est une trace, pas un état : il vit dans le journal
-(`.editlog.json`), jamais dans le document, et ne change rien à ce qu'une
-opération fait. Un journal sans motif s'écrit en version 1, à l'octet comme
-avant ; un journal qui en porte un s'écrit en version 2. Un binaire antérieur
-à MOTIF-2026-10 refuse un journal en version 2, comme il refuse un document
-plus récent que lui : il lit encore la timeline mais refuse de l'éditer
-(`ParseError`), et sa fenêtre refuse d'ouvrir le projet ; ce binaire-ci
-refuse une version 3 en le disant (`edit log version 3 is newer than this
-build reads`). Le journal du projet suit la même politique : version 1 à
-l'octet sans motif, version 2 avec, version 3 refusée par son nom (`project
-edit log version 3 is newer than this build reads`) ; un binaire antérieur à
-MOTIF6 refuse le journal du projet en version 2.
+The motive is a trace, not a state: it lives in the journal
+(`.editlog.json`), never in the document, and changes nothing about what an
+operation does. A journal with no motive is written as version 1, byte for
+byte identical to what was written before motives existed; a journal that
+carries one is written as version 2. A binary older than MOTIF-2026-10
+refuses a version 2 journal, as it refuses a document newer than itself: it
+still reads the timeline but refuses to edit it (`ParseError`), and its
+window refuses to open the project; this binary refuses a version 3 and says
+so (`edit log version 3 is newer than this build reads`). The project journal
+follows the same policy: version 1 byte for byte without a motive, version 2
+with one, version 3 refused by name (`project edit log version 3 is newer
+than this build reads`); a binary older than MOTIF6 refuses the project
+journal in version 2.
 
-`transcribe_timeline` décode directement les plages source des plans audio,
-les replace sur leur grille temporelle exacte et transmet le PCM assemblé à
-Whisper sans export vidéo intermédiaire. Son cache dépend de l'identité de la
-timeline, des bornes et positions de ses plans audibles, du modèle, de la
-langue et du mode verbatim : une coupe audio ne peut donc pas réutiliser un
-texte périmé. `--srt-from-media` emploie le même chemin de transcription pour
-produire un SRT depuis un livrable sans créer de projet jetable.
+`transcribe_timeline` directly decodes the source ranges of the audio clips,
+puts them back on their exact time grid and passes the assembled PCM to
+Whisper without an intermediate video export. Its cache depends on the
+timeline's identity, the bounds and positions of its audible clips, the
+model, the language and the verbatim mode: an audio cut therefore cannot
+reuse a stale text. `--srt-from-media` uses the same transcription path to
+produce an SRT from a deliverable without creating a throwaway project.
 
-Le SRT compte en millisecondes, et une image à 24 ou 29,97 i/s n'y tombe
-presque jamais juste. L'écriture d'un SRT (`--export-srt`, `--srt-from-media`,
-l'export de l'application) arrondit donc chaque borne à la milliseconde la
-plus proche : au plus 0,5 ms, moins d'une demi-image à toute cadence sous
-1000 i/s, si bien que le fichier relu retombe sur la même image. C'est le seul
-arrondi du chemin, et il se déclare : `rounded_timestamps` compte les bornes
-arrondies. Un sous-titre plus court qu'une milliseconde se refuse, et un refus
-ne touche jamais au fichier de destination.
+SRT counts in milliseconds, and a frame at 24 or 29.97 fps almost never
+lands exactly on one. Writing an SRT (`--export-srt`, `--srt-from-media`, the
+application's export) therefore rounds each bound to the nearest
+millisecond: at most 0.5 ms, less than half a frame at any frame rate under
+1000 fps, so that the file read back lands on the same frame. This is the
+only rounding on the path, and it is declared: `rounded_timestamps` counts
+the rounded bounds. A subtitle shorter than a millisecond is refused, and a
+refusal never touches the destination file.
 
-`--export-vtt` écrit les mêmes cues en WebVTT, avec le même arrondi et le
-même compte ; `--export-edl`, `--export-edl-markers` et
-`--import-edl-markers` écrivent et relisent des listes CMX 3600. Les deux
-sont décrits dans [EDL CMX 3600 et WebVTT](edl.md), non vérifiés dans
-Resolve. `--export-otio` et `--export-fcpxml` écrivent la timeline, toutes
-ses pistes dans un fichier, pour un autre éditeur :
-[OTIO et FCPXML](echange.md), ouverts dans aucun éditeur à ce jour.
+`--export-vtt` writes the same cues as WebVTT, with the same rounding and the
+same count; `--export-edl`, `--export-edl-markers` and `--import-edl-markers`
+write and read back CMX 3600 lists. Both are described in [CMX 3600 EDL and
+WebVTT](edl.md), which says what was checked in Resolve. `--export-otio` and
+`--export-fcpxml` write the timeline, all its tracks in one file, for another
+editor: [OTIO and FCPXML](echange.md), not yet opened in any editor.
 
-Lorsqu'une enveloppe de parole B1 est disponible, le cache de transcription
-indique `speech_assessed`, `measured_speech_duration`,
-`likely_hallucinated`, `likely_incomplete` et
-`known_hallucination_phrase`. Des mots sans aucun
-groupe de parole mesuré sont signalés comme probablement inventés ; une
-tournure connue de sous-titrage ou d'abonnement ne fait que renforcer ce
-diagnostic et ne suffit jamais à elle seule. Les outils MCP
-`list_disfluencies`, `remove_words` et `create_interview_short` refusent ces
-transcriptions, sauf demande explicite avec `force: true`.
-À l'inverse, au moins dix secondes de parole mesurée sous le plancher
-conservateur de 30 mots/minute déclenchent `likely_incomplete` : le texte ne
-doit alors pas être interprété comme la preuve que le rush ne dit rien.
+When a B1 speech envelope is available, the transcription cache reports
+`speech_assessed`, `measured_speech_duration`, `likely_hallucinated`,
+`likely_incomplete` and `known_hallucination_phrase`. Words with no measured
+speech group at all are flagged as probably invented; a known subtitling or
+subscription phrase only reinforces this diagnosis and is never sufficient on
+its own. The MCP tools `list_disfluencies`, `remove_words` and
+`create_interview_short` refuse these transcriptions, unless explicitly asked
+with `force: true`. Conversely, at least ten seconds of measured speech below
+the conservative floor of 30 words/minute trigger `likely_incomplete`: the
+text must then not be interpreted as proof that the source clip says nothing.
 
-Une nouvelle transcription ne remplace pas le cache quand elle paraît moins
-bonne que lui (PRD40) : signalée `likely_incomplete` ou `likely_hallucinated`
-alors que le cache ne l'est pas, ou, faite de la même façon (verbatim ou
-non), avec moins de la moitié de ses mots. Le cache est gardé et le résultat
-du média le dit (`cache_kept: true`, `cached_words`, `cache_detail`) ;
-`words` et `text` décrivent ce qui vient d'être fait. `overwrite: true` (MCP)
-ou `--overwrite` (`--transcribe`) l'installe quand même. La transcription
-lancée depuis le menu Média de l'application écrit toujours le cache.
+A new transcription does not replace the cache when it looks worse than it
+(PRD40): flagged `likely_incomplete` or `likely_hallucinated` while the cache
+is not, or, made the same way (verbatim or not), with fewer than half of its
+words. The cache is kept and the media item's result says so
+(`cache_kept: true`, `cached_words`, `cache_detail`); `words` and `text`
+describe what was just done. `overwrite: true` (MCP) or `--overwrite`
+(`--transcribe`) installs it anyway. Transcription launched from the
+application's Média menu always writes the cache.
 
-Une passe verbatim que l'enveloppe de parole signale `likely_incomplete` est
-refaite sans le prompt verbatim, sur ces médias seulement (ITW9) : sur des
-prises en anglais et en espagnol, la passe verbatim a rendu 2 à 6 mots pour
-13 à 22 s de voix, la passe ordinaire le texte entier. Quand celle-ci décode
-plus de mots et n'est pas `likely_hallucinated`, ses mots deviennent la
-transcription, avec les hésitations de la passe verbatim (« euh », « uh »,
-« um »… de deux secondes au plus) là où elle n'entendait rien ; le résultat
-est évalué de nouveau contre l'enveloppe. Le cache garde `verbatim: true`, ce
-qui a été demandé, et dit `plain_pass_words`, les mots venus de la passe
-ordinaire : ils ne portent pas d'autre hésitation. La réponse le dit sous
-`plain_pass` (`used`, `verbatim_words`, `plain_words`, puis
-`kept_verbatim_words`, ou `detail` quand la passe ordinaire n'a pas été
-retenue). `list_source_words`, `list_disfluencies` et `clean_disfluencies`
-rendent `plain_pass_words` à côté de `verbatim`. Sans enveloppe
-(`analyze_speech_onset` d'abord), rien n'est évalué ni refait ; la
-transcription d'une timeline et celle du menu Média ne le font pas.
+A verbatim pass that the speech envelope flags `likely_incomplete` is redone
+without the verbatim prompt, on those media items only (ITW9): on English and
+Spanish takes, the verbatim pass returned 2 to 6 words for 13 to 22 s of
+voice, the ordinary pass the whole text. When the latter decodes more words
+and is not `likely_hallucinated`, its words become the transcription, with
+the hesitations of the verbatim pass ("euh", "uh", "um"… of two seconds at
+most) where it heard nothing; the result is evaluated again against the
+envelope. The cache keeps `verbatim: true`, what was asked for, and says
+`plain_pass_words`, the words that came from the ordinary pass: they carry no
+other hesitation. The response says so under `plain_pass` (`used`,
+`verbatim_words`, `plain_words`, then `kept_verbatim_words`, or `detail` when
+the ordinary pass was not retained). `list_source_words`,
+`list_disfluencies` and `clean_disfluencies` return `plain_pass_words` next
+to `verbatim`. Without an envelope (`analyze_speech_onset` first), nothing is
+evaluated or redone; the transcription of a timeline and that of the Média
+menu do not do it.
 
-`--apply-project-op` accepte soit une opération canonique, soit un tableau.
-Dans ce second cas, les opérations sont appliquées dans l'ordre et forment un
-seul pas de `--undo-project-op` ; un refus annule le lot entier. Une opération
-projet ne charge plus les journaux des timelines qu'elle ne modifie pas, et la
-sauvegarde préserve leurs octets existants.
+`--apply-project-op` accepts either a canonical operation or an array. In the
+second case, the operations are applied in order and form a single step of
+`--undo-project-op`; a refusal cancels the whole batch. A project operation
+does not load the journals of the timelines it does not modify, and the save
+preserves their existing bytes.
 
 ## Multicam
 
-Un groupe multicam réunit des plans déjà posés sur des pistes image, un par
-caméra synchronisée, et désigne un angle actif. Tant qu'un angle est actif,
-les autres angles du groupe disparaissent de l'image sur toute leur durée,
-comme si leur piste était masquée à cet endroit ; ce qui se trouve dessous
-reste visible là où l'angle actif ne couvre pas. Sans angle actif, tous les
-angles se composent comme des plans ordinaires. La même règle
-(`src/Multicam.h`) sert le moniteur, l'export, `verify_export`,
-`timeline_stats`, les planches, `list_shot_quality` et le retour vers
-Resolve ; celui-ci refuse un angle masqué dont le son joue encore, parce
-qu'il ne sait pas envoyer ce son sans son image.
+A multicam group gathers clips already placed on picture tracks, one per
+synchronised camera, and designates an active angle. As long as an angle is
+active, the group's other angles disappear from the picture over their whole
+duration, as if their track were hidden at that spot; what lies beneath
+remains visible where the active angle does not cover. Without an active
+angle, all the angles composite like ordinary clips. The same rule
+(`src/Multicam.h`) serves the monitor, export, `verify_export`,
+`timeline_stats`, the contact sheets, `list_shot_quality` and the return to
+Resolve; the latter refuses a hidden angle whose sound still plays, because
+it does not know how to send that sound without its picture.
 
-Le multicam ne touche qu'à l'image : les plans son, liés ou non, continuent de
-jouer. Couper le son d'une caméra se fait en coupant sa piste.
+Multicam touches only the picture: sound clips, linked or not, keep playing.
+Muting a camera's sound is done by muting its track.
 
-Les quatre commandes résolvent les identifiants par ULID complet ou par
-préfixe non ambigu, prennent `--timeline` et rendent, en plus du résultat de
-`--apply-op`, l'identifiant du groupe, ceux de ses angles, l'angle actif et
-les plans masqués. `--set-multicam-angle` accepte un angle ou le plan qu'il
-montre ; `none` efface l'angle actif et demande `--group`. Chaque commande
-d'écriture est un pas d'annulation et prend le verrou de session du projet.
-Les outils MCP correspondants sont `add_multicam_group`,
-`set_multicam_active_angle`, `remove_multicam_group` et
-`list_multicam_groups` ; dans l'application, le menu Clip propose « Activer
-l'angle multicam du clip » et « Afficher tous les angles multicam ».
+The four commands resolve identifiers by full ULID or by unambiguous prefix,
+take `--timeline` and return, in addition to the result of `--apply-op`, the
+group's identifier, those of its angles, the active angle and the hidden
+clips. `--set-multicam-angle` accepts an angle or the clip it shows; `none`
+clears the active angle and requires `--group`. Each write command is one
+undo step and takes the project's session lock. The corresponding MCP tools
+are `add_multicam_group`, `set_multicam_active_angle`,
+`remove_multicam_group` and `list_multicam_groups`; in the application, the
+Clip menu offers "Activer l'angle multicam du clip" (Activate the clip's
+multicam angle) and "Afficher tous les angles multicam" (Show all multicam
+angles).
 
-Couper un groupe (décision du 8 octobre 2026) : `--split-multicam-group
-<projet> <groupe> <position>` (images de la timeline, ou `valeur/cadence`),
-MCP `split_multicam_group` (`timeline_position`). Chaque angle qui traverse
-la position y est coupé, et ce qui suit forme un second groupe, qui peut
-montrer un autre angle : c'est le montage multicam de Resolve, dans un
-schéma où un groupe n'a qu'un angle actif. Le groupe garde les angles
-d'avant la coupe ; le second prend les morceaux de droite et les angles
-entièrement après, et montre l'angle qui était actif, ou celui que nomme
-`--active` / `active_angle_id` (un angle du groupe). Le son n'est pas coupé :
-il ne suit pas l'angle. Un seul pas d'annulation ; refusé quand aucun angle
-n'est coupé à cette position. La réponse nomme le second groupe, ses angles
-et celui qu'il montre. Dans la fenêtre, le geste n'existe pas encore.
+Cutting a group: `--split-multicam-group <projet> <groupe> <position>`
+(timeline frames, or `valeur/cadence`), MCP `split_multicam_group`
+(`timeline_position`). Each angle that crosses the position is cut there, and
+what follows forms a second group, which can show another angle: this is
+Resolve's multicam editing, in a scheme where a group has only one active
+angle. The group keeps the angles from before the cut; the second takes the
+right-hand pieces and the angles entirely after, and shows the angle that was
+active, or the one named by `--active` / `active_angle_id` (an angle of the
+group). Sound is not cut: it does not follow the angle. A single undo step;
+refused when no angle is cut at that position. The response names the second
+group, its angles and the one it shows. In the window, the gesture does not
+exist yet.

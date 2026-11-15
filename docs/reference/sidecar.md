@@ -1,10 +1,7 @@
-# Sidecar conversationnel
+# Conversational sidecar
 
-> Relu contre le code le 3 octobre 2026. Les réponses des modèles et le
-> rapport d'évaluation ne sont pas vérifiés par lecture.
-
-Le pilote Python utilise uniquement la bibliothèque standard. Le backend est
-sélectionné sans modifier le REPL :
+The Python driver uses only the standard library. The backend is selected
+without changing the REPL:
 
 ```sh
 # Ollama local
@@ -19,26 +16,26 @@ export ANTHROPIC_API_KEY=...
 python3 -m sidecar.repl ./Film.cutmachine-project/project.cutmachine.json
 ```
 
-Le sidecar charge aussi automatiquement le fichier `.env` à la racine du
-dépôt, sans remplacer une variable déjà exportée par le shell. Ce fichier est
-ignoré par Git.
+The sidecar also loads the `.env` file at the repository root automatically,
+without overriding a variable already exported by the shell. Git ignores this
+file.
 
-Le planner demande au modèle une intention de trim (`Shorten` ou `Extend`) et
-une quantité positive en frames ou secondes ; le signe et le timebase du
-`TrimClip` sont calculés localement. Les références explicites de piste, de
-clip, d'alias et de nom de source sont également résolues depuis la vue avant
-validation. Un ULID proposé par le modèle n'est utilisé qu'en fallback lorsque
-la formulation ne fournit pas une résolution déterministe unique.
+The planner asks the model for a trim intent (`Shorten` or `Extend`) and a
+positive quantity in frames or seconds; the sign and the timebase of the
+`TrimClip` are computed locally. Explicit references to a track, a clip, an
+alias and a source name are also resolved from the view before validation. A
+ULID proposed by the model is used only as a fallback when the wording does
+not give a single deterministic resolution.
 
-Variables optionnelles : `CUTMACHINE_BINARY`, `CUTMACHINE_OLLAMA_URL`,
-`CUTMACHINE_ANTHROPIC_URL`, `CUTMACHINE_OLLAMA_MODEL` et
-`CUTMACHINE_ANTHROPIC_MODEL`. Les variables de modèle spécifiques prennent le
-pas sur `CUTMACHINE_MODEL`. Chaque instruction est indépendante : le sidecar ne
-conserve aucune conversation, ne propose qu'une opération et ne réessaie qu'une
-fois après une erreur nommée du moteur.
+Optional variables: `CUTMACHINE_BINARY`, `CUTMACHINE_OLLAMA_URL`,
+`CUTMACHINE_ANTHROPIC_URL`, `CUTMACHINE_OLLAMA_MODEL` and
+`CUTMACHINE_ANTHROPIC_MODEL`. The model-specific variables take precedence
+over `CUTMACHINE_MODEL`. Each instruction is independent: the sidecar keeps no
+conversation, proposes only one operation and retries only once after a named
+engine error.
 
-Le corpus fixe de 15 instructions françaises permet de mesurer les changements
-de prompt ou de modèle :
+The fixed corpus of 15 French instructions makes it possible to measure the
+effect of changes of prompt or model:
 
 ```sh
 python3 -m sidecar.eval --backend ollama
@@ -46,15 +43,15 @@ python3 -m sidecar.eval --backend anthropic
 python3 -m sidecar.eval --backend all
 ```
 
-Le rapport affiche chaque comparaison et le taux de réussite séparément pour
-chaque backend. Une évaluation parfaite retourne 0 ; toute divergence retourne 1.
+The report prints each comparison and the success rate separately for each
+backend. A perfect evaluation returns 0; any divergence returns 1.
 
-## Rendre du son
+## Rendering sound
 
-`sidecar/sound.py` (SN3, SON-2026-10) lance
-`node tools/cutmachine-sound/cli.mjs` en sous-processus et lit son rapport
-JSON, comme `binary.py` le fait pour le moteur. Node 18 ou plus est
-nécessaire (`CUTMACHINE_NODE`, sinon le `PATH`).
+`sidecar/sound.py` (SN3, SON-2026-10) launches
+`node tools/cutmachine-sound/cli.mjs` as a subprocess and reads its JSON
+report, as `binary.py` does for the engine. Node 18 or later is required
+(`CUTMACHINE_NODE`, otherwise the `PATH`).
 
 ```python
 from sidecar.sound import SoundRenderer
@@ -66,7 +63,7 @@ rendu.stem       # Film.cutmachine-project/Sound/impacts-seed3.wav
 rendu.report     # sha256, pics, graine, réglages, timeReference, montage lu
 ```
 
-Dans le REPL, `:son <ditty.js> [graine=N] [nom=valeur]...` rend contre la
-timeline active du document et imprime le stem et le résumé du rapport.
-Aucun modèle n'y intervient : la ditty dit quel son va où, le rendu place.
-
+In the REPL, `:son <ditty.js> [graine=N] [nom=valeur]...` renders against the
+document's active timeline and prints the stem and the summary of the report.
+No model is involved: the ditty says which sound goes where, the render places
+it.

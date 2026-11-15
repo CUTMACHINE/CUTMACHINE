@@ -1,15 +1,15 @@
-# Images de référence dans les tests
+# Reference images in tests
 
-FC9, FILMCRAFT-2026-10. Un rendu fait sur
-le CPU se compare à une image PNG regardée par quelqu'un, rangée sous
-`tests/fixtures/golden/`, et non plus seulement à quelques pixels choisis par
-le test. Le module est `tests/golden_image.h` (repris de FilmCraft,
-`crates/testkit/src/golden.rs`, MIT ou Apache-2.0) ; il se teste lui-même dans
-`cutmachine_golden_image_tests`, et sert aujourd'hui aux effets de motion
-(flou, ombre portée, halo, déplacement ; grain, goo et tranches depuis MA7)
-dans `cutmachine_motion_parity_tests`.
+FC9, FILMCRAFT-2026-10. A render made on
+the CPU is compared with a PNG image that someone has looked at, stored under
+`tests/fixtures/golden/`, rather than only with a few pixels picked by the
+test. The module is `tests/golden_image.h` (taken from FilmCraft,
+`crates/testkit/src/golden.rs`, MIT or Apache-2.0); it tests itself in
+`cutmachine_golden_image_tests`, and is used today for the motion effects
+(blur, drop shadow, glow, displacement; grain, goo and slices from MA7) in
+`cutmachine_motion_parity_tests`.
 
-## S'en servir
+## Using it
 
 ```cpp
 #include "golden_image.h"
@@ -18,124 +18,120 @@ GoldenCheck check;
 check.name = "motion_effects_blur";            // tests/fixtures/golden/<name>.png
 check.reference_dir = GOLDEN_REFERENCE_DIR;
 check.output_dir = GOLDEN_OUTPUT_DIR;
-check.depth = GoldenDepth::Sixteen;            // ou Eight
-check.tolerance = {90.0, 1.0, 0.0};            // PSNR min, écart max, p99
+check.depth = GoldenDepth::Sixteen;            // or Eight
+check.tolerance = {90.0, 1.0, 0.0};            // min PSNR, max difference, p99
 const GoldenResult result = CheckGoldenImage(
     GoldenImageFromFloat(width, height, 4, rgba), check);
 Check(result.passed, result.message);
 ```
 
-La suite qui s'en sert compile `tests/golden_image.cc` avec ses sources et
-reçoit les deux dossiers par `target_compile_definitions` (voir
-`cutmachine_motion_parity_tests` dans `CMakeLists.txt`). Une image est en
-flottants dans [0, 1], RVB ou RVBA, entrelacée, lignes du haut ; des octets ou
-des mots de 16 bits s'y convertissent (`GoldenImageFromBytes`,
-`GoldenImageFromWords`). Le PNG passe par libavcodec, que le modèle lie déjà :
-aucune dépendance de plus.
+The suite that uses it compiles `tests/golden_image.cc` with its sources and
+receives the two directories through `target_compile_definitions` (see
+`cutmachine_motion_parity_tests` in `CMakeLists.txt`). An image is floats in
+[0, 1], RGB or RGBA, interleaved, top row first; bytes or 16-bit words convert
+to it (`GoldenImageFromBytes`, `GoldenImageFromWords`). The PNG goes through
+libavcodec, which the model already links: no extra dependency.
 
-## Les trois mesures
+## The three measures
 
-Le rendu est d'abord arrondi à la profondeur de la référence (8 ou 16 bits),
-comme elle l'a été en l'écrivant : un rendu inchangé se compare à zéro sur la
-machine qui l'a écrite. Les écarts sont en niveaux de cette profondeur (0 à
-255, ou 0 à 65 535).
+The render is first rounded to the depth of the reference (8 or 16 bits), as
+the reference was when it was written: an unchanged render compares at zero on
+the machine that wrote it. Differences are in levels of that depth (0 to 255,
+or 0 to 65,535).
 
-- **PSNR** : sur tous les échantillons, en dB, contre la pleine échelle ;
-  infini pour deux images identiques.
-- **Écart max** : la plus grande différence d'un échantillon.
-- **p99** : le 99ᵉ centile, sur les pixels, de la plus grande différence de
-  chaque pixel. Ce que 99 % de l'image respecte : quelques pixels sur un bord
-  d'arrondi ne cachent pas un décalage de toute l'image, ni l'inverse.
+- **PSNR**: over all samples, in dB, against full scale; infinite for two
+  identical images.
+- **Max difference**: the largest difference of any one sample.
+- **p99**: the 99th percentile, over pixels, of each pixel's largest
+  difference. What 99% of the image meets: a few pixels on a rounding edge do
+  not hide an offset of the whole image, nor the reverse.
 
-Chaque test déclare sa tolérance ; elle est exacte par défaut.
+Each test declares its tolerance; it is exact by default.
 
-## Un échec
+## A failure
 
-Le message donne les trois mesures, la tolérance, et deux chemins, dans le
-dossier de sortie du test (`build…/golden-output/`, ou
-`CUTMACHINE_GOLDEN_OUTPUT` s'il est posé) :
+The message gives the three measures, the tolerance, and two paths, in the
+test's output directory (`build…/golden-output/`, or
+`CUTMACHINE_GOLDEN_OUTPUT` if it is set):
 
-- `<name>.actual.png`, le rendu tel qu'il a été comparé ;
-- `<name>.diff.png`, la différence de chaque canal multipliée par huit, la
-  différence d'alpha reportée sur les trois couleurs, opaque.
+- `<name>.actual.png`, the render as it was compared;
+- `<name>.diff.png`, the difference of each channel multiplied by eight, with
+  the alpha difference carried onto the three colour channels, opaque.
 
-Une référence absente fait échouer le test, qui écrit quand même le rendu
-pour qu'on le regarde.
+A missing reference makes the test fail; it still writes the render so that
+it can be looked at.
 
-## Réécrire les références
+## Rewriting the references
 
 ```sh
 CUTMACHINE_BLESS=1 ./build-headless/cutmachine_motion_parity_tests
 ```
 
-`CUTMACHINE_BLESS` à `1`, `true`, `yes` ou `on` réécrit chaque référence au
-lieu de la comparer. Une référence de plus de 64 Kio est refusée : rendre plus
-petit. Regarde l'image réécrite, et sa différence avec l'ancienne dans la
-revue, avant de la committer : une référence réécrite sans être regardée ne
-prouve plus rien.
+`CUTMACHINE_BLESS` set to `1`, `true`, `yes` or `on` rewrites each reference
+instead of comparing it. A reference over 64 KiB is refused: make it smaller.
+Look at the rewritten image, and at its difference from the old one in review,
+before committing it: a reference rewritten without being looked at proves
+nothing.
 
-## Pourquoi ces tolérances
+## Why these tolerances
 
-Le principe : tant qu'un rendu
-n'est pas exact d'une machine à l'autre, il se compare à une tolérance
-déclarée et mesurée.
+As long as a render is
+not exact from one machine to another, it is compared against a declared and
+measured tolerance.
 
-Les effets de motion sont des boucles en `float` et en `double`, plus
-`std::exp` (le noyau gaussien) et `std::floor` (la grille du bruit). D'une
-machine à l'autre changent les derniers bits : le compilateur qui fond une
-multiplication et une addition en une FMA là où la cible en a une (toujours
-sur arm64, sur x86-64 seulement si on compile pour), et l'`exp` de la libm.
-Un tel écart déplace un échantillon de bien moins d'un niveau ; il ne se voit
-qu'où le flottant tombe sur un bord d'arrondi : un niveau, sur quelques
-pixels. La tolérance de ces trois tests laisse donc passer un niveau sur
-n'importe quel échantillon, garde le p99 à zéro et un PSNR d'au moins 60 dB
-(8 bits) ou 90 dB (16 bits). Un vrai changement (un noyau d'un pixel plus
-large, une ombre décalée d'un pixel, une autre graine) déplace des bords
-entiers de beaucoup de niveaux et échoue sur les trois.
+The motion effects are loops in `float` and `double`, plus `std::exp` (the
+Gaussian kernel) and `std::floor` (the noise grid). From one machine to
+another the last bits change: the compiler fusing a multiplication and an
+addition into an FMA where the target has one (always on arm64, on x86-64
+only if compiled for it), and the libm `exp`. Such a difference moves a
+sample by far less than one level; it only shows where the float lands on a
+rounding edge: one level, on a few pixels. The tolerance of these three tests
+therefore lets one level through on any sample, keeps p99 at zero and a PSNR
+of at least 60 dB (8 bits) or 90 dB (16 bits). A real change (a kernel one
+pixel wider, a shadow offset by one pixel, another seed) moves whole edges by
+many levels and fails all three.
 
-Mesuré le 17 octobre 2026, sous Linux x86-64 (clang 18) : `MotionEffects.cc`
-et les scènes recompilés autrement que le build par défaut (`-O3`, qui a
-écrit les références), rendu brut en flottants comparé à celui du build par
-défaut, puis rendu arrondi comparé aux références.
+Measured under Linux x86-64 (clang 18): `MotionEffects.cc` and the scenes
+recompiled differently from the default build (`-O3`, which wrote the
+references), raw float render compared with that of the default build, then
+the rounded render compared with the references.
 
-| Build | Flou σ 4 | Ombre et halo | Déplacement | Contre les références |
+| Build | Blur σ 4 | Shadow and glow | Displacement | Against the references |
 |---|---|---|---|---|
-| `-O0` | identique | identique | identique | 0 partout |
-| `-march=x86-64-v3 -ffp-contract=fast` (FMA) | identique | 790 échantillons, au plus 6,0 × 10⁻⁸ | identique | 0 partout |
-| `-march=x86-64-v3 -ffast-math` | identique | 1 232 échantillons, au plus 1,2 × 10⁻⁷ | identique | 0 partout |
+| `-O0` | identical | identical | identical | 0 everywhere |
+| `-march=x86-64-v3 -ffp-contract=fast` (FMA) | identical | 790 samples, at most 6.0 × 10⁻⁸ | identical | 0 everywhere |
+| `-march=x86-64-v3 -ffast-math` | identical | 1,232 samples, at most 1.2 × 10⁻⁷ | identical | 0 everywhere |
 
-Le pire écart brut fait 3 × 10⁻⁵ niveau en 8 bits et 8 × 10⁻³ niveau en
-16 bits : aucun arrondi n'a bougé. La tolérance d'un niveau a donc une
-marge que la mesure ne consomme pas ; elle couvre le cas, possible mais non
-observé, d'un échantillon pile sur un bord d'arrondi.
+The worst raw difference is 3 × 10⁻⁵ level in 8 bits and 8 × 10⁻³ level in
+16 bits: no rounding moved. The one-level tolerance therefore has a margin
+that the measurement does not use up; it covers the case, possible but not
+observed, of a sample exactly on a rounding edge.
 
-Dans l'autre sens, ce que la tolérance arrête, mesuré de la même façon : une
-ombre décalée d'un pixel (PSNR 31,9 dB, écart max 58, p99 49), un halo de
-force 2,05 au lieu de 2 (47,3 dB, max 6, p99 4), une autre graine de
-déplacement (14,2 dB, max 255), un flou de σ 5 au lieu de 4 (39,7 dB, max
-2 570 en 16 bits). Un flou de σ 4,1 ou 4,5 ne change rien : le flou à trois
-boîtes de SVG arrondit σ à une largeur de boîte entière, la même (8) de
-σ 3,99 à 4,52.
+In the other direction, what the tolerance catches, measured the same way: a
+shadow offset by one pixel (PSNR 31.9 dB, max difference 58, p99 49), a glow
+of strength 2.05 instead of 2 (47.3 dB, max 6, p99 4), another displacement
+seed (14.2 dB, max 255), a blur of σ 5 instead of 4 (39.7 dB, max 2,570 in 16
+bits). A blur of σ 4.1 or 4.5 changes nothing: SVG's three-box blur rounds σ
+to a whole box width, the same (8) from σ 3.99 to 4.52.
 
-Ce n'est pas encore la mesure d'un Mac : ni l'`exp` d'Apple ni arm64 n'y
-entrent. Le premier passage de la suite sur un Mac la donne ; si elle dépasse
-la tolérance, c'est la tolérance qu'on revoit, chiffres à l'appui, pas la
-référence qu'on réécrit sur le Mac.
+That is not a Mac measurement: neither Apple's `exp` nor arm64 enter into it.
+The first run of the suite on a Mac gives it; if it exceeds the tolerance, it
+is the tolerance that gets reviewed, with figures, not the reference that gets
+rewritten on the Mac.
 
-Sur un Mac (arm64, Apple clang 17), le 19 octobre 2026, les trois
-références écrites sous Linux passent à zéro. Ce jour-là, MA7
-(MOTION-AFTER-2026-09) en ajoute
-trois, écrites sur ce Mac : `motion_effects_grain` (grain de 0,3, cellules
-de 2 pixels), `motion_effects_goo` (goo de σ 3) et `motion_effects_slice`
-(tranches de 6 pixels sur des bandes de 8), même scène, même tolérance.
-Elles n'ont pas été comparées sous Linux. Le grain ne fait que des calculs
-exacts (cellules entières, hachage) ; le goo passe le flou par une rampe
-raide autour de la moitié de la couverture, qui multiplie un écart par
-moins de 20 ; une tranche décale une ligne d'un nombre entier de pixels
-arrondi : un écart d'un ulp sur une valeur à 0,5 près d'un entier
-décalerait une ligne entière. Si le premier passage sous Linux en trouve
-un, c'est là qu'il faut regarder.
+On a Mac (arm64, Apple clang 17), the three references written under Linux
+pass at zero. MA7
+(MOTION-AFTER-2026-09) adds three more,
+written on that Mac: `motion_effects_grain` (grain of 0.3, 2-pixel cells),
+`motion_effects_goo` (goo of σ 3) and `motion_effects_slice` (6-pixel slices
+on bands of 8), same scene, same tolerance. They have not been compared under
+Linux. The grain only does exact computations (whole cells, hashing); the goo
+passes the blur through a steep ramp around half coverage, which multiplies a
+difference by less than 20; a slice shifts a line by a whole number of
+rounded pixels: a one-ulp difference on a value sitting at the half-way point between
+two integers would shift a whole line. If the first run under Linux finds one, that is
+where to look.
 
-Réécrire les références (`CUTMACHINE_BLESS=1`) sur un Mac réécrit aussi
-les trois écrites sous Linux, avec d'autres octets pour les mêmes pixels
-(constaté ce jour-là) : ne committe que celles que tu as voulu changer.
+Rewriting the references (`CUTMACHINE_BLESS=1`) on a Mac also rewrites the
+three written under Linux, with different bytes for the same pixels
+(observed): commit only the ones you meant to change.

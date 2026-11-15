@@ -1,163 +1,149 @@
-# Agent intégré et clé utilisateur
+# Built-in agent and user key
 
-> Relu contre le code le 3 octobre 2026 ; « Le projet du panneau », le 19
-> octobre. Ce que répond un modèle et ce que montre le panneau ne sont pas
-> vérifiés par lecture.
+The **Agent** panel contacts directly either Anthropic's Messages API, or
+Ollama's native local API, or a coding agent launched by its command (**Agent
+de code (ACP)** (coding agent (ACP)): Claude Code, Codex…, which connects with
+its own account). The **Configurer le moteur IA…** (Configure the AI engine…)
+button, placed below the conversation, lets you choose the provider, the
+model, the base URL, the API key and the ACP command. The same dialog is
+available in **CUTMACHINE → Moteur IA…** (AI engine…).
 
-Le panneau **Agent** contacte directement soit l’API Messages d’Anthropic, soit
-l’API locale native d’Ollama, soit un agent de code lancé par sa commande
-(**Agent de code (ACP)** : Claude Code, Codex…, qui se connecte avec son propre
-compte). Le bouton **Configurer le moteur
-IA…**, placé sous la conversation, permet de choisir le fournisseur, le modèle,
-l’URL de base, la clé API et la commande ACP. Le même dialogue est disponible
-dans **CUTMACHINE → Moteur IA…**.
+The panel is a window of its own that floats above the editor (ONGLETS-2026-10,
+ON3), rather than a tab of the right-hand dock taking the Inspector's place,
+on every tab. It is shown and hidden from any tab, by the **Agent** button at
+the bottom right of the window, by **Affichage → Agent** (View → Agent) or by
+`⌥⌘A`. The first time, it opens at the top right of the editor, under its
+title bar; afterwards where it was left, as long as a screen still carries it:
+a disconnected screen brings it back near the editor (`src/AgentWindow.h`).
+Its position, and whether it was shown, are local preferences. Shown by the
+button or the key, it takes the keyboard in its field; hidden, it gives it back
+to the editor. In its field, `⌘C`, `⌘X`, `⌘V`, `⌘Z` and `⌘A` act on the text,
+never on the edit. Hidden, it still receives its responses and the relayed
+agent's log: a dot on the button ("Agent •") signals it until the panel is
+shown. It hides with the application when another one comes to the front, and
+full-screen video covers it. The **Moteur IA** dialog remains a sheet on the
+editor window.
 
-Depuis le 1er novembre 2026 (ONGLETS-2026-10, ON3), le panneau est une
-fenêtre à lui, qui flotte au-dessus de l'éditeur : il n'est plus l'onglet du
-dock de droite où il prenait la place de l'Inspecteur, sur tous les onglets.
-On le montre et on le cache depuis n'importe quel onglet, par le bouton
-**Agent** en bas à droite de la fenêtre, par **Affichage → Agent** ou par
-`⌥⌘A`. La première fois, il s'ouvre en haut à droite de l'éditeur, sous sa
-barre de titre ; ensuite là où on l'a laissé, tant qu'un écran le porte
-encore : un écran débranché le ramène près de l'éditeur
-(`src/AgentWindow.h`). Sa place, et s'il était montré, sont des préférences
-locales. Montré par le bouton ou la touche, il prend le clavier dans son
-champ ; caché, il le rend à l'éditeur. Dans son champ, `⌘C`, `⌘X`, `⌘V`,
-`⌘Z` et `⌘A` agissent sur le texte, jamais sur le montage. Caché, il reçoit
-toujours ses réponses et le journal de l'agent relayé : un point sur le
-bouton (« Agent • ») le signale jusqu'à ce qu'on le montre. Il se cache avec
-l'application quand une autre passe devant, et la vidéo plein écran le
-recouvre. Le dialogue **Moteur IA** reste une feuille sur la fenêtre de
-l'éditeur.
+The dialog enables only the fields of the chosen protocol: model, base URL and
+key for Anthropic and for Ollama, the command alone for the coding agent; the
+others are greyed out, and their prompts follow the menu. It opens on what is
+saved; a field left empty saves nothing and takes the value suggested in grey.
+To use the Qwen Coder model already installed on the machine, choose **Ollama
+local**: model `qwen2.5-coder:7b` and URL `http://localhost:11434` by default.
+Local Ollama needs no key; a key that is entered goes out as
+`Authorization: Bearer` (an Ollama behind a proxy, or ollama.com). Tool calls
+remain available: the model can therefore observe and modify the edit through
+the same reversible operations as the Anthropic engine.
 
-Le dialogue n'active que les champs du protocole choisi : modèle, URL de base
-et clé pour Anthropic et pour Ollama, la commande seule pour l'agent de code ;
-les autres sont grisés, et leurs invites suivent le menu. Il s'ouvre sur ce
-qui est enregistré ; un champ laissé vide n'enregistre rien et prend la
-valeur proposée en gris. Pour utiliser le modèle Qwen Coder déjà installé sur
-la machine, choisissez **Ollama local** : modèle `qwen2.5-coder:7b` et URL
-`http://localhost:11434` par défaut. Ollama local ne nécessite aucune clé ;
-une clé saisie part en `Authorization: Bearer` (un Ollama derrière un proxy,
-ou ollama.com). Les appels d’outils restent disponibles : le modèle peut donc
-observer et modifier le montage via les mêmes opérations réversibles que le
-moteur Anthropic.
+The Ollama transport uses `/api/chat` and requests a 32K-token context. Before
+sending `describe` back to the local model, the app keeps the timeline, the
+sources used, the media library aliases, the bins and the markers, but removes
+redundant media metadata. For older models that write a call as the JSON
+`{name, arguments}` instead of a real `tool_calls`, this format is executed
+only if the object is strict and designates a tool actually published by
+CUTMACHINE.
 
-Le transport Ollama utilise `/api/chat` et demande un contexte de 32K tokens.
-Avant de renvoyer `describe` au modèle local, l’app conserve la timeline, les
-sources utilisées, les aliases de médiathèque, les chutiers et les marqueurs,
-mais retire les métadonnées média redondantes. Pour les modèles anciens qui
-écrivent un appel sous la forme JSON `{name, arguments}` au lieu d’un vrai
-`tool_calls`, ce format n’est exécuté que si l’objet est strict et désigne un
-outil réellement publié par CUTMACHINE.
+To edit an interview, `get_timeline_transcript` returns selectable spans and
+`create_interview_short` **accepts only their `span_id`s** (or the `block_id`s
+of `list_speech_blocks`), with the `transcript_revision` read at the same time.
+The model copies no time: the engine resolves each identifier to an exact
+position, which makes a cut in the middle of a word inexpressible instead of
+merely discouraged. If a word straddles a cut, it appears only once, in the
+clip that plays its start (or, if that start was cut, in the one that plays the
+rest), and its span carries `straddles_cut: true` to signal that its rendering
+may be approximate. Attribution to the largest overlap would move a word
+straddling a cut into the next clip, where it is not spoken first.
+When an idea goes beyond one span — they are cut for the readability of a
+subtitle, about 42 characters, which is not an editing unit — `span_id` and
+`end_span_id` designate a contiguous interval that the engine merges into a
+single range. An interval that spans a silence or changes source is refused,
+never silently stitched together.
 
-Pour monter une interview, `get_timeline_transcript` renvoie des spans
-sélectionnables et `create_interview_short` **n'accepte que leurs `span_id`**
-(ou les `block_id` de `list_speech_blocks`), avec la `transcript_revision` lue
-en même temps.
-Le modèle ne recopie aucun temps : c'est le moteur qui résout chaque
-identifiant en position exacte, ce qui rend une coupe au milieu d'un mot
-inexprimable au lieu de simplement déconseillée. Si un mot chevauche une coupe,
-il n'apparaît qu'une fois, dans le plan qui joue son début (ou, si ce début a
-été coupé, dans celui qui joue la suite), et son span porte
-`straddles_cut: true` pour signaler que son rendu peut être approximatif.
-L'attribution au plus grand recouvrement faisait passer un mot à cheval sur
-une coupe dans le plan suivant, où il n'était pas prononcé en premier.
-Quand une idée dépasse un span — ils sont découpés pour la lisibilité d'un
-sous-titre, environ
-42 caractères, ce qui n'est pas une unité de montage — `span_id` et
-`end_span_id` désignent un intervalle contigu que le moteur fusionne en une
-seule plage. Un intervalle qui enjambe un silence ou change de source est
-refusé, jamais recousu en silence.
+For the usual A/V shortenings, the MCP tool `shorten_linked_clip` receives only
+a clip, an edge and a quantity in frames or seconds. CUTMACHINE itself resolves
+all the linked members, the sign of the trim and the exact `RationalTime`, then
+applies a single atomic operation. With `preview=true`, the same operation is
+validated on a copy through `EditLog` and returned without modifying the
+project.
 
-Pour les raccourcissements A/V courants, l’outil MCP
-`shorten_linked_clip` reçoit seulement un clip, un bord et une quantité en
-images ou secondes. CUTMACHINE résout lui-même tous les membres liés, le signe
-du trim et le `RationalTime` exact, puis applique une seule opération atomique.
-Avec `preview=true`, la même opération est validée sur une copie via `EditLog`
-et renvoyée sans modifier le projet.
+The model and the URL are local `NSUserDefaults` preferences. The key is kept
+separately in the macOS Keychain: it is written neither in the project
+document, nor in its journal, nor in the preferences. With no saved model, the
+panel talks to `claude-opus-5-5` at `https://api.anthropic.com`, with at most
+16,000 tokens per call (thinking included; each call of a turn that chains
+tools has its own) and a 600 s wait per response. `CUTMACHINE_ANTHROPIC_MODEL`,
+failing that `CUTMACHINE_MODEL`, replaces this model, `CUTMACHINE_ANTHROPIC_URL`
+the URL and `ANTHROPIC_API_KEY` the key; a model or URL saved in the dialog
+takes precedence. An earlier version of the dialog saved the model in use at
+each validation: whoever validated it then keeps that model (`defaults read
+com.cutmachine.editor AiEngine.Model.v1`) until they empty the Modèle (Model)
+field.
 
-Le modèle et l’URL sont des préférences locales `NSUserDefaults`. La clé est
-conservée séparément dans le Trousseau macOS : elle n’est écrite ni dans le
-document projet, ni dans son journal, ni dans les préférences. Sans modèle
-enregistré, le panneau parle à `claude-opus-5-5` sur
-`https://api.anthropic.com`, avec au plus 16 000 tokens par appel (réflexion
-comprise ; chaque appel d'un tour qui enchaîne des outils a les siens) et
-600 s d'attente par réponse. `CUTMACHINE_ANTHROPIC_MODEL`, à défaut
-`CUTMACHINE_MODEL`, remplace ce modèle, `CUTMACHINE_ANTHROPIC_URL` l'URL et
-`ANTHROPIC_API_KEY` la clé ; un modèle ou une URL enregistrés dans le
-dialogue passent devant. Le dialogue enregistrait autrefois le modèle en
-service à chaque validation : qui l'a validé avant le 3 octobre 2026 garde ce
-modèle (`defaults read com.cutmachine.editor AiEngine.Model.v1`) tant qu'il
-ne vide pas le champ Modèle.
+The **Agent de code (ACP)** protocol launches by default
+`npx -y @agentclientprotocol/claude-agent-acp@0.85.1`: a pinned version,
+otherwise `npx` would run the package's latest release at every launch. A
+command saved in the dialog is never rewritten; the procedure for raising the
+version is in `src/AiEngineForm.h`.
 
-Le protocole **Agent de code (ACP)** lance par défaut
-`npx -y @agentclientprotocol/claude-agent-acp@0.85.1` : une version épinglée,
-sans quoi `npx` exécutait à chaque lancement la dernière publication du
-paquet. Une commande enregistrée dans le dialogue n'est jamais réécrite ; la
-procédure pour monter la version est dans `src/AiEngineForm.h`.
+A coding agent asks for permission before each tool call. The panel grants it
+itself for the engine's tools, except for those it shows to the person, once
+each and without the "always" option: `generate_media`, which spends on their
+account (GENERATIF-2026-10 GN2). The `after_*` calls go through without
+asking.
+With nobody to answer, a shown call is refused. An adapter set to allow
+everything asks the panel for nothing, which then has nothing to show.
 
-Un agent de code demande la permission avant chaque appel d'outil. Le
-panneau la donne lui-même pour les outils du moteur, sauf pour ceux qu'il
-montre à la personne, une fois chacun et sans l'option « toujours » :
-`generate_media`, qui dépense sur son compte (GENERATIF-2026-10 GN2). Les
-appels `after_*` passent sans demander. Sans personne pour répondre, un appel montré est refusé. Un
-adaptateur réglé pour tout permettre ne demande rien au panneau, qui n'a
-alors rien à montrer.
+## The panel's project
 
-## Le projet du panneau
+The Agent panel works on its window's project, and on it alone, as long as the
+window is open; so does an agent relayed to the window, whether it is the
+panel's coding agent or a Claude Code session open alongside
+(`--mcp-serve --stdio`, see [Commandes headless](commandes-headless.md)). The
+built-in loop and the window's access point go through the same adapter
+(`MainThreadBackend.h`) and give the same responses.
 
-Le panneau Agent travaille sur le projet de sa fenêtre, et sur lui seul,
-tant qu'elle est ouverte ; un agent relayé à la fenêtre aussi, qu'il soit
-l'agent de code du panneau ou une session Claude Code ouverte à côté
-(`--mcp-serve --stdio`, voir [Commandes headless](commandes-headless.md)).
-La boucle intégrée et le point d'accès de la fenêtre passent par le même
-adaptateur (`MainThreadBackend.h`) et ont les mêmes réponses.
+An edit, an undo, a redo or the closing of an intervention (`end_intervention`)
+requested by the panel or by a relayed agent are recorded in the package
+before the window takes them, like a mouse gesture. If storage refuses the
+write (read-only package, full disk), the call is refused with `IoError`, the
+name that `--apply-op` and the MCP server give it, with the system's reason;
+the window, the package and the journal stay what they were, and the line
+under the timeline says "Modification de l'agent refusée, rien n'a changé"
+(Agent edit refused, nothing has changed). The call never answers `ok` with
+the delta of an edit that the window has just undone.
 
-Une édition, une annulation, un rétablissement ou la clôture d'une
-intervention (`end_intervention`) demandés par le panneau ou par un agent
-relayé sont enregistrés dans le paquet avant que la fenêtre ne les prenne,
-comme un geste de la souris. Si le stockage refuse l'écriture (paquet en
-lecture seule, disque plein), l'appel est refusé par `IoError`, le nom que
-lui donnent `--apply-op` et le serveur MCP, avec la raison du système ; la
-fenêtre, le paquet et le journal restent ce qu'ils étaient, et la ligne sous
-la timeline dit « Modification de l'agent refusée, rien n'a changé ».
-Jusqu'au 24 octobre 2026, l'appel répondait `ok` avec le delta d'une édition
-que la fenêtre venait de défaire.
+`ingest_media` imports source clips like **Fichier → Importer des rushes…**
+(File → Import rushes…): the files are read in the background ("Import N
+files" in the media task bar, which cancels it), then added by the window's
+import, at the root of the media library, with their sound level, their
+thumbnail and their waveform; the line under the browser says what came in.
+The path is absolute; `recursive` descends into subfolders. The response is
+that of `--ingest` (`added`, `skipped`, `ignored`, `errors`), and an import
+that could read nothing is refused likewise (`IoError`). Like the menu's
+import, it is a step of the timeline's journal (DEC32): `Cmd+Z` takes it back;
+`bin_id` files the source clips in a bin.
 
-`ingest_media` importe des rushes comme **Fichier → Importer des rushes…** :
-les fichiers sont lus en tâche de fond (« Import N files » dans la barre des
-tâches média, qui l'annule), puis ajoutés par l'import de la fenêtre, à la
-racine de la médiathèque, avec leur niveau sonore, leur vignette et leur
-forme d'onde ; la ligne sous le navigateur dit ce qui est entré. Le chemin
-est absolu ; `recursive` descend dans les sous-dossiers. La réponse est celle
-de `--ingest` (`added`, `skipped`, `ignored`, `errors`), et un import qui
-n'a rien pu lire est refusé de même (`IoError`). Depuis le 24 octobre 2026
-(DEC32), il est, comme l'import du menu, une étape du journal de la
-timeline : `Cmd+Z` le reprend ; `bin_id` range les rushes dans un chutier.
+The background tasks of an agent relayed to the window — an export or an
+analysis requested with `async: true` — run on the editor's task manager
+(DEC10, AX-2026-09 AX7): the task bar shows them ("Agent · export_timeline",
+for example) and cancels them, like the import; `get_task` and `cancel_task`
+read and cancel them in the same place. They do not run on a manager private
+to the access point, which nothing shows. An export requested without `async`
+still does not go through the task bar.
 
-Depuis le 24 octobre 2026 (DEC10, AX-2026-09 AX7), les tâches de fond d'un
-agent relayé à la fenêtre — un export ou une analyse demandés avec
-`async: true` — tournent sur le gestionnaire de tâches de l'éditeur : la
-barre des tâches les montre (« Agent · export_timeline », par exemple) et
-les annule, comme l'import ; `get_task` et `cancel_task` les lisent et les
-annulent au même endroit. Elles tournaient avant sur un gestionnaire propre
-au point d'accès, que rien ne montrait. Un export demandé sans `async` ne
-passe toujours pas par la barre des tâches.
+`create_project`, and `open_project` of another project, are refused
+(`UnsupportedOperation`): the refusal names the window's project and says how
+to change it: the person chooses **Nouveau projet…** (New project…) or **Ouvrir
+un projet…** (Open a project…) in the window's **Fichier** (File) menu, which
+reopens on the other project (DEC39), rather than quitting CUTMACHINE and going
+through the welcome window. `open_project` of the window's project answers,
+with `app: true`.
 
-`create_project`, et `open_project` d'un autre projet, sont refusés
-(`UnsupportedOperation`) : le refus nomme le projet de la fenêtre et dit
-comment en changer : la personne choisit **Nouveau projet…** ou **Ouvrir un
-projet…** dans le menu **Fichier** de la fenêtre, qui se rouvre sur l'autre
-projet (DEC39, 24 octobre 2026 ; avant, il fallait quitter CUTMACHINE et
-passer par la fenêtre d'accueil). `open_project` du projet de
-la fenêtre répond, avec `app: true`.
-
-`import_resolve_timeline` relit une timeline Resolve dans la timeline de la
-fenêtre (celle que nomme `timeline_id`, sinon celle à l'écran), avec la
-réponse de `--import-resolve-timeline`, l'étalonnage lu dans la base Resolve
-compris, et écrit sur ses plans quand il se rend entier
-([Resolve](resolve.md)). Le manifeste et la copie de la base sont
-lus en tâche de fond ; le plan et les opérations passent par le journal de
-la fenêtre, enregistrés une fois : l'import s'annule par `Cmd+Z`. Un refus
-ne change rien à la fenêtre (depuis le 24 octobre 2026, PHASES-2026-08 F2.4 ;
-pas encore vu à l'écran).
+`import_resolve_timeline` reads a Resolve timeline back into the window's
+timeline (the one named by `timeline_id`, otherwise the one on screen), with
+the response of `--import-resolve-timeline`, the grade read from the Resolve
+database included, and written onto its clips when it comes through whole
+([Resolve](resolve.md)). The manifest and the copy of the database are read in
+the background; the plan and the operations go through the window's journal,
+recorded once: the import is undone with `Cmd+Z`. A refusal changes nothing in
+the window (PHASES-2026-08 F2.4; not yet seen on screen).

@@ -1,14 +1,13 @@
-# Format de séquence
+# Sequence format
 
-> Relu contre le code le 3 octobre 2026.
+A new sequence is 1920×1080 at 25 fps. That is almost never the format of the
+source clips, and correcting it by hand requires knowing something the files
+hide: **a vertical shoot is stored in landscape** with a rotation flag.
+Reading `3840×2160` in the metadata and copying it into the sequence gives an
+edit lying on its side.
 
-Une séquence neuve est en 1920×1080 à 25 i/s. Ce n'est presque jamais le
-format des rushes, et le corriger à la main demande de savoir une chose que
-les fichiers cachent : **un tournage vertical est stocké en paysage** avec un
-drapeau de rotation. Lire `3840×2160` dans les métadonnées et le recopier dans
-la séquence donne un montage couché.
-
-`--propose-sequence` déduit le format des rushes du projet, sans rien modifier :
+`--propose-sequence` infers the format from the project's source clips,
+without modifying anything:
 
 ```sh
 ./build/cutmachine --propose-sequence ./Film.cutmachine-project/project.cutmachine.json
@@ -22,20 +21,20 @@ la séquence donne un montage couché.
                {"width":2160,"height":3840,"frame_rate":{"num":50,"den":1},"media_count":40}]}
 ```
 
-La règle est la majorité, et elle est entièrement déterministe : à égalité de
-comptes c'est la plus grande image qui tranche, puis la cadence la plus haute,
-puis les champs bruts — le même projet donne toujours la même réponse, quel que
-soit l'ordre de la médiathèque. Les formats minoritaires sont **rapportés**, pas
-escamotés : un tournage à cadences mixtes doit se voir. Les médias sans image
-exploitable (son seul, rotation qui n'est pas un angle droit) sont comptés à
-part plutôt que rattachés de force.
+The rule is the majority, and it is entirely deterministic: on a tie in the
+counts the largest frame decides, then the highest frame rate, then the raw
+fields. The same project always gives the same answer, whatever the order of
+the media library. Minority formats are **reported**, not hidden: a shoot at
+mixed frame rates has to show. Media with no usable picture (audio only, a
+rotation that is not a right angle) are counted separately rather than forced
+into a format.
 
-Côté agent, l'outil MCP `conform_sequence` applique ce format en une
-`UpdateSequenceOperation` réversible, et retourne ce qu'il a choisi et ce qu'il
-a écarté. `preview: true` calcule sans appliquer. Une séquence déjà conforme est
-signalée sans être réécrite, pour ne pas encombrer l'historique d'une opération
-nulle.
+On the agent side, the MCP tool `conform_sequence` applies that format in one
+reversible `UpdateSequenceOperation`, and returns what it chose and what it
+set aside. `preview: true` computes without applying. A sequence that already
+conforms is reported without being rewritten, so as not to clutter the history
+with a null operation.
 
-C'est la division du travail du principe 7 : l'appelant nomme l'intention
-(« que la séquence corresponde aux rushes »), le moteur calcule les nombres.
-`update_sequence` reste disponible pour poser un format arbitraire.
+This is the division of labour of principle 7: the caller names the intent
+("make the sequence match the source clips"), the engine computes the numbers.
+`update_sequence` remains available for setting an arbitrary format.
