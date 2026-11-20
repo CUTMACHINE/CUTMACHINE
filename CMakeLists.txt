@@ -295,12 +295,16 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/CutmachineZstd.cmake")
 # AGPL-3.0-or-later like CUTMACHINE; fraction.js, MIT, is its exact time.
 # DECOUPAGE-2026-10 -- a download that stops sending fails after a minute
 # instead of holding the configure open: on 27 October 2026 codeberg's
-# archive stalled at 0 bytes and a full build waited 7 h 47.
+# archive stalled at 0 bytes and a full build waited 7 h 47. Out of lot,
+# 20 November 2026 -- it stalled again (the headless CI cancelled at 45
+# minutes, a git clone crawling at 55 KB/s): the archive now comes from
+# Strudel's GitHub mirror, the same commit, its tree identical file for file
+# to codeberg's archive. Codeberg stays the project's home.
 FetchContent_Declare(
     strudel
     # Tags @strudel/core@1.2.6 and @strudel/mini@1.2.6.
-    URL      https://codeberg.org/uzu/strudel/archive/d198910a86fcaecd658ef528bfa6d7884e93490b.tar.gz
-    URL_HASH SHA256=f1f96291863c0104906820beb80be810ddd49baf4eda892ebf4e0015dda4fe97
+    URL      https://github.com/tidalcycles/strudel/archive/d198910a86fcaecd658ef528bfa6d7884e93490b.tar.gz
+    URL_HASH SHA256=921014f0ab4f60959151911a050ef8a57be5fc178645ca9cb82d5f0c08a7417e
     INACTIVITY_TIMEOUT 60
     SOURCE_SUBDIR cutmachine-no-subdirectory
 )

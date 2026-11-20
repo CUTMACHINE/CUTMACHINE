@@ -54,6 +54,12 @@ function(cutmachine_pinned_dependency name)
     if(_block MATCHES "SOURCE_SUBDIR[ \t]+([^ \t\r\n]+)")
         list(APPEND _arguments SOURCE_SUBDIR "${CMAKE_MATCH_1}")
     endif()
+    # The main build's inactivity timeout too: dropped here, a download that
+    # stopped sending held the CI's configure until the job's 45 minutes
+    # (20 November 2026).
+    if(_block MATCHES "INACTIVITY_TIMEOUT[ \t]+([0-9]+)")
+        list(APPEND _arguments INACTIVITY_TIMEOUT "${CMAKE_MATCH_1}")
+    endif()
     message(STATUS "${name}: ${_url}")
     FetchContent_Declare(${name} ${_arguments})
 endfunction()
