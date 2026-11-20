@@ -7,16 +7,9 @@
 #include <iostream>
 #include <string>
 
+#include "TestSupport.h"
+
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 bool Near(int64_t actual, int64_t expected, int64_t tolerance) {
     return std::llabs(actual - expected) <= tolerance;

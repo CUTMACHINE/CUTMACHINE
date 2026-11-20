@@ -8,21 +8,14 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 // QC-2026-09 A4. Pur : un Document en mémoire, aucune E/S. Ce qui est épinglé
 // ici est la conversion que la session mesurée ratait à la main — image
 // source vers position timeline — plus les deux refus qui l'empêchent de
 // rendre un chiffre plausible mais faux.
 
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 const char kRush[] = "01K30000000000000000000001";
 const char kNtsc[] = "01K30000000000000000000002";

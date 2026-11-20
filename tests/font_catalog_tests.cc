@@ -12,16 +12,9 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 std::string Joined(const std::vector<std::string>& names) {
     std::string joined;

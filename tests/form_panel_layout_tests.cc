@@ -13,6 +13,8 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace {
 
 namespace panel = ui::form_panel;
@@ -20,24 +22,6 @@ using panel::ButtonRole;
 using panel::Frames;
 using panel::Input;
 using panel::Rect;
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
-
-template <typename Function>
-void Test(const std::string& name, Function function) {
-    const int before = failures;
-    function();
-    if (before == failures) {
-        std::cout << "PASS: " << name << '\n';
-    }
-}
 
 bool Near(double left, double right) { return std::abs(left - right) < 1e-9; }
 

@@ -22,30 +22,9 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
-
-template <typename Function>
-void Test(const std::string& name, Function function) {
-    const int before = failures;
-    try {
-        function();
-        if (failures == before) {
-            std::cout << "PASS: " << name << '\n';
-        }
-    } catch (const std::exception& exception) {
-        ++failures;
-        std::cerr << "FAIL: " << name << ": " << exception.what() << '\n';
-    }
-}
 
 using Event = McpEndpoint::Event;
 using C = McpToolClass;
@@ -608,6 +587,13 @@ int main() {
                       title);
         }
         Check(acting > 100, std::to_string(acting) + " tools that act");
+        // CH4 -- docs/roadmap/CHARTE-2026-11.md. A charter written by the
+        // agent reads as such in the journal.
+        Check(AgentToolTitle("save_motion_kit") == "enregistrer une charte" &&
+                  AgentToolTitle("edit_motion_kit") == "modifier une charte" &&
+                  AgentToolTitle("restore_motion_kit") ==
+                      "restaurer une version de charte",
+              "the charter writes have their wording");
         Check(AgentToolTitle("no_such_tool") == "no_such_tool",
               "a tool the journal does not know is named as it is");
     });

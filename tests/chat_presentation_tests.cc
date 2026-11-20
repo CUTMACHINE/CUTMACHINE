@@ -3,15 +3,9 @@
 #include <iostream>
 #include <string>
 
-namespace {
-int failures = 0;
-void Check(bool condition, const char* message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
-}  // namespace
+#include "TestSupport.h"
+
+namespace {}  // namespace
 
 int main() {
     const std::string report = "{\"compte_rendu\":1,\"propos\":\"Un film.\"}\n";

@@ -59,16 +59,9 @@
 #include <tuple>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 void CheckFailureEnvelope(const McpToolCallOutcome& outcome,
                           const std::string& label,
@@ -5411,6 +5404,9 @@ int main() {
             // MB1 -- a composition, by its own id, to this machine's
             // library: no timeline is read or edited.
             "save_motion_template",
+            // CH4 -- a charter of that library, by name, no project at all.
+            "read_motion_kit", "save_motion_kit", "edit_motion_kit",
+            "restore_motion_kit",
             // PRD18 -- the procedures the binary carries, no project at all.
             "get_procedure",
             // CF1 -- a local display preference, independent of timelines.
@@ -10722,6 +10718,74 @@ int main() {
                   "get_procedure refuses an unknown argument");
             Check(closed.snapshots == 0 && !closed.open,
                   "no procedure read touched the backend");
+        }
+        // CH4 -- docs/roadmap/CHARTE-2026-11.md. The charters of this
+        // machine's library are read and written before any project: no
+        // snapshot, no backend call. A library of its own, so that a second
+        // run of the suite starts from nothing too.
+        {
+            const char* previous = std::getenv("CUTMACHINE_MOTION_LIBRARY");
+            const std::string kept = previous != nullptr ? previous : "";
+            const std::filesystem::path library =
+                std::filesystem::temp_directory_path() /
+                ("cutmachine-mcp-kits-" + GenerateUlid());
+            ::setenv("CUTMACHINE_MOTION_LIBRARY", library.c_str(), 1);
+            const McpToolCallOutcome listed = call("read_motion_kit", "{}");
+            Check(listed.ok &&
+                      listed.result_json.find("\"kits\":[]") !=
+                          std::string::npos &&
+                      !std::filesystem::exists(library),
+                  "read_motion_kit lists no charter with no project open, "
+                  "and creates nothing: " +
+                      listed.error_name + " " + listed.result_json);
+            const McpToolCallOutcome saved = call(
+                "save_motion_kit",
+                R"({"kit":"marque","expected_version":0,"content":)"
+                R"({"format":"brand-kit.v1","description":"Marque.",)"
+                R"("props":{"accent":"#1A5C8E","police":"Exemple Sans"}}})");
+            Check(saved.ok &&
+                      saved.result_json.find("\"version\":1") !=
+                          std::string::npos &&
+                      std::filesystem::exists(library / "kits" / "marque.json"),
+                  "save_motion_kit writes a charter with no project open: " +
+                      saved.error_name + " " + saved.message);
+            const McpToolCallOutcome edited =
+                call("edit_motion_kit",
+                     R"({"kit":"marque","expected_version":1,"edits":)"
+                     R"([{"path":"props.accent","value":"#2B6D9F"}]})");
+            Check(edited.ok &&
+                      edited.result_json.find("\"version\":2") !=
+                          std::string::npos &&
+                      edited.result_json.find("\"changed\":true") !=
+                          std::string::npos,
+                  "edit_motion_kit too: " + edited.error_name + " " +
+                      edited.message);
+            const McpToolCallOutcome restored =
+                call("restore_motion_kit",
+                     R"({"kit":"marque","version":1,"expected_version":2})");
+            Check(restored.ok &&
+                      restored.result_json.find("\"version\":3") !=
+                          std::string::npos &&
+                      restored.result_json.find("#1A5C8E") != std::string::npos,
+                  "and restore_motion_kit: " + restored.error_name + " " +
+                      restored.message);
+            const McpToolCallOutcome read =
+                call("read_motion_kit", R"({"kit":"marque"})");
+            Check(read.ok &&
+                      read.result_json.find("\"version\":3") !=
+                          std::string::npos &&
+                      read.result_json.find("\"state\":\"matches\"") !=
+                          std::string::npos,
+                  "and read_motion_kit reads it back: " + read.result_json);
+            Check(closed.snapshots == 0 && !closed.open,
+                  "no charter call touched the backend");
+            if (previous != nullptr) {
+                ::setenv("CUTMACHINE_MOTION_LIBRARY", kept.c_str(), 1);
+            } else {
+                ::unsetenv("CUTMACHINE_MOTION_LIBRARY");
+            }
+            std::error_code ignored;
+            std::filesystem::remove_all(library, ignored);
         }
         Check(!call("ingest_media", R"({"path":"/tmp/rushes"})").ok,
               "ingesting needs an open project too");

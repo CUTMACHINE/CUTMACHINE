@@ -14,16 +14,9 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 bool IsDigit(unsigned char character) { return std::isdigit(character) != 0; }
 

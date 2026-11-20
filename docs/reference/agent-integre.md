@@ -14,7 +14,7 @@ on every tab. It is shown and hidden from any tab, by the **Agent** button at
 the bottom right of the window, by **Affichage → Agent** (View → Agent) or by
 `⌥⌘A`. The first time, it opens at the top right of the editor, under its
 title bar; afterwards where it was left, as long as a screen still carries it:
-a disconnected screen brings it back near the editor (`src/AgentWindow.h`).
+a disconnected screen brings it back near the editor (`src/ui/AgentWindow.h`).
 Its position, and whether it was shown, are local preferences. Shown by the
 button or the key, it takes the keyboard in its field; hidden, it gives it back
 to the editor. In its field, `⌘C`, `⌘X`, `⌘V`, `⌘Z` and `⌘A` act on the text,
@@ -83,7 +83,7 @@ The **Agent de code (ACP)** protocol launches by default
 `npx -y @agentclientprotocol/claude-agent-acp@0.85.1`: a pinned version,
 otherwise `npx` would run the package's latest release at every launch. A
 command saved in the dialog is never rewritten; the procedure for raising the
-version is in `src/AiEngineForm.h`.
+version is in `src/agent/AiEngineForm.h`.
 
 A coding agent asks for permission before each tool call. The panel grants it
 itself for the engine's tools, except for those it shows to the person, once

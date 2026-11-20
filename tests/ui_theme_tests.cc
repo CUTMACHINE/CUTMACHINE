@@ -10,25 +10,11 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace {
 
 using ui::theme::Color;
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
-
-template <typename Function>
-void Test(const std::string& name, Function function) {
-    const int before = failures;
-    function();
-    if (before == failures) std::cout << "PASS: " << name << '\n';
-}
 
 bool InUnitRange(float value) { return value >= 0.0f && value <= 1.0f; }
 

@@ -16,18 +16,11 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace OCIO = OCIO_NAMESPACE;
 
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 ClipEffect Stage(const std::string& type,
                  std::map<std::string, EffectParamValue> params) {

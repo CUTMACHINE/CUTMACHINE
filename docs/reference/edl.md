@@ -2,7 +2,7 @@
 
 FC7 — FILMCRAFT-2026-10. Ported from
 FilmCraft (`crates/interchange/src/edl.rs`, `crates/captions/src/vtt.rs`,
-MIT or Apache-2.0, commit `09aaf9b`), in `src/Edl.h` and `src/Subtitles.h`.
+MIT or Apache-2.0, commit `09aaf9b`), in `src/media/Edl.h` and `src/media/Subtitles.h`.
 
 **Verified in Resolve 21.1.0.17**: cuts, dissolves, black, matching by file
 name with reel `AX` and M2 half speed, on the regression fixtures and on

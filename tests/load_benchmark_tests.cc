@@ -131,7 +131,7 @@ void Print(const std::vector<Step>& steps) {
 }
 
 // The portable half of -[AppDelegate loadDocumentAndSourcesHoldingLock]
-// (src/main.mm), in the order it runs them, stopping where the editor turns
+// (src/app/main.mm), in the order it runs them, stopping where the editor turns
 // to media and AppKit. Autosave recovery is not taken: the fixture has no
 // autosave, and a real project with one would stop the editor on a dialog.
 //

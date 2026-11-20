@@ -24,16 +24,9 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 const std::string kFonts = MOTION_FONT_DIR;
 const std::string kParity = MOTION_PARITY_FIXTURE_DIR;

@@ -22,16 +22,9 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 const Ulid kSource = "01K9M000000000000000000001";
 const Ulid kWideTrack = "01K9M000000000000000000002";

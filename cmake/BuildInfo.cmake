@@ -1,4 +1,4 @@
-# PRD19 -- ROADMAP.md. Writes the build's identity (src/BuildInfo.h) into a
+# PRD19 -- ROADMAP.md. Writes the build's identity (src/engine/BuildInfo.h) into a
 # source file of the build tree. Run by the `cutmachine_build_info` target at
 # every build, not at configuration: a build tree is configured once and then
 # built across many commits, and a hash read at configuration would name the

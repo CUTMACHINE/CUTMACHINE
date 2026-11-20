@@ -30,6 +30,8 @@
 #include <variant>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace {
 
 using chat::ChatEntryKind;
@@ -40,22 +42,6 @@ using chat::ChatLlmConfig;
 using chat::ChatSession;
 using chat::ChatTranscriptEntry;
 using mcp_json::Value;
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
-
-template <typename Function>
-void Test(const std::string& name, Function function) {
-    const int before = failures;
-    function();
-    if (before == failures) std::cout << "PASS: " << name << '\n';
-}
 
 Document Fixture() {
     Document document;

@@ -1,7 +1,7 @@
 # Graphical timeline
 
 > Mouse gestures and rendering are not verified on screen: the colours named
-> here are those of the `src/UiTheme.h` tokens that `timelineRenderData` uses.
+> here are those of the `src/ui/UiTheme.h` tokens that `timelineRenderData` uses.
 > The trim mode, the Trim Monitor, the slide, the rate stretch and the snap to
 > In/Out points belong to FILMCRAFT-2026-10 (FC-window).
 
@@ -54,7 +54,7 @@ The selected clip is surrounded by a light border of fixed thickness,
 independent of the zoom.
 
 Hover (cursor, information strip) and click read the same target,
-`TimelineHitAt` (`src/TimelineView.h`, FC2): zoom band, marker flag, clip body
+`TimelineHitAt` (`src/ui/TimelineView.h`, FC2): zoom band, marker flag, clip body
 or edge, trim mode, duplication, selection toggle. The context menu keeps its
 own test.
 
@@ -183,7 +183,7 @@ all `Shift+Z`, Insert `F9`, Overwrite `F10`. The Suppr. key is
 `Shift+Delete`, the ripple delete, like `Del` in Resolve. Two commands that
 Resolve does not have take a combination that it leaves free: the Zoom tool
 (`Ctrl+Z`) and the frame/sample toggle of the playhead (`Alt+Shift+M`). The
-table and its verification against Resolve are in `src/KeyboardShortcuts.h` and
+table and its verification against Resolve are in `src/ui/KeyboardShortcuts.h` and
 `tests/keyboard_shortcuts_tests.cc`. A customization that is already saved
 keeps its keys. The former Slip tool (`tool.slip`) became the Trim tool
 (`tool.trim`); a custom key stored under the old name goes back to the Trim
@@ -195,11 +195,11 @@ A key whose character requires `Maj` (Shift) is read without that `Maj`: on a
 French keyboard, the period is `Maj` and the `;` key, and it counts as the
 period; `Maj+,` (`?` on AZERTY, `<` on QWERTY) counts as `Maj+,`. `Maj+.` cannot
 be typed on AZERTY: the large step forward goes through the **Trim** menu or
-another key there (`TypedKeyMatches`, `src/KeyboardShortcuts.h`).
+another key there (`TypedKeyMatches`, `src/ui/KeyboardShortcuts.h`).
 
 ## Trim mode and Trim Monitor
 
-FILMCRAFT-2026-10. The policy is that of `src/TrimSession.h` (FC4); the window
+FILMCRAFT-2026-10. The policy is that of `src/ui/TrimSession.h` (FC4); the window
 reads its state from it and applies what it plans, one operation per gesture
 via `EditLog::Apply`, hence a single undo step per gesture. The keys are those
 of Resolve 21.1's default preset, with the manual page alongside:
@@ -260,7 +260,7 @@ Playback returns Record to the program.
 The slide (name bar, Trim tool) goes through `SlideEditOperation`: the
 neighbours absorb the move, and the linked sound follows when linked selection
 is on, by the same rule as the MCP `slide_edit` (`SlideClipsWithLinkedPartners`,
-`src/Operations.h`). The rate stretch goes through `RateStretchOperation`: the
+`src/engine/Operations.h`). The rate stretch goes through `RateStretchOperation`: the
 clip keeps its source range, its speed becomes exact (range / duration) or the
 gesture stops at the last number of frames that gives an exact speed and
 overlaps nothing. With the Selection tool nothing ripples; with the Trim tool

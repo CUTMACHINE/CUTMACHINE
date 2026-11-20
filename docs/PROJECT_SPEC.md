@@ -1,7 +1,7 @@
 # Objet projet
 
-> Relu contre le code le 3 octobre 2026 (`src/Project.h`, `src/Operations.h`,
-> `src/DocumentFormat.cc`, `src/ProjectBin.cc`, `src/main.mm`). Non vérifié :
+> Relu contre le code le 3 octobre 2026 (`src/engine/Project.h`, `src/engine/Operations.h`,
+> `src/engine/DocumentFormat.cc`, `src/engine/ProjectBin.cc`, `src/app/main.mm`). Non vérifié :
 > le choix de récupération d’une autosave au lancement et le chutier tel que
 > la fenêtre le présente, qui se jugent à l’écran.
 
@@ -101,7 +101,7 @@ après les sources. Un projet qui en porte déclare `document_version` 8 au
 moins ; un projet qui ne porte rien de postérieur à la version 7 reste en 7,
 octet pour octet, et un binaire antérieur l’ouvre encore. La version déclarée
 est la plus ancienne qui porte tout ce que le projet contient, jusqu’à 17 au
-3 octobre 2026 (`DocumentFormatVersion`, `src/Document.h`).
+3 octobre 2026 (`DocumentFormatVersion`, `src/engine/Document.h`).
 
 Les fichiers document autonomes, enveloppes projet v1 et packages v1 sont
 refusés. Il n’existe plus de promotion ni de migration implicite.

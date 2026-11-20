@@ -11,16 +11,9 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& label) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << label << '\n';
-    }
-}
 
 constexpr int32_t kRate = 48000;
 constexpr double kPi = 3.14159265358979323846;

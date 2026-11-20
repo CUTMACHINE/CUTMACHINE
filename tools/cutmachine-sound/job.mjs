@@ -1,7 +1,7 @@
 // SN7 -- docs/roadmap/SON-2026-10.md. One render as one function of plain data.
 //
 // The Node CLI (cli.mjs, then worker.mjs) and the JavaScriptCore host the engine launches
-// (cutmachine-sound-host, src/SoundHost.mm) both call runJob: the montage read, the ditty rendered,
+// (cutmachine-sound-host, src/platform/SoundHost.mm) both call runJob: the montage read, the ditty rendered,
 // the WAV encoded and the report written here, once, so that the two answer the same report and
 // write the same bytes. What is left to a host is what differs between them: reading and writing
 // files, the hash of the samples (node:crypto, CommonCrypto), and the clock.

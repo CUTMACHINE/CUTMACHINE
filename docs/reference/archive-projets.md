@@ -175,7 +175,7 @@ Schema 3:
   `archive_snapshots` (see [Durable steps](orchestration-montage.md)).
 
 The manifest is a canonical JSON, described once by its format table
-(`DocumentTable<ArchiveManifest>`, `src/DocumentFormat.h`) and frozen by
+(`DocumentTable<ArchiveManifest>`, `src/engine/DocumentFormat.h`) and frozen by
 `tests/fixtures/document_format/`:
 
 ```json

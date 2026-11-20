@@ -26,25 +26,9 @@
 #include <thread>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
-
-template <typename Function>
-void Test(const std::string& name, Function function) {
-    const int before = failures;
-    function();
-    if (before == failures) {
-        std::cout << "PASS: " << name << '\n';
-    }
-}
 
 bool Contains(const std::string& text, const std::string& part) {
     return text.find(part) != std::string::npos;

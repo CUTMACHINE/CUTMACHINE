@@ -8,15 +8,9 @@
 #include <iostream>
 #include <string>
 
-namespace {
-int failures = 0;
-void Check(bool condition, const std::string& reason) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << reason << '\n';
-    }
-}
-}  // namespace
+#include "TestSupport.h"
+
+namespace {}  // namespace
 
 int Run() {
     Project project("Run boundary");

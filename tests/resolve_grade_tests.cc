@@ -43,20 +43,13 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 #ifndef RESOLVE_GRADE_FIXTURES_DIR
 #error "RESOLVE_GRADE_FIXTURES_DIR must be defined"
 #endif
 
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 const ResolveGradeSetting* FindSetting(const ResolveGradeNode& node,
                                        const std::string& name) {

@@ -232,7 +232,7 @@ You change project without going back through the welcome screen (DEC39,
 PHASES-2026-08): **Fichier → Nouveau projet…** (File → New project…) (the
 name on a sheet of the window, then the location) and **Fichier → Ouvrir un
 projet…** (File → Open a project…). The window does not replace its project
-in place: it checks the other one (`src/ProjectSwitch.h`: readable, not open
+in place: it checks the other one (`src/engine/ProjectSwitch.h`: readable, not open
 elsewhere, not the same), saves its own, then closes and a new editor opens
 on the other project, once the first one's lock is released
 (`process::StartDetached`). An export or a task in progress in the task bar

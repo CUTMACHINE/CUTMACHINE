@@ -373,7 +373,7 @@ def send_timeline(resolve: Any, timeline: dict[str, Any],
     PA16 -- docs/roadmap/PARITE-2026-11.md. Le descripteur v3
     (`cutmachine --export-resolve-timeline`, ou `send_to_resolve`) porte le
     montage dans les termes de l'API de Resolve 21.1, mesurés le 13 novembre
-    (voir l'en-tête de src/ResolveExport.h). L'ordre est celui qui marche :
+    (voir l'en-tête de src/media/ResolveExport.h). L'ordre est celui qui marche :
 
     1. tout ce qui peut échouer avant de toucher Resolve : le schéma, chaque
        rush dans le Media Pool, la cadence et la taille du projet, le
@@ -1288,7 +1288,7 @@ def remap_to_sources(montage: dict[str, Any],
 # R10 -- docs/roadmap/REEL-2026-09.md. Reading a timeline back, the other
 # direction of --send. Same division of labour as the Media Pool manifest
 # above: this *records* what Resolve says, and refuses nothing but what it
-# cannot read at all; the engine (src/ResolveImport.h) parses, plans and
+# cannot read at all; the engine (src/media/ResolveImport.h) parses, plans and
 # names every refusal.
 #
 # Nothing here carries a float. Positions are whole frames, framing values

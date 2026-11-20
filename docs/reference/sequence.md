@@ -33,7 +33,7 @@ resolved absolute path.
 
 The current document schema runs from version 7 to version 26 (each version
 adds what it introduces: the `kDocumentVersionWith…` constants of
-`src/Document.h`): a document is
+`src/engine/Document.h`): a document is
 written at the oldest version that carries everything it contains, and
 versions 4 to 6 are still read. `library`, `bins` and `sources` are project
 objects; `tracks` and `markers` belong to `sequence`. Versions 1 to 3 are

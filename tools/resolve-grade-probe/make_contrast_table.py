@@ -1,5 +1,5 @@
 """GR16 -- docs/roadmap/GRADE-RESOLVE-2026-10.md (DEC46). Writes
-src/ResolveContrastTable.cc and tests/fixtures/resolve_primaries/
+src/engine/ResolveContrastTable.cc and tests/fixtures/resolve_primaries/
 contrast_held_out.txt from the measurement of 25 October 2026.
 
 The source is outside the repository: 1 072 grades posed in DaVinci Resolve
@@ -81,7 +81,8 @@ def main(source):
                                                 values[start:start + 11]) + ",")
     lines += ["};", "// clang-format on", "",
               "}  // namespace resolve_contrast_table", ""]
-    (ROOT / "src" / "ResolveContrastTable.cc").write_text("\n".join(lines))
+    (ROOT / "src" / "engine" / "ResolveContrastTable.cc").write_text(
+        "\n".join(lines))
 
     fixture = [
         "# GR16 -- written by tools/resolve-grade-probe/make_contrast_table.py:",

@@ -29,18 +29,11 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace fs = std::filesystem;
 
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 std::vector<std::string> ReadLines(const fs::path& path) {
     std::vector<std::string> lines;

@@ -1,7 +1,7 @@
 # PRD18 -- ROADMAP.md (ACP4, docs/roadmap/ACP-2026-09.md). Writes the text
 # files of the repository's skills (.claude/skills/<name>/...) into a source
 # file of the build tree, byte for byte, so that the binary serves them as
-# its procedures (src/Procedures.h) with nothing beside it: neither the
+# its procedures (src/agent/Procedures.h) with nothing beside it: neither the
 # repository nor a path of the build tree.
 #
 #   cmake -DSKILLS_DIR=<checkout>/.claude/skills -DOUTPUT=<ProceduresData.cc>

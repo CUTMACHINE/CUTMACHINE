@@ -18,18 +18,11 @@
 #include <iterator>
 #include <string>
 
+#include "TestSupport.h"
+
 namespace OCIO = OCIO_NAMESPACE;
 
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 std::string Describe(const RgbColor& color) {
     return "(" + std::to_string(color.red) + ", " +

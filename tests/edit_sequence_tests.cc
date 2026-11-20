@@ -38,32 +38,13 @@
 #include <variant>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace {
 
 // -----------------------------------------------------------------------
 // Infrastructure de test (même style que le reste de la suite)
 // -----------------------------------------------------------------------
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
-
-template <typename Function>
-void Test(const std::string& name, Function function) {
-    const int before = failures;
-    try {
-        function();
-        if (failures == before) std::cout << "PASS: " << name << '\n';
-    } catch (const std::exception& e) {
-        ++failures;
-        std::cerr << "FAIL: " << name << ": threw: " << e.what() << '\n';
-    }
-}
 
 // -----------------------------------------------------------------------
 // Mini LCG déterministe (pas de dépendance <random>)

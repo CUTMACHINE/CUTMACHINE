@@ -29,16 +29,9 @@
 #include <thread>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 std::string Read(const std::filesystem::path& path) {
     std::ifstream input(path, std::ios::binary);

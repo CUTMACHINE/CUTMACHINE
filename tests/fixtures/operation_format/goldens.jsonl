@@ -178,6 +178,10 @@
 {"type":"SetMediaWhiteBalance","media_id":"-0 ","kelvin":-53019}
 {"type":"SetMediaWhiteBalance","media_id":"\"Z0B","kelvin":49788}
 {"type":"SetMediaWhiteBalance","media_id":"","kelvin":0}
+{"type":"SetMediaProxy","media_id":"\\\"\n0B1","proxy_path":"BA2"}
+{"type":"SetMediaProxy","media_id":"Z_9","proxy_path":" \" "}
+{"type":"SetMediaProxy","media_id":"é_A-","proxy_path":""}
+{"type":"SetMediaProxy","media_id":"","proxy_path":""}
 {"type":"SetMediaColorInput","media_id":"x 0\n\u00011","input":{"gamut":"0é2","transfer":"A9AA3","ycbcr_matrix":" \\xB4","range":"x_5"}}
 {"type":"SetMediaColorInput","media_id":"-0 ","input":{"gamut":"9-_\"0","transfer":"AA","ycbcr_matrix":"9","range":"Z"}}
 {"type":"SetMediaColorInput","media_id":"\"Z0B","input":{"gamut":"AAéZ","transfer":"9\n0-\"","ycbcr_matrix":"","range":""}}
@@ -192,10 +196,12 @@
 {"type":"IngestMedia","added":[{"id":"9-_\"0","path":"AA","filename":"9","codec":"Z","width":74629,"height":-53133,"pixel_format":"B9","color_range":"","color_space":"\u0001x","color_transfer":"-xx9\"","color_primaries":"","white_balance_kelvin":66395,"color_input":{"gamut":"é ","transfer":"0","ycbcr_matrix":"","range":"0B"},"generation":{"service":"A\u00010","model":"__","kind":"","prompt":"\\-09B","seed":"A","created_at":"","announced_cost":"0","request_id":"\"BZZ","source_media_id":"-0\u0001\\"},"rotation_degrees":-7955,"rate":{"num":44151,"den":35285},"duration":{"value":194257,"rate":25},"orientation":"\u0001é0\\","has_video":0,"has_audio":0,"audio_rate":98834,"audio_channels":47223,"bin_id":"_9","proxy_path":"Z A9","metadata_complete":0,"shots":[{"id":"-Bx_","source_in":{"value":661011,"rate":24},"duration":{"value":181801,"rate":25},"size":"wide","subjects":[""],"place":" x","movement":"push_in","quality":"usable","reserve":"0\u0001\n","keywords":["\u0001"],"author_kind":"model","author":"_","described_at":"Z\\"},{"id":"","source_in":{"value":-990314,"rate":30000},"duration":{"value":-561279,"rate":30000},"size":"extreme_wide","subjects":["\\"],"action":"0- ","place":"\u0001","movement":"handheld","quality":"good","reserve":"xx","author_kind":"person","author":"\u0001é\\","described_at":"B_"}]}],"bin_id":"","filed":["\"é","\n\\"]}
 {"type":"IngestMedia","added":[],"bin_id":"Z0","filed":["\n",""]}
 {"type":"IngestMedia","added":[],"bin_id":"","filed":[]}
+{"type":"IngestMedia","added":[],"bin_id":"","filed":[],"mounted":["A_1"]}
 {"type":"RemoveIngestedMedia","media_ids":["x 0\n\u00011"],"bin_id":"0é2","refiled":[{"media_id":"A9AA3","bin_id":" \\xB4"}]}
 {"type":"RemoveIngestedMedia","media_ids":["9-_\"0"],"bin_id":"AA","refiled":[{"media_id":"xZ 0","bin_id":"B9"}]}
 {"type":"RemoveIngestedMedia","media_ids":[],"bin_id":"Z0","refiled":[{"media_id":"\n","bin_id":""},{"media_id":"","bin_id":"-\u0001"}]}
 {"type":"RemoveIngestedMedia","media_ids":[],"bin_id":"","refiled":[]}
+{"type":"RemoveIngestedMedia","media_ids":[],"bin_id":"","refiled":[],"unmounted":["A_1"]}
 {"type":"AddMarker","marker":{"id":"ZB01","name":"-_Z2","time":{"value":553065,"rate":24},"color":"Z9Zxx-3","category":"🙂4"},"insertion_index":-29482921525}
 {"type":"AddMarker","marker":{"id":"__Q1","name":"x2","time":{"value":-809002,"rate":24},"color":"-_3","category":" _ZZ94"},"insertion_index":-642400874167}
 {"type":"AddMarker","marker":{"id":"01M2KEFEZ8DEMTF22Q1FMYD9X1","name":"","time":{"value":0,"rate":1},"color":"#f5c542","category":"note"},"insertion_index":-1}

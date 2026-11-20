@@ -34,26 +34,12 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace {
 
 using mcp_json::Value;
 namespace fs = std::filesystem;
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
-
-template <typename Function>
-void Test(const std::string& name, Function function) {
-    const int before = failures;
-    function();
-    if (before == failures) std::cout << "PASS: " << name << '\n';
-}
 
 Value Parse(const std::string& text) {
     Value value;

@@ -25,16 +25,9 @@
 #include <map>
 #include <sstream>
 
+#include "TestSupport.h"
+
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 void Write(const std::filesystem::path& path, const std::string& contents) {
     std::filesystem::create_directories(path.parent_path());

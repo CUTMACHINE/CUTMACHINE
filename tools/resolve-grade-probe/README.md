@@ -129,7 +129,7 @@ Une formule se lit `base/poids/sortie` :
 - **sortie** : `none`, ou `unit` pour un écrêtage à [0, 1] après la
   saturation.
 
-La formule du moteur est `pass/rec709/none` ([`ColorCdl.h`](../../src/ColorCdl.h)).
+La formule du moteur est `pass/rec709/none` ([`ColorCdl.h`](../../src/engine/ColorCdl.h)).
 Les cubes que Resolve écrit ne sortent pas de [0, 1], en ACEScct non plus :
 le moteur y est donc jugé écrêté de même, `pass/rec709/unit`, ce que rend
 aussi son export sans gestion couleur (`BuildColorGradeCube`). L'écart non

@@ -10,16 +10,9 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 // Niveau attendu pour une sinusoïde d'amplitude `peak` : RMS = peak/sqrt(2).
 int64_t ExpectedSineLevel(int16_t peak) {

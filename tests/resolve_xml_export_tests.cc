@@ -16,16 +16,9 @@
 #include <string>
 #include <thread>
 
+#include "TestSupport.h"
+
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 LibraryMedia Media(const std::string& id, const std::string& name,
                    int32_t rateNum, int64_t frames) {

@@ -1,7 +1,7 @@
 # Objet séquence
 
-> Relu contre le code le 3 octobre 2026 (`src/Document.h`,
-> `src/DocumentFormat.h`, `src/DocumentFormat.cc`, `src/Operations.h`). Non
+> Relu contre le code le 3 octobre 2026 (`src/engine/Document.h`,
+> `src/engine/DocumentFormat.h`, `src/engine/DocumentFormat.cc`, `src/engine/Operations.h`). Non
 > vérifié : l’ajustement du canevas et des sources dans le moniteur, qui se
 > juge à l’écran.
 
@@ -38,7 +38,7 @@ est monté.
 
 Les documents de version 1 à 3 sont refusés. Le lecteur accepte les versions
 4 à 17, et un document s’écrit à la plus ancienne version qui porte ce qu’il
-contient, la 7 au minimum (`DocumentFormatVersion`, `src/Document.h`). Dans
+contient, la 7 au minimum (`DocumentFormatVersion`, `src/engine/Document.h`). Dans
 toutes, la timeline est imbriquée dans `sequence` ; aucune collection de
 pistes ne vit à la racine.
 

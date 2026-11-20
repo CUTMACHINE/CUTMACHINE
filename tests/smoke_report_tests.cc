@@ -11,6 +11,8 @@
 #include <iostream>
 #include <string>
 
+#include "TestSupport.h"
+
 namespace {
 
 using ui_smoke::ExitStatus;
@@ -19,24 +21,6 @@ using ui_smoke::Needs;
 using ui_smoke::NotRun;
 using ui_smoke::Screen;
 using ui_smoke::SummaryLine;
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
-
-template <typename Function>
-void Test(const std::string& name, Function function) {
-    const int before = failures;
-    function();
-    if (before == failures) {
-        std::cout << "PASS: " << name << '\n';
-    }
-}
 
 constexpr const char* kNotKey = "the editor window could not become key";
 constexpr const char* kHidden =

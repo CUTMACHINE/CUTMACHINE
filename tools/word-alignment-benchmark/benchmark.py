@@ -1798,14 +1798,14 @@ def score_junction_directories(
 #
 # Holes are read on the aligner's own frames by default, or on the frames the
 # engine gives each word (`engine=True`): its entry and exit rules widen a
-# word to the voice (ResolveWordBoundaries, src/WordBoundaries.cc), and
+# word to the voice (ResolveWordBoundaries, src/media/WordBoundaries.cc), and
 # VoiceOutsideWords counts those frames as the word's. A first version of
 # this check approximated the rules by a fixed air around every word; the
 # exit that follows the voice is what swallows a missing word said in one
 # breath with its neighbour, and a fixed air does not model it.
 UNWRITTEN_TOLERANCE_FRAMES = 3
 
-# WordBoundaryRules defaults (src/WordBoundaries.h).
+# WordBoundaryRules defaults (src/media/WordBoundaries.h).
 ENGINE_ENTRY_SEARCH_FRAMES = 10
 ENGINE_ATTACK_SEARCH_FRAMES = 25
 ENGINE_ENTRY_AIR_FRAMES = 2

@@ -166,8 +166,9 @@ and `errors`; when it could read nothing (no file added, none already known),
 it refuses with `IoError`, code 1, with these four fields under `result`. A
 folder of which only part fails remains a success. `ingest_media` answers the
 same way. An ingest is an operation, `IngestMediaOperation` (DEC32,
-PRODUIT-2026-10): the new source clips and
-the known source clips reclassified form a single entry of the active
+PRODUIT-2026-10): the new source clips,
+the known source clips reclassified, and the repairs made to known ones
+(completed metadata, a mounted source) form a single entry of the active
 timeline's journal, which the `undo` tool (or `Cmd+Z` in the app) takes back
 and `redo` replays, byte for byte. `--bin <id>` (the `bin_id` argument of
 `ingest_media`, ULID or alias; `""` for the root) files what is ingested into
@@ -181,7 +182,10 @@ that receives one.
 
 `--mcp-serve` opens the local MCP server (loopback only). The project is
 optional: launched without a project, the server answers only `create_project`,
-`open_project`, `get_procedure`, reading the project archive and the `after_*`
+`open_project`, `get_procedure`, reading the project archive, the charter tools
+of the motion library (`read_motion_kit`, `save_motion_kit`,
+`edit_motion_kit`, `restore_motion_kit`, see
+[Brand charters](api-edition.md#brand-charters)) and the `after_*`
 tools, which address an After project and not the CUTMACHINE project
 (MOTION-AFTER-2026-09 MA10); it refuses any other tool with `NoProjectOpen`.
 A run can thus start from a folder of source clips without leaving MCP:
@@ -308,6 +312,7 @@ and the timeline, so that the capture works with the window covered or behind
 another application, without screen recording permission. `region` chooses
 the whole window (`window`, the default) or one surface (`timeline`,
 `record`, `source`; a hidden surface is refused with `ValidationFailed`),
+or the Charte panel (`charter`, refused when the panel is closed),
 `scale` one pixel per point (1, the default) or two. The response carries the
 image as JPEG and a text: its size, and where each surface is in it, in
 pixels from the top left corner. What macOS adds when compositing the screen
@@ -711,7 +716,7 @@ active, the group's other angles disappear from the picture over their whole
 duration, as if their track were hidden at that spot; what lies beneath
 remains visible where the active angle does not cover. Without an active
 angle, all the angles composite like ordinary clips. The same rule
-(`src/Multicam.h`) serves the monitor, export, `verify_export`,
+(`src/engine/Multicam.h`) serves the monitor, export, `verify_export`,
 `timeline_stats`, the contact sheets, `list_shot_quality` and the return to
 Resolve; the latter refuses a hidden angle whose sound still plays, because
 it does not know how to send that sound without its picture.

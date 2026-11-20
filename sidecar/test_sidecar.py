@@ -654,7 +654,7 @@ class ResolveBridgeTests(unittest.TestCase):
         self.assertEqual(len(set(keys)), 2)
 
     def test_schema_matches_the_importer(self) -> None:
-        header = (ROOT / "src" / "ResolveImport.h").read_text(
+        header = (ROOT / "src" / "media" / "ResolveImport.h").read_text(
             encoding="utf-8")
         self.assertIn(f'"{SCHEMA}"', header)
 
@@ -948,7 +948,7 @@ class FakeResolveApp:
 
 class ResolveSendTests(unittest.TestCase):
     """PA16 -- le renvoi entier, contre un faux Resolve qui se comporte
-    comme les mesures du 13 novembre 2026 (src/ResolveExport.h)."""
+    comme les mesures du 13 novembre 2026 (src/media/ResolveExport.h)."""
 
     ACCENTED = "/Volumes/LaCie/Crépuscule/C0104.MP4"
 
@@ -1345,7 +1345,7 @@ class ResolveSendTests(unittest.TestCase):
         self.assertIn(normalized("/a/B.MP4"), index["by_path"])
 
     def test_timeline_schema_matches_the_exporter(self) -> None:
-        source = (ROOT / "src" / "ResolveExport.cc").read_text(
+        source = (ROOT / "src" / "media" / "ResolveExport.cc").read_text(
             encoding="utf-8")
         self.assertIn(TIMELINE_SCHEMA, source)
 
@@ -1929,7 +1929,7 @@ class ReadTimelineTests(unittest.TestCase):
         self.assertIn("AUTRE", errors.getvalue())
 
     def test_the_schema_matches_the_importer(self) -> None:
-        header = (ROOT / "src" / "ResolveImport.h").read_text(encoding="utf-8")
+        header = (ROOT / "src" / "media" / "ResolveImport.h").read_text(encoding="utf-8")
         self.assertIn(f'"{TIMELINE_READ_SCHEMA}"', header)
         # Le schéma retiré du renvoi ne doit pas être celui de la relecture :
         # un ancien descripteur de montage serait lu comme une timeline.
@@ -1938,7 +1938,7 @@ class ReadTimelineTests(unittest.TestCase):
     def test_the_property_table_matches_the_importer(self) -> None:
         # Le moteur refuse une clé qu'il ne connaît pas : les deux tables
         # doivent rester la même, sinon toute timeline serait refusée.
-        source = (ROOT / "src" / "ResolveImport.cc").read_text(
+        source = (ROOT / "src" / "media" / "ResolveImport.cc").read_text(
             encoding="utf-8")
         table = source.split("ResolveItemPropertyDefaults() {", 1)[1]
         table = table.split("return defaults;", 1)[0]

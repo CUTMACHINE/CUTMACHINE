@@ -20,16 +20,11 @@
 #include <sstream>
 #include <string>
 
+#include "TestSupport.h"
+
 namespace {
 namespace fs = std::filesystem;
 using mcp_json::Value;
-int failures = 0;
-void Check(bool condition, const std::string& reason) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << reason << '\n';
-    }
-}
 void Write(const fs::path& path, const std::string& bytes) {
     std::ofstream output(path, std::ios::binary);
     output << bytes;

@@ -11,20 +11,13 @@
 #include <thread>
 #include <vector>
 
+#include "TestSupport.h"
+
 // ITW3 -- ROADMAP.md. The forced-alignment cache replaces Whisper's word
 // boundaries in every word-level reader, and only while it still describes
 // the same text.
 
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 const std::string kMediaId = "01K4AL00000000000000000001";
 

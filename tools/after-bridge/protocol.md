@@ -60,7 +60,7 @@ d'empilement à base 1, `1` étant le calque du dessus.
 
 `build_motion_project` (MA1, `docs/roadmap/MOTION-AFTER-2026-09.md`)
 construit une composition de motion décrite en `after-motion.v1`
-(`src/MotionAfterExport.h`) dans le projet vide et sans titre qu'After a
+(`src/motion/MotionAfterExport.h`) dans le projet vide et sans titre qu'After a
 ouvert, comme `create_project`, puis l'enregistre. Un projet qui contient du
 travail est refusé (`ProjectAlreadyOpen`), jamais fermé ; une construction
 qui échoue ferme sans l'enregistrer ce projet, qui ne contenait qu'elle. Le

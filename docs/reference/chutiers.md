@@ -31,8 +31,10 @@ root; **Renommer** (Rename) also edits the name directly in the view.
 accepts several videos or a whole folder and files the new media directly
 in the selected bin. Files from the Finder and source clips already present
 can also be dropped on a bin. An import is a single `IngestMediaOperation`
-(DEC32): the new source clips and the known source clips moved into the bin
-are undone together by `Cmd+Z`. The CLI (`--ingest … --bin <id>`) and MCP
+(DEC32): the new source clips, the known source clips moved into the bin,
+and the repairs an import makes to known ones (an entry without technical
+metadata completed by the probe, a complete entry given the source it
+lacked) are undone together by `Cmd+Z`. The CLI (`--ingest … --bin <id>`) and MCP
 (`ingest_media` with `bin_id`) file into a bin the same way. The
 **Déplacer vers un chutier…** context menu offers the same organisation
 without drag and drop via `SetMediaBinOperation`: its dialog asks for the
@@ -49,8 +51,10 @@ les proxies** (Timeline → Generate proxies automatically) is checked (it is
 not by default), source clips wider than 1920 px, HEVC/H.265 or AV1 trigger
 a silent ProRes Proxy transcode, limited to 1280 px wide, into
 `.cutmachine/proxies/`. The proxy path is persisted in the project without
-replacing that of the original. The context menu of a source clip lets you
-generate, recreate or delete it; **Timeline → Utiliser les proxies** (Use
+replacing that of the original. Attaching or detaching it is an operation
+(`SetMediaProxy`), journaled like any edit: `⌘Z` detaches a proxy just
+attached, and `set_media_proxy` or `--apply-op` do the same as the window.
+The context menu of a source clip lets you generate, recreate or delete it; **Timeline → Utiliser les proxies** (Use
 proxies) switches immediately between proxy and original. A proxy that is
 missing, unreadable or incompatible falls back to the original. Audio and the
 final export always use the original media: no sound is embedded in the video

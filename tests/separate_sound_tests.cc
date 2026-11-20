@@ -15,16 +15,9 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 const Ulid kCamera = "01K30000000000000000000Y01";
 const Ulid kRecorder = "01K30000000000000000000Y02";

@@ -11,6 +11,8 @@
 #include <utility>
 #include <vector>
 
+#include "TestSupport.h"
+
 // B4 -- ROADMAP.md. Synthetic B1 envelopes reproduce the measured failure:
 // each half of a junction is below the per-clip threshold, while the silence
 // heard across the cut is above it. The old one-side-at-a-time loop needed
@@ -20,19 +22,10 @@
 
 namespace {
 
-int failures = 0;
-
 constexpr int64_t kRoom = 20000;
 constexpr int64_t kVoice = 200000;
 const char kSourceA[] = "01K40000000000000000000001";
 const char kSourceB[] = "01K40000000000000000000002";
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 SpeechOnsetReport Envelope(
     const std::string& sourceId,

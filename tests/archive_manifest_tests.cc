@@ -16,30 +16,9 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
-
-template <typename Function>
-void Test(const std::string& name, Function function) {
-    const int before = failures;
-    try {
-        function();
-    } catch (const std::exception& exception) {
-        ++failures;
-        std::cerr << "FAIL: " << name << ": " << exception.what() << '\n';
-    }
-    if (failures == before) {
-        std::cout << "PASS: " << name << '\n';
-    }
-}
 
 const char kTitleDefinition[] =
     R"({"width":1920,"height":1080,"fps":25,"duration":60,)"

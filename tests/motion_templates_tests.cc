@@ -32,18 +32,11 @@
 #include <utility>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace {
 
 using mcp_json::Value;
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 // Every byte advances half the font size; lines break only on '\n'.
 class FakeMeasurer final : public MotionMeasurer {
@@ -2406,6 +2399,180 @@ void CheckCharterPieces() {
           "the pieces it does not withdraw are dressed as before: " + error);
 }
 
+// DEC62/CH2 -- docs/roadmap/CHARTE-2026-11.md. A value for one format of a
+// piece: read for its shape, applied to that format alone over the value
+// for every format, refused by name when the piece has no such format, no
+// such prop or does not take the value, and counted in what the charter
+// allows.
+std::string DefaultLiteral(const Value& definition, const std::string& prop) {
+    const Value* props = definition.Find("props");
+    const Value* entry = props != nullptr ? props->Find(prop) : nullptr;
+    const Value* value = entry != nullptr ? entry->Find("default") : nullptr;
+    return value != nullptr ? value->Dump() : "";
+}
+
+void CheckCharterPieceFormats() {
+    MotionKitInfo kit;
+    std::string error;
+    const std::string brand =
+        R"({"format":"brand-kit.v1","description":"Charte.",)";
+    const auto refused = [&](const std::string& pieces,
+                             const std::string& reason) {
+        return !ParseMotionKit("k", brand + R"("pieces":)" + pieces + "}", kit,
+                               error) &&
+               error.find(reason) != std::string::npos;
+    };
+    Check(refused(R"({"logo":{"formats":[]}})",
+                  "'pieces.logo.formats' must be an object"),
+          "formats is an object by format name: " + error);
+    Check(refused(R"({"logo":{"formats":{}}})",
+                  "'pieces.logo.formats' must be an object"),
+          "an empty formats is refused: " + error);
+    Check(refused(R"({"logo":{"formats":{"9 16":{"marge_haut":20}}}})",
+                  "'pieces.logo.formats.9 16' is not a format name"),
+          "a format name is a name: " + error);
+    Check(refused(R"({"logo":{"formats":{"9x16":{}}}})",
+                  "'pieces.logo.formats.9x16' must be an object of prop "
+                  "values, at least one"),
+          "a format sets something: " + error);
+    Check(refused(R"({"logo":{"formats":{"9x16":"haut"}}})",
+                  "'pieces.logo.formats.9x16' must be an object of prop "
+                  "values"),
+          "a format is an object of values: " + error);
+    Check(refused(R"({"logo":{"formats":{"9x16":{"marge_haut":[20]}}}})",
+                  "'pieces.logo.formats.9x16.marge_haut' must be a string, a "
+                  "number or a boolean"),
+          "a per-format value is a literal: " + error);
+    Check(refused(R"({"logo":{"formats":{"9x16":{"logo":""}}}})",
+                  "'pieces.logo.formats.9x16.logo' is empty"),
+          "an empty per-format text: " + error);
+    Check(refused(R"({"nom":{"formats":{"9x16":{"texte":"bleu roi"}}}})",
+                  "'pieces.nom.formats.9x16.texte' must be a color the motion "
+                  "format reads (#rrggbb...), as the shared prop 'texte' is"),
+          "a shared role keeps its type in a format: " + error);
+    Check(refused(R"({"logo":{"marge_haut":{"9x16":20}}})",
+                  "'pieces.logo.marge_haut' must be a string, a number or a "
+                  "boolean"),
+          "only `formats` holds an object: " + error);
+
+    std::vector<MotionTemplateInfo> shipped;
+    Check(MotionTemplateCatalog(shipped, error), "catalog loads: " + error);
+    const MotionTemplateInfo* logo = Find(shipped, "logo");
+    const MotionTemplateInfo* carton = Find(shipped, "carton");
+    if (logo == nullptr || carton == nullptr) {
+        Check(false, "logo and carton are shipped");
+        return;
+    }
+    // A margin for every format, and another for 9x16: 9x16 takes its own,
+    // the others the one for every format.
+    Check(ParseMotionKit("marque",
+                         brand + R"("pieces":{"logo":{"marge_haut":10,)"
+                                 R"("formats":{"9x16":{"marge_haut":20}}}}})",
+                         kit, error),
+          "a charter with a value for one format reads: " + error);
+    MotionKitApplication application;
+    Value badge = logo->definition;
+    Check(ApplyMotionKit(kit, "logo", badge, application, error) &&
+              application.applied == std::vector<std::string>{"marge_haut"} &&
+              DefaultLiteral(badge, "marge_haut") == "10",
+          "the value for every format is the default, the prop listed once: " +
+              error);
+    const auto marginIn = [&](const Value& definition, int32_t width,
+                              int32_t height, const std::string& prop) {
+        Value instance;
+        std::string format;
+        std::string why;
+        return InstantiateMotionTemplate(definition, width, height, instance,
+                                         format, why)
+                   ? DefaultLiteral(instance, prop)
+                   : "refused: " + why;
+    };
+    Check(marginIn(badge, 1080, 1920, "marge_haut") == "20",
+          "in 9:16 the logo takes the charter's 9x16 margin: " +
+              marginIn(badge, 1080, 1920, "marge_haut"));
+    Check(marginIn(badge, 1920, 1080, "marge_haut") == "10" &&
+              marginIn(badge, 1080, 1080, "marge_haut") == "10",
+          "in 16:9 and 1:1 the margin for every format: " +
+              marginIn(badge, 1920, 1080, "marge_haut"));
+    Check(marginIn(badge, 1080, 1920, "marge_gauche") == "9" &&
+              marginIn(badge, 1920, 1080, "largeur") == "10",
+          "what the charter does not name stays the piece's, per format");
+
+    const auto rejects = [&](const std::string& pieces,
+                             const std::string& piece,
+                             const std::string& reason) {
+        MotionKitInfo other;
+        std::string why;
+        if (!ParseMotionKit("k", brand + R"("pieces":)" + pieces + "}", other,
+                            why)) {
+            std::cerr << "  does not read: " << why << '\n';
+            return false;
+        }
+        Value definition = Find(shipped, piece)->definition;
+        const std::string before = definition.Dump();
+        MotionKitApplication app;
+        const bool refusedNow =
+            !ApplyMotionKit(other, piece, definition, app, why) &&
+            why.find(reason) != std::string::npos &&
+            definition.Dump() == before;
+        if (!refusedNow) {
+            std::cerr << "  got: " << why << '\n';
+        }
+        return refusedNow;
+    };
+    Check(rejects(R"({"logo":{"formats":{"4x5":{"marge_haut":20}}}})", "logo",
+                  "kit 'k' sets 'pieces.logo.formats.4x5', and the piece "
+                  "'logo' has no format '4x5'; it has 9x16, 16x9, 1x1"),
+          "a format the piece does not declare is refused, with its formats");
+    Check(rejects(R"({"logo":{"formats":{"9x16":{"couleur":"#000000"}}}})",
+                  "logo",
+                  "'pieces.logo.formats.9x16.couleur', and the piece 'logo' "
+                  "has no prop 'couleur'"),
+          "a prop the piece lacks, in a format, is refused by name");
+    Check(rejects(R"({"logo":{"formats":{"9x16":{"marge_haut":99}}}})", "logo",
+                  "gives 'pieces.logo.formats.9x16.marge_haut' 99, and the "
+                  "prop takes a number between 0 and 60"),
+          "a per-format value out of its bounds is refused");
+
+    // A charter that gives a piece values for one format only applies, and
+    // gives a format without props its own.
+    Check(ParseMotionKit("marque",
+                         brand + R"("pieces":{"carton":{"formats":)"
+                                 R"({"9x16":{"corps":120}}}}})",
+                         kit, error),
+          "a charter of per-format values alone reads: " + error);
+    Value card = carton->definition;
+    Check(ApplyMotionKit(kit, "carton", card, application, error) &&
+              application.applied == std::vector<std::string>{"corps"} &&
+              DefaultLiteral(card, "corps") == "96",
+          "per-format values alone apply, the default untouched: " + error);
+    const Value* nineBySixteen = FindMotionKitPath(card, "formats.9x16.props");
+    Check(
+        nineBySixteen != nullptr && nineBySixteen->Dump() == R"({"corps":120})",
+        "the 9x16 format, which had no props, gets its own");
+    Check(marginIn(card, 1080, 1920, "corps") == "120" &&
+              marginIn(card, 1920, 1080, "corps") == "110" &&
+              marginIn(card, 1080, 1080, "corps") == "88",
+          "only 9:16 changes; 16:9 and 1:1 keep their own size: " +
+              marginIn(card, 1080, 1920, "corps"));
+
+    // The colours and fonts of a format count among the charter's.
+    Check(ParseMotionKit("marque",
+                         brand +
+                             R"("pieces":{"nom":{"texte_fonction":"#0A7C66",)"
+                             R"("formats":{"9x16":{"fond_fonction":"#E0A030",)"
+                             R"("police":"Exemple Sans"},)"
+                             R"("16x9":{"police":"Exemple Sans Mono"}}}}})",
+                         kit, error),
+          "a charter with per-format colours and fonts reads: " + error);
+    Check(
+        MotionKitColors(kit) == std::vector<std::string>{"#0a7c66", "#e0a030"},
+        "a per-format colour is allowed");
+    Check(MotionKitFonts(kit) ==
+              std::vector<std::string>{"Exemple Sans", "Exemple Sans Mono"},
+          "a per-format font is allowed");
+}
+
 int main() {
     CheckCatalog();
     CheckHighlighterPiece();
@@ -2424,6 +2591,7 @@ int main() {
     CheckBandeauCentre();
     CheckDecor();
     CheckCharterPieces();
+    CheckCharterPieceFormats();
     if (failures != 0) {
         std::cerr << failures << " failure(s)\n";
         return 1;

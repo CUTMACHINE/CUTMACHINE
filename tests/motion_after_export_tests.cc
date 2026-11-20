@@ -34,16 +34,9 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& label) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << label << '\n';
-    }
-}
 
 // Fixed advances, a baseline at 0.8 of the size, and one PostScript name.
 class FakeMeasurer final : public MotionMeasurer {

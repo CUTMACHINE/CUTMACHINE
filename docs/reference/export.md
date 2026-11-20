@@ -440,8 +440,6 @@ not done:
 - nothing has been seen on screen or on a film; the tests read the pixels of
   the render and of an exported file;
 - the Inspector does not show the setting;
-- `check_caption_legibility` measures the text colour, not that of the lit
-  word;
 - an SRT, a VTT and the hand-off to Resolve do not carry the animation;
 - there is no continuous animation (a word that grows or slides): a word is lit
   or it is not;
@@ -472,7 +470,15 @@ and compares the text colour with the ring of pixels around them (the outline
 if there is one, the image otherwise): median WCAG contrast ratio and tenth
 percentile for the worst passage, 3:1 minimum by default (`minimum_contrast`).
 White text on a white shirt measures about 2:1; an outline brings it above
-10:1. On a real edit, it found by itself 11 captions out of 58 under 3:1. A
+10:1. On a real edit, it found by itself 11 captions out of 58 under 3:1.
+An animated caption is read where every word is on screen: under `reveal`, on
+the frame where its last word starts (the middle frame, if that is later),
+because around a word not yet drawn the ring is the bare image, without the
+outline the word will bring. Under `highlight`, the lit word moves along the
+whole line: `highlight_contrast_median` and `highlight_contrast_low` compare
+the highlight colour with the same ring, and a caption whose lit word falls
+under the minimum counts in `below_minimum`, here and in the `caption_contrast`
+check of `check_timeline`. A
 relative `path` given to the server is read in the project folder, as for
 `verify_export` and `check_timeline` (DEC19,
 `PRODUIT-2026-10b`); `--call-tool` keeps the

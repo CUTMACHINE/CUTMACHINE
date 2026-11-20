@@ -1,7 +1,7 @@
 # Spécification Médiathèque et chutiers
 
-> Relu contre le code le 3 octobre 2026 (`src/main.mm`, `src/Operations.cc`,
-> `src/Document.cc`, `src/MediaPanelModel.h`). Non vérifié : les gestes
+> Relu contre le code le 3 octobre 2026 (`src/app/main.mm`, `src/engine/Operations.cc`,
+> `src/engine/Document.cc`, `src/ui/MediaPanelModel.h`). Non vérifié : les gestes
 > eux-mêmes (double-clic, glisser vers une piste, annulation de chaque
 > mutation), qui se jugent à la souris.
 

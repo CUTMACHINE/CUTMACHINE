@@ -8,6 +8,8 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 // QC-2026-09 A2. Le cœur est pur : une enveloppe synthétique, aucun FFmpeg,
 // aucun modèle. Ce qui est épinglé ici, c'est ce que le ticket promet — les
 // creux internes se referment, les bords ne bougent pas, l'arrondi ne mord
@@ -15,15 +17,6 @@
 // opération et rien d'autre.
 
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 constexpr int64_t kRoom = 20000;
 constexpr int64_t kVoice = 200000;

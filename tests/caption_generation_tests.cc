@@ -11,24 +11,18 @@
 #include <algorithm>
 #include <cstdlib>
 #include <filesystem>
+#include <functional>
 #include <iostream>
 #include <string>
 #include <vector>
+
+#include "TestSupport.h"
 
 // ITW4 -- ROADMAP.md. Cartons from montage words: rendered width measured by
 // drawtext, cuts found on the composited picture, edges set onto them
 // without making a carton unreadable.
 
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 TimelineTranscriptSpan Word(const std::string& text, int64_t start,
                             int64_t frames) {
@@ -731,50 +725,68 @@ int main() {
             "-pix_fmt yuv420p -y '" +
             white.string() + "'";
         Check(std::system(generate.c_str()) == 0, "white source is generated");
-        const auto legibility = [&](int32_t outline, const std::string& name,
-                                    std::vector<CaptionLegibility>& results) {
-            Document shirt;
-            shirt.sequence.width = 320;
-            shirt.sequence.height = 180;
-            shirt.sources = {
-                {GenerateUlid(), white.string(), {25, 1}, {25, 25}}};
-            DocumentClip picture;
-            picture.source_id = shirt.sources[0].id;
-            picture.source_in = {0, 25};
-            picture.duration = {20, 25};
-            picture.timeline_in = {0, 25};
-            CaptionStyle carton;
-            carton.font_size = 36;
-            carton.outline_width = outline;
-            DocumentClip text;
-            text.timeline_in = {5, 25};
-            text.duration = {10, 25};
-            text.include_audio = false;
-            text.caption_group_id = carton.id;
-            text.caption_text = "LISIBLE";
-            shirt.sequence.caption_styles = {carton};
-            shirt.sequence.tracks = {{GenerateUlid(), "video", 0, {picture}},
-                                     {GenerateUlid(), "caption", 1, {text}}};
-            ExportSettings settings =
-                Exporter::H264Preset((directory / (name + ".mp4")).string());
-            settings.encoder = ExportEncoder::H264Software;
-            settings.width = 320;
-            settings.height = 180;
-            settings.frame_rate = {25, 1};
-            settings.ffmpeg_path = FFMPEG_EXECUTABLE;
-            ExportPlan plan;
-            std::string failure;
-            if (!Exporter::BuildPlan(shirt, (directory / "p").string(),
-                                     settings, plan, failure) ||
-                !Exporter::Run(plan, {}, nullptr, failure)) {
-                Check(false, name + " export: " + failure);
-                return false;
-            }
-            return CheckCaptionLegibility(shirt, settings.output_path,
-                                          FFMPEG_EXECUTABLE, results,
-                                          failure) ||
-                   (Check(false, name + " check: " + failure), false);
-        };
+        const auto black = directory / "black.mp4";
+        const std::string generateBlack =
+            std::string("'") + FFMPEG_EXECUTABLE +
+            "' -hide_banner -loglevel error -f lavfi -i "
+            "'color=c=black:size=320x180:rate=25:duration=1' -c:v libx264 "
+            "-pix_fmt yuv420p -y '" +
+            black.string() + "'";
+        Check(std::system(generateBlack.c_str()) == 0,
+              "black source is generated");
+        // `shape` dresses the carton before export: an animation, its words'
+        // times, another picture under it.
+        const auto legibility =
+            [&](int32_t outline, const std::string& name,
+                std::vector<CaptionLegibility>& results,
+                const std::function<void(CaptionStyle&, DocumentClip&,
+                                         std::filesystem::path&)>& shape =
+                    nullptr) {
+                Document shirt;
+                shirt.sequence.width = 320;
+                shirt.sequence.height = 180;
+                std::filesystem::path under = white;
+                CaptionStyle carton;
+                carton.font_size = 36;
+                carton.outline_width = outline;
+                DocumentClip text;
+                text.timeline_in = {5, 25};
+                text.duration = {10, 25};
+                text.include_audio = false;
+                text.caption_text = "LISIBLE";
+                if (shape) shape(carton, text, under);
+                text.caption_group_id = carton.id;
+                shirt.sources = {
+                    {GenerateUlid(), under.string(), {25, 1}, {25, 25}}};
+                DocumentClip picture;
+                picture.source_id = shirt.sources[0].id;
+                picture.source_in = {0, 25};
+                picture.duration = {20, 25};
+                picture.timeline_in = {0, 25};
+                shirt.sequence.caption_styles = {carton};
+                shirt.sequence.tracks = {
+                    {GenerateUlid(), "video", 0, {picture}},
+                    {GenerateUlid(), "caption", 1, {text}}};
+                ExportSettings settings = Exporter::H264Preset(
+                    (directory / (name + ".mp4")).string());
+                settings.encoder = ExportEncoder::H264Software;
+                settings.width = 320;
+                settings.height = 180;
+                settings.frame_rate = {25, 1};
+                settings.ffmpeg_path = FFMPEG_EXECUTABLE;
+                ExportPlan plan;
+                std::string failure;
+                if (!Exporter::BuildPlan(shirt, (directory / "p").string(),
+                                         settings, plan, failure) ||
+                    !Exporter::Run(plan, {}, nullptr, failure)) {
+                    Check(false, name + " export: " + failure);
+                    return false;
+                }
+                return CheckCaptionLegibility(shirt, settings.output_path,
+                                              FFMPEG_EXECUTABLE, results,
+                                              failure) ||
+                       (Check(false, name + " check: " + failure), false);
+            };
         std::vector<CaptionLegibility> plain;
         std::vector<CaptionLegibility> outlined;
         Check(legibility(0, "plain", plain) && plain.size() == 1 &&
@@ -789,6 +801,83 @@ int main() {
         const std::string json = SerializeCaptionLegibility(plain, 3.0);
         Check(json.find("\"below_minimum\":1") != std::string::npos,
               "the illegible carton is counted: " + json);
+        Check(json.find("highlight_contrast") == std::string::npos &&
+                  !plain[0].highlighted,
+              "a carton that lights no word answers as before: " + json);
+
+        // PA4 -- docs/roadmap/PARITE-2026-11.md. A white carton over black
+        // reads 21:1, but its lit word, dark grey, does not: the carton falls
+        // on it alone, and a yellow one passes.
+        const auto lit = [&](const std::string& colour) {
+            return [&black, colour](CaptionStyle& style, DocumentClip& clip,
+                                    std::filesystem::path& under) {
+                style.word_animation = kCaptionWordAnimationHighlight;
+                style.highlight_color = colour;
+                clip.caption_text = "ETE SOL";
+                clip.caption_word_times = {{0, 1}, {4, 25}};
+                under = black;
+            };
+        };
+        std::vector<CaptionLegibility> grey;
+        Check(
+            legibility(0, "highlight-grey", grey, lit("#303030")) &&
+                grey.size() == 1 && grey[0].highlighted &&
+                grey[0].frame == 10 && grey[0].contrast_median > 15.0 &&
+                grey[0].highlight_contrast_median < 2.0 &&
+                grey[0].highlight_contrast_low <=
+                    grey[0].highlight_contrast_median &&
+                CaptionLegibilityBelowMinimum(grey[0], 3.0),
+            "a dark lit word over black is under the minimum: " +
+                (grey.empty()
+                     ? std::string("no result")
+                     : std::to_string(grey[0].contrast_median) + " / " +
+                           std::to_string(grey[0].highlight_contrast_median)));
+        const std::string greyJson = SerializeCaptionLegibility(grey, 3.0);
+        Check(greyJson.find("\"highlight_contrast_median\":") !=
+                      std::string::npos &&
+                  greyJson.find("\"highlight_contrast_low\":") !=
+                      std::string::npos &&
+                  greyJson.find("\"below_minimum\":1") != std::string::npos,
+              "the lit word's ratio is answered and counted: " + greyJson);
+        std::vector<CaptionLegibility> yellow;
+        Check(legibility(0, "highlight-yellow", yellow, lit("#ffe600")) &&
+                  yellow.size() == 1 && yellow[0].highlighted &&
+                  yellow[0].highlight_contrast_median > 10.0 &&
+                  !CaptionLegibilityBelowMinimum(yellow[0], 3.0),
+              "a yellow lit word over black passes: " +
+                  (yellow.empty()
+                       ? std::string("no result")
+                       : std::to_string(yellow[0].highlight_contrast_median)));
+
+        // PA4 -- an outlined carton over white whose long word is said after
+        // the middle frame: read there, the ring around the word not yet
+        // drawn is bare white. It is read on frame 13, where "LISIBLE"
+        // starts (5 + 8), and its outline makes it legible.
+        const auto revealed = [](RationalTime last) {
+            return [last](CaptionStyle& style, DocumentClip& clip,
+                          std::filesystem::path&) {
+                style.word_animation = kCaptionWordAnimationReveal;
+                clip.caption_text = "A LISIBLE";
+                clip.caption_word_times = {{0, 1}, last};
+            };
+        };
+        std::vector<CaptionLegibility> reveal;
+        Check(legibility(3, "reveal", reveal, revealed({8, 25})) &&
+                  reveal.size() == 1 && reveal[0].frame == 13 &&
+                  !reveal[0].highlighted && reveal[0].contrast_median > 10.0,
+              "a revealed carton is read once its last word is drawn: " +
+                  (reveal.empty()
+                       ? std::string("no result")
+                       : std::to_string(reveal[0].frame) + " at " +
+                             std::to_string(reveal[0].contrast_median)));
+        // A last word said past the carton's end (a tail trimmed): its last
+        // frame, 14.
+        std::vector<CaptionLegibility> late;
+        Check(legibility(3, "reveal-late", late, revealed({20, 25})) &&
+                  late.size() == 1 && late[0].frame == 14,
+              "a word said past the carton's end reads its last frame: " +
+                  (late.empty() ? std::string("no result")
+                                : std::to_string(late[0].frame)));
         std::filesystem::remove_all(directory);
     }
 

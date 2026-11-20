@@ -38,30 +38,11 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace {
 
 namespace fs = std::filesystem;
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
-
-template <typename Function>
-void Test(const std::string& name, Function function) {
-    const int before = failures;
-    try {
-        function();
-        if (failures == before) std::cout << "PASS: " << name << '\n';
-    } catch (const std::exception& e) {
-        ++failures;
-        std::cerr << "FAIL: " << name << ": threw: " << e.what() << '\n';
-    }
-}
 
 // -----------------------------------------------------------------------
 // Répertoire temporaire (même pattern que project_recovery_tests.cc)

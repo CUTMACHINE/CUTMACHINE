@@ -7,7 +7,7 @@
 # dependencies (H3) and the test suites are read from the main
 # CMakeLists.txt, so what is added there is built here too. The
 # substitutions:
-#   - src/main.mm (AppKit) -> HeadlessMain.cc, over the same command line
+#   - src/app/main.mm (AppKit) -> HeadlessMain.cc, over the same command line
 #     (CliMain.h, H1)
 # The renderers that need Core Text, Core Graphics or Vision
 # (cutmachine_motion_render) are not built: the tools that need one find
@@ -115,7 +115,7 @@ set(BUILD_INFO_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/generated/BuildInfo.cc")
 add_custom_target(cutmachine_build_info
     COMMAND "${CMAKE_COMMAND}"
             "-DSOURCE_DIR=${CUTMACHINE_ROOT}"
-            "-DTEMPLATE=${CUTMACHINE_ROOT}/src/BuildInfo.cc.in"
+            "-DTEMPLATE=${CUTMACHINE_ROOT}/src/engine/BuildInfo.cc.in"
             "-DOUTPUT=${BUILD_INFO_SOURCE}"
             "-DVERSION=${PROJECT_VERSION}"
             "-DGIT_EXECUTABLE=${GIT_EXECUTABLE}"
@@ -132,7 +132,7 @@ foreach(_path IN LISTS MOTION_TEMPLATE_FILES)
     string(APPEND CUTMACHINE_MOTION_TEMPLATE_ENTRIES
            "        {\"${_template}\", R\"CUTMACHINEJSON(${_json})CUTMACHINEJSON\"},\n")
 endforeach()
-configure_file("${CUTMACHINE_ROOT}/src/MotionTemplatesData.cc.in"
+configure_file("${CUTMACHINE_ROOT}/src/motion/MotionTemplatesData.cc.in"
                "${CMAKE_CURRENT_BINARY_DIR}/generated/MotionTemplatesData.cc" @ONLY)
 
 set(SKILLS_DIR "${CUTMACHINE_ROOT}/.claude/skills")
@@ -159,7 +159,8 @@ endif()
 string(SUBSTRING "${_main_cmake}" ${_start} -1 _model_block)
 string(FIND "${_model_block}" "\n)" _end)
 string(SUBSTRING "${_model_block}" 0 ${_end} _model_block)
-string(REGEX MATCHALL "src/[A-Za-z0-9_]+\\.(cc|mm)" _model_sources "${_model_block}")
+string(REGEX MATCHALL "src/[a-z]+/[A-Za-z0-9_]+\\.(cc|mm)" _model_sources
+       "${_model_block}")
 list(FILTER _model_sources EXCLUDE REGEX "\\.mm$")
 list(TRANSFORM _model_sources PREPEND "${CUTMACHINE_ROOT}/")
 list(LENGTH _model_sources _model_count)
@@ -171,7 +172,14 @@ add_library(cutmachine_model STATIC
     "${CMAKE_CURRENT_BINARY_DIR}/generated/MotionTemplatesData.cc"
     "${PROCEDURES_SOURCE}")
 add_dependencies(cutmachine_model cutmachine_build_info)
-target_include_directories(cutmachine_model PUBLIC "${CUTMACHINE_ROOT}/src")
+# STRUCTURE-2026-11 ST3 -- the seven module directories, as in the main
+# build: a header is included by its bare name.
+set(CUTMACHINE_SOURCE_DIRS)
+foreach(_cutmachine_module engine media motion ui agent platform app)
+    list(APPEND CUTMACHINE_SOURCE_DIRS
+         "${CUTMACHINE_ROOT}/src/${_cutmachine_module}")
+endforeach()
+target_include_directories(cutmachine_model PUBLIC ${CUTMACHINE_SOURCE_DIRS})
 # CommonCrypto's SHA-256, answered by OpenSSL (headless/compat).
 find_package(OpenSSL REQUIRED)
 target_include_directories(cutmachine_model PRIVATE
@@ -189,7 +197,7 @@ target_link_libraries(cutmachine_model PUBLIC
     OpenSSL::Crypto)
 target_link_libraries(cutmachine_model PRIVATE yogacore cutmachine_zstd)
 
-add_executable(cutmachine "${CUTMACHINE_ROOT}/src/HeadlessMain.cc")
+add_executable(cutmachine "${CUTMACHINE_ROOT}/src/agent/HeadlessMain.cc")
 target_link_libraries(cutmachine PRIVATE cutmachine_model)
 
 # The suites the main build labels "portable", declared again from its

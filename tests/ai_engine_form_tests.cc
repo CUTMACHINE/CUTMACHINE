@@ -13,30 +13,14 @@
 #include <iostream>
 #include <string>
 
+#include "TestSupport.h"
+
 namespace {
 
 using ai_engine::EngineProtocol;
 using ai_engine::FormContext;
 using ai_engine::FormPolicy;
 using ai_engine::FormTexts;
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
-
-template <typename Function>
-void Test(const std::string& name, Function function) {
-    const int before = failures;
-    function();
-    if (before == failures) {
-        std::cout << "PASS: " << name << '\n';
-    }
-}
 
 // "npx -y <package>@<major>.<minor>.<patch>", nothing after the version.
 bool PinnedNpx(const std::string& command, const std::string& package) {

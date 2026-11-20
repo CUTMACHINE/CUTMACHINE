@@ -35,10 +35,30 @@ def words(arguments):
     return re.findall(r'(?:[^\s"]|"[^"]*")+', arguments)
 
 
+# STRUCTURE-2026-11 ST2 -- a suite declared in one call
+# (cmake/CutmachineAddTest.cmake) is read as its plain calls would be: its
+# executable and sources, its libraries and definitions, its command, its
+# labels.
+SUITE_KEYWORDS = {"SOURCES", "INCLUDES", "OPTIONS", "DEFINITIONS", "LIBS",
+                  "DEPENDS", "ARGS", "LABELS"}
+suites = {}
+for arguments in calls("cutmachine_add_test"):
+    tokens = words(arguments)
+    if not tokens:
+        continue
+    sections, current = {}, None
+    for token in tokens[1:]:
+        if token in SUITE_KEYWORDS:
+            current = sections.setdefault(token, [])
+        elif current is not None:
+            current.append(token)
+    suites[tokens[0]] = sections
+
 # A test's LABELS are the last set_tests_properties that sets them, as
 # CMake reads them: cutmachine_storage_fault_injection_tests is given
 # "portable;regression", then "storage" alone.
-labels_of = {}
+labels_of = {name: [label.strip('"') for label in sections["LABELS"]]
+             for name, sections in suites.items() if "LABELS" in sections}
 # A suite that exits 77 when its tool is missing (FFmpeg, Node) declares
 # SKIP_RETURN_CODE in the main build; without it here, a skip reads as a
 # failure on a machine that lacks the tool (FILMCRAFT-2026-10).
@@ -93,6 +113,14 @@ for arguments in calls("target_compile_definitions"):
         definitions.setdefault(tokens[0], []).extend(
             token for token in tokens[1:]
             if token not in ("PRIVATE", "PUBLIC", "INTERFACE"))
+
+for name, sections in suites.items():
+    executables[name] = sections.get("SOURCES", [])
+    commands[name] = [name] + sections.get("ARGS", [])
+    if "LIBS" in sections:
+        links.setdefault(name, []).extend(sections["LIBS"])
+    if "DEFINITIONS" in sections:
+        definitions.setdefault(name, []).extend(sections["DEFINITIONS"])
 
 LIBRARY_MAP = {
     "cutmachine_model": "cutmachine_model",

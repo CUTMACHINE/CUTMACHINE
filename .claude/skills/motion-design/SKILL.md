@@ -63,13 +63,22 @@ sa place.
 - **Adapte par les props** (`set_props`), puis par les nœuds ; une limite
   de la fiche se vérifie à la planche.
 - **Une charte de marque** : un passage hors charte voulu se dit dans le
-  compte rendu (`check_timeline` avec `policy.kit` le nomme). Une nouvelle
-  charte s'écrit en `<library.directory>/kits/<marque>.json`
-  (`brand-kit.v1`), chaque valeur sourcée, jamais dans le dépôt ; une
-  valeur sans source est une proposition à faire valider. Ce que la marque
-  veut d'une pièce en particulier (la seconde ligne de `nom`, son fichier
-  de logo) va dans sa section `pieces`, une pièce qu'elle refuse dans
-  `withdrawn` avec la raison, jamais dans la pièce livrée.
+  compte rendu (`check_timeline` avec `policy.kit` le nomme). Une charte
+  se lit par `read_motion_kit` et s'écrit par les outils, plus à la main :
+  `save_motion_kit` pour une nouvelle (`brand-kit.v1`), `edit_motion_kit`
+  pour une valeur, par son chemin, `restore_motion_kit` pour revenir à une
+  version ; le moteur réécrit `<library.directory>/kits/<marque>.json`.
+  Passe la `version` lue en `expected_version` : un refus `StaleKit`
+  redonne la dernière, refais ton changement dessus ; un refus
+  `KitFileDiverged` dit que le fichier est en cours d'édition à la main,
+  ne le contourne pas. Chaque valeur est sourcée (`sources`), jamais dans
+  le dépôt ; une valeur sans source est une proposition à faire valider,
+  et on demande avant d'écrire dans la bibliothèque de la personne. Ce que
+  la marque veut d'une pièce en particulier (la seconde ligne de `nom`,
+  son fichier de logo, une marge du seul 9:16 sous
+  `pieces.<pièce>.formats.9x16`) va dans sa section `pieces`, une pièce
+  qu'elle refuse dans `withdrawn` avec la raison, jamais dans la pièce
+  livrée.
 - **Range ce qui a tenu à l'image** (`save_motion_template`, `origin` : le
   film), dans les seuls formats vus ; demande avant d'écrire dans la
   bibliothèque, jamais une pièce de client dans le dépôt.

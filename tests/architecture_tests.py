@@ -228,32 +228,226 @@ def third_party_dependencies(root: Path) -> int:
     return count
 
 
+# PHILOSOPHY.md, principle 2 -- nothing writes a Document but an operation.
+# Document keeps its members public (117 files read them), so the compiler
+# cannot hold the line; this does, for the two ways a write is spelled: a
+# member of a document assigned or edited in place, and a non-const pointer
+# taken into one through Find*. Ingest's repairs and the window's proxies
+# were both written that way, outside any journal, until they became
+# operations (IngestMediaOperation's `completed` and `mounted`,
+# SetMediaProxyOperation).
+DOCUMENT_WRITERS = {
+    # The algebra itself, and the document's own codec and validation.
+    "Operations.cc",
+    "MotionOperations.cc",
+    "Document.cc",
+    "DocumentFormat.cc",
+    # A Project assembles one timeline's Document as a view and takes an
+    # edited one back (MakeDocument, CommitDocument); storage builds the
+    # standalone document of a timeline the same way. Neither edits.
+    "Project.cc",
+    "ProjectStorage.cc",
+}
+# The window test builds its fixtures before any journal exists; its harness
+# lives under tests/ui_smoke/ (STRUCTURE-2026-11 ST1), out of this scan.
+# A line that builds a throwaway document for display or measurement, never
+# written back, says so with this marker.
+DOCUMENT_VIEW_MARKER = "// document view, not an edit"
+_DOCUMENT_MEMBERS = (
+    "library|bins|sources|compositions|sequence|color_management|version"
+)
+_DOCUMENT_WRITE = re.compile(
+    r"\b\w*(?:[dD]ocument|candidate|staged)\w*(?:\.|->)"
+    rf"(?:{_DOCUMENT_MEMBERS})\b(?:[.\[][^;=]*?)?\s*"
+    r"(?:(?<![=!<>])=(?!=)|\.(?:push_back|emplace_back|erase|insert|clear|"
+    r"resize|assign|swap)\()"
+)
+_DOCUMENT_POINTER = re.compile(
+    r"^\s*(?:(?:if|while)\s*\(\s*)?(?:LibraryMedia|DocumentSource|DocumentClip|DocumentTrack|"
+    r"DocumentBin|DocumentComposition|DocumentMarker|DocumentTransition)"
+    r"\s*\*\s*\w+\s*=\s*[^;]*\bFind\w*\("
+)
+
+
+def document_writes(root: Path) -> list[str]:
+    found: list[str] = []
+    for source in src_files(root):
+        if source.suffix not in {".cc", ".mm", ".h"}:
+            continue
+        if source.name in DOCUMENT_WRITERS:
+            continue
+        lines = source.read_text(encoding="utf-8").splitlines()
+        for number, line in enumerate(lines, start=1):
+            stripped = line.strip()
+            if stripped.startswith("//") or DOCUMENT_VIEW_MARKER in line:
+                continue
+            # A declaration clang-format broke after its `=` reads on.
+            joined = line
+            if stripped.endswith("=") and number < len(lines):
+                joined = line + " " + lines[number].strip()
+            if _DOCUMENT_WRITE.search(line) or _DOCUMENT_POINTER.search(joined):
+                found.append(f"{source.name}:{number}: {stripped}")
+    return found
+
+
+# PHILOSOPHY.md, principle 3 -- the command line is a surface over the model,
+# not under it. Cli.h declares the commands; what the model needs from below
+# them (the answer's envelope, a package's files) is in CommandEnvelope.h and
+# PackageFiles.h. Only the surfaces, and the files that define commands of
+# their own on top of ApplyOperationCommand, include Cli.h. The list can
+# shrink; a file added to it says why.
+CLI_HEADER_INCLUDERS = {
+    "Cli.cc",
+    "CliMain.cc",
+    # Commands of their own, which apply an operation the way --apply-op
+    # does (ApplyOperationCommand, ApplyProjectOperationCommand).
+    "Edl.cc",
+    "MotionCli.cc",
+    "MulticamCli.cc",
+    # The MCP backends run the commands and read their answers back.
+    "McpLiveBackend.cc",
+    "McpProjectBackend.cc",
+    # The window, and its adapter between the chat panel and the backend.
+    "AppDelegatePrivate.h",
+    "ChatPanelView.mm",
+    "MainThreadBackend.h",
+}
+
+
+def cli_header_includers(root: Path) -> set[str]:
+    return {
+        source.name
+        for source in src_files(root)
+        if source.suffix in {".cc", ".mm", ".h"}
+        and '#include "Cli.h"' in source.read_text(encoding="utf-8")
+    }
+
+
+# STRUCTURE-2026-11 ST3 -- docs/ARCHITECTURE.md. src/ is in its modules, one
+# directory each (ST3b), and a file includes only headers of its module or
+# of one before it in MODULE_ORDER. The portable modules name no Apple
+# framework; CommonCrypto is answered under Linux by headless/compat. The
+# includes that go against the order today are listed: the list can only
+# shrink, and an entry no longer true has to go. Headers are included by
+# their bare name from every module, so two files may not share one.
+MODULE_ORDER = ("engine", "media", "motion", "ui", "agent", "platform", "app")
+KNOWN_UPWARD_INCLUDES = {
+    ("Edl.cc", "Cli.h"),
+    ("Edl.cc", "TimelineView.h"),
+    ("TimelineCheck.h", "MotionTemplates.h"),
+    ("AgentJournal.h", "McpEndpoint.h"),
+}
+PORTABLE_MODULES = {"engine", "media", "motion", "ui", "agent"}
+_MODULE_CODE = {".h", ".cc", ".mm", ".metal", ".in"}
+_QUOTED_INCLUDE = re.compile(r'^\s*#\s*(?:include|import)\s*"([^"]+)"', re.M)
+_APPLE_FRAMEWORK = re.compile(
+    r'^\s*#\s*(?:include|import)\s*<((?:AppKit|Foundation|Metal|MetalKit|'
+    r"MetalPerformanceShaders|QuartzCore|CoreText|CoreGraphics|CoreVideo|"
+    r"CoreMedia|AVFoundation|AVFAudio|Vision|ImageIO|ScreenCaptureKit|"
+    r"Security|UniformTypeIdentifiers|JavaScriptCore|VideoToolbox|"
+    r"CoreFoundation|objc|dispatch|os|mach|Accelerate|IOKit|CoreServices)/"
+    r"[^>]+)>",
+    re.M,
+)
+
+
+def src_files(root: Path) -> list[Path]:
+    """Every file of src/, in its module directory or not."""
+    return sorted(path for path in (root / "src").rglob("*") if path.is_file())
+
+
+def module_layering(root: Path) -> None:
+    order = list(MODULE_ORDER)
+    paths: dict[str, Path] = {}
+    table: dict[str, str] = {}
+    for path in src_files(root):
+        if path.suffix not in _MODULE_CODE:
+            continue
+        relative = path.relative_to(root / "src")
+        module = relative.parts[0] if len(relative.parts) == 2 else None
+        check(
+            module in order,
+            f"src/{relative} is not in a module's directory "
+            f"({', '.join(order)}): see docs/ARCHITECTURE.md",
+        )
+        check(
+            path.name not in paths,
+            f"src/{relative} and "
+            f"{paths[path.name].relative_to(root) if path.name in paths else ''} "
+            "share a name: "
+            "headers are included by their bare name",
+        )
+        paths[path.name] = path
+        if module in order:
+            table[path.name] = module
+    seen_upward = set()
+    for name, module in sorted(table.items()):
+        text = paths[name].read_text(encoding="utf-8")
+        for target in _QUOTED_INCLUDE.findall(text):
+            target_module = table.get(target)
+            if target_module not in order:
+                continue
+            if order.index(target_module) <= order.index(module):
+                continue
+            if (name, target) in KNOWN_UPWARD_INCLUDES:
+                seen_upward.add((name, target))
+                continue
+            check(
+                False,
+                f"src/{module}/{name} includes {target} ({target_module}): a "
+                "module includes only its own headers or those of a module "
+                f"before it ({' < '.join(order)}); see docs/ARCHITECTURE.md",
+            )
+        if module in PORTABLE_MODULES:
+            for framework in _APPLE_FRAMEWORK.findall(text):
+                check(
+                    False,
+                    f"src/{module}/{name} includes <{framework}>: only "
+                    "platform and app name an Apple framework",
+                )
+    for name, target in sorted(KNOWN_UPWARD_INCLUDES - seen_upward):
+        if target in paths:
+            check(
+                False,
+                f"{name} no longer includes {target}: take the pair out of "
+                "KNOWN_UPWARD_INCLUDES",
+            )
+
 def main() -> int:
     if len(sys.argv) != 2:
         print("usage: architecture_tests.py SOURCE_ROOT", file=sys.stderr)
         return 2
     root = Path(sys.argv[1]).resolve()
-    operations_h = read(root, "src/Operations.h")
-    operations_cc = read(root, "src/Operations.cc")
+    operations_h = read(root, "src/engine/Operations.h")
+    operations_cc = read(root, "src/engine/Operations.cc")
     # FORMAT-2026-09 -- the journal codec lives beside the engine, not in it.
-    format_cc = read(root, "src/OperationFormat.cc")
-    document_h = read(root, "src/Document.h")
-    project_h = read(root, "src/Project.h")
-    cli_h = read(root, "src/Cli.h")
-    cli_cc = read(root, "src/Cli.cc")
-    gui = read(root, "src/main.mm")
+    format_cc = read(root, "src/engine/OperationFormat.cc")
+    document_h = read(root, "src/engine/Document.h")
+    project_h = read(root, "src/engine/Project.h")
+    cli_h = read(root, "src/agent/Cli.h")
+    cli_cc = read(root, "src/agent/Cli.cc")
+    # STRUCTURE-2026-11 ST4 -- AppDelegate is implemented by main.mm and by
+    # its categories (AppDelegate+*.mm), with the helpers they share
+    # (WindowSupport.mm): the window's rules read them all.
+    gui = "\n".join(
+        [read(root, "src/app/main.mm"), read(root, "src/app/WindowSupport.mm")]
+        + [
+            category.read_text(encoding="utf-8")
+            for category in sorted((root / "src").rglob("AppDelegate+*.mm"))
+        ]
+    )
     # HEADLESS-2026-10 H1 -- the command line is read once, in CliMain.cc,
     # for the app (main.mm) and for the build without a window
     # (HeadlessMain.cc).
-    cli_main = read(root, "src/CliMain.cc")
-    headless_main = read(root, "src/HeadlessMain.cc")
+    cli_main = read(root, "src/agent/CliMain.cc")
+    headless_main = read(root, "src/agent/HeadlessMain.cc")
 
     # ADOBE-CLI-2026-09 -- a live backend capability must not disappear in
     # the chat worker's adapter by inheriting an unsupported base default.
-    live_header = read(root, "src/McpLiveBackend.h")
+    live_header = read(root, "src/agent/McpLiveBackend.h")
     # AX1 -- the adapter left the chat panel for its own header: the agent
     # endpoint runs the catalog through it too (McpEndpoint.h).
-    chat_source = read(root, "src/MainThreadBackend.h")
+    chat_source = read(root, "src/app/MainThreadBackend.h")
     override_pattern = re.compile(
         r"\b([A-Za-z_]\w*)\s*\([^;{}]*\)\s*(?:const\s*)?override"
     )
@@ -289,13 +483,13 @@ def main() -> int:
     # that fails from the panel while it works over MCP. The adapter check
     # above could not see it: it only compares the adapter with the live
     # backend, and both lacked transcription alike.
-    backend_header = read(root, "src/McpBackend.h")
+    backend_header = read(root, "src/agent/McpBackend.h")
     # DECOUPAGE-2026-10 DC2 -- the dispatchers McpTools.cc held now live in
     # the files of the catalog that share McpToolsInternal.h: all are read,
     # or this check would pass on what it no longer sees.
-    catalog_files = ["src/McpTools.cc"] + [
+    catalog_files = ["src/agent/McpTools.cc"] + [
         str(path.relative_to(root))
-        for path in sorted((root / "src").glob("Mcp*Tools.cc"))
+        for path in sorted((root / "src").rglob("Mcp*Tools.cc"))
         if '#include "McpToolsInternal.h"' in path.read_text(encoding="utf-8")
         and path.name != "McpTools.cc"
     ]
@@ -441,9 +635,10 @@ def main() -> int:
 
     # HEADLESS-2026-10 H1 -- neither executable reads a command of its own:
     # a command dispatched in one only is a command the other lacks. The
-    # window test's two flags are not commands of the product.
+    # window test's two flags are read by its own entry
+    # (tests/ui_smoke/UiSmokeMain.mm, STRUCTURE-2026-11 ST1).
     command_test = re.compile(r'std::string\(argv\[1\]\)\s*==\s*"(--[a-z0-9-]+)"')
-    gui_commands = set(command_test.findall(gui)) - {"--ui-smoke", "--play-probe"}
+    gui_commands = set(command_test.findall(gui))
     check(
         not gui_commands,
         "main.mm reads commands of its own again: "
@@ -468,7 +663,7 @@ def main() -> int:
     # OperationFormat.h, so an operation is covered by having one. The
     # dispatch itself is checked by the compiler: an alternative of the
     # variant without a table does not build.
-    format_h = read(root, "src/OperationFormat.h")
+    format_h = read(root, "src/engine/OperationFormat.h")
     tabled = set(
         re.findall(
             r"struct\s+FieldTable<([A-Za-z0-9_:]+)>\s*\{\s*"
@@ -501,8 +696,8 @@ def main() -> int:
     # FORMAT-2026-09 F6 -- the document format is derived from the tables of
     # DocumentFormat.h. Document.cc keeps what a document is -- validation
     # and lookups -- and no longer spells a single JSON key.
-    document_cc = read(root, "src/Document.cc")
-    document_format_cc = read(root, "src/DocumentFormat.cc")
+    document_cc = read(root, "src/engine/Document.cc")
+    document_format_cc = read(root, "src/engine/DocumentFormat.cc")
     for name in (
         "std::string Document::SaveToString(",
         "bool Document::LoadFromString(",
@@ -524,7 +719,7 @@ def main() -> int:
         ("OperationFormat.h", "OperationFormat.cc"),
         ("DocumentFormat.h", "DocumentFormat.cc"),
     ):
-        for source in sorted((root / "src").iterdir()):
+        for source in src_files(root):
             if source.name in (header, codec) or source.suffix not in (
                 ".h",
                 ".cc",
@@ -667,7 +862,7 @@ def main() -> int:
         r'localizedStringWithFormat):\s*@"(?:[^"\\]|\\.)*"'
         r'(?:\s*@?"(?:[^"\\]|\\.)*")*'
     )
-    for source in sorted((root / "src").glob("*.mm")):
+    for source in sorted((root / "src").rglob("*.mm")):
         text = source.read_text(encoding="utf-8")
         for match in ns_format.finditer(text):
             if "%s" in match.group(0):
@@ -690,7 +885,7 @@ def main() -> int:
         "MfaAlignment.cc",
     }
     spawn_call = re.compile(r"\bposix_spawnp?\s*\(")
-    for source in sorted((root / "src").iterdir()):
+    for source in src_files(root):
         if source.suffix not in {".cc", ".h", ".mm"}:
             continue
         code = "\n".join(
@@ -711,6 +906,49 @@ def main() -> int:
             f'{source.name} calls FFmpeg by the bare name "ffmpeg" instead '
             "of leaving the binary to FfmpegBinary.h",
         )
+
+    for write in document_writes(root):
+        check(
+            False,
+            f"{write} writes a Document outside an operation (PHILOSOPHY.md, "
+            "principle 2): express it as an operation of Operations.h, or "
+            f"mark a throwaway view with '{DOCUMENT_VIEW_MARKER}'",
+        )
+
+    for name in sorted(cli_header_includers(root) - CLI_HEADER_INCLUDERS):
+        check(
+            False,
+            f"{name} includes Cli.h: the model takes the envelope from "
+            "CommandEnvelope.h and a package's files from PackageFiles.h; a "
+            "new command file is added to CLI_HEADER_INCLUDERS with why",
+        )
+
+    # ARCHI-2026-11 AR3 -- a block under CUTMACHINE_UI_SMOKE_TEST in a .cc
+    # file was dead code: the display list's PRD24 switch moved out of
+    # main.mm that way and stopped switching anything. STRUCTURE-2026-11 ST1
+    # -- and the window test no longer compiles the app's sources at all: it
+    # links the product's objects, and observes or answers through the hooks
+    # its entry installs (AppTestHooks.h). Nothing under src/ names the
+    # macro, or the run's state (gUiSmoke..., gUiPlayProbe...), which lives
+    # in tests/ui_smoke/.
+    test_state = re.compile(r"\bCUTMACHINE_UI_SMOKE_TEST\b|\bgUi(?:Smoke|PlayProbe)\w*")
+    for source in src_files(root):
+        if source.suffix not in {".cc", ".mm", ".h", ".metal"}:
+            continue
+        found = test_state.search(source.read_text(encoding="utf-8"))
+        check(
+            found is None,
+            f"{source.name} names {found.group(0) if found else ''}, the "
+            "window test's: the product's objects are the test's, and what "
+            "the run observes or answers goes through AppTestHooks.h",
+        )
+    check(
+        not any((root / "src").rglob("UiSmokeHarness.mm"))
+        and (root / "tests" / "ui_smoke" / "UiSmokeHarness.mm").exists(),
+        "the window test's harness is test code: tests/ui_smoke/, not src/",
+    )
+
+    module_layering(root)
 
     # PRD23 -- a fourth dependency added without its notice does not pass.
     third_party_count = third_party_dependencies(root)

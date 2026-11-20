@@ -333,15 +333,20 @@ a float.
   `track_subject_framing`, not after. The response gives the scale chosen
   (`scale`, `scale_chosen`, `scale_needed`), the shake in sequence pixels
   before and after (`shake.before_rms_px`, `shake.left_rms_px`), the frames not
-  measured (`frames_unmeasured`) and, per axis, the keys and the frames held at
-  the edge. The keys follow the path to within 1/5000 of the frame
+  measured (`frames_unmeasured`), the frames where part of the image was left
+  out of the measurement (`frames_blocks_set_aside`) and, per axis, the keys
+  and the frames held at the edge. The displacement is measured on nine blocks
+  of the image; a block that moves otherwise than most of them (a subject
+  crossing part of the frame) is left out, compared first with the median
+  shift, then with the translation and zoom fitted on the blocks that agree,
+  within one pixel of the analysis image (768 × 432 for a landscape source). The keys follow the path to within 1/5000 of the frame
   (`tolerance`), that is, a key on almost every frame. What the tool does not
   do:
   - only translation is corrected: neither roll, nor zoom between two frames
     (measured and returned under `zoom_not_corrected_max_percent`), nor rolling
     shutter;
   - the measurement is that of the image, not of the camera: a subject that
-    fills the frame and moves is read as a camera movement;
+    fills most of the frame and moves is read as a camera movement;
   - a clip that has a speed and a source clip that is not at the sequence's
     frame rate are refused; so is a motion clip or one whose scale is
     animated;
@@ -486,6 +491,86 @@ colour management, `space` is omitted. Called with no argument, the tool
 removes the look. A 1D LUT, a size outside 2 to 65, a domain other than 0..1
 or a value outside [0, 1] are refused by name.
 
+## Brand charters
+
+A charter is a brand's values in the motion library: `kits/<name>.json` in
+the library's folder, `brand-kit.v1` or the older `motion-kit.v1`, whose
+format is in [`MOTION_FORMAT.md`](../MOTION_FORMAT.md). Four tools read and
+write it, with no project open: a charter is not part of a project, which
+keeps only the values a piece took from it. Their writes go to this machine's
+library, outside any journal: `undo` does not reach them, and going back is
+restoring a version.
+
+- `read_motion_kit {}` lists the charters of the library, broken ones
+  included, and where the library is (`library.base`, `library.directory`).
+  With `kit`, it gives the latest `version`; `content`, the charter's text
+  as stored, which is the file's bytes; `summary`, what
+  `list_motion_templates` lists of it (colours, fonts, captions, pieces);
+  `file`, with its `path` and its `state` (`matches`, `absent`, or
+  `diverged` with the `issue` that makes it unreadable); `issue` when the
+  latest version no longer reads under this binary; and `imported` when the
+  read took a hand edit of the file in. `version` adds that version as
+  `requested` (content, source, `created_at`); `versions_limit` adds the
+  newest versions as `versions` (version, source, `created_at`, and `issue`
+  for one that no longer reads).
+- `save_motion_kit {kit, content, expected_version}` writes a whole charter,
+  `content` being the charter as a JSON object: `expected_version` 0 creates
+  it, otherwise it is the version read.
+- `edit_motion_kit {kit, edits, expected_version}` changes values by path,
+  all of them or none: `{path, value}` sets, `{path, remove: true}` removes,
+  `{path, value, insert: true}` inserts into a list before the index (the
+  list's size appends). The paths are the places a charter has:
+  `description`, `principle`, `format` (to `brand-kit.v1` only),
+  `props.<role>`, `palette`, `fonts` and `sources` whole or `.<index>`,
+  `captions`, `captions.<setting>`, `captions.formats.<format>` and its
+  settings, `width` and `height`, `pieces.<piece>`, `pieces.<piece>.<prop>`
+  for every format of the piece, `pieces.<piece>.formats.<format>` and
+  `pieces.<piece>.formats.<format>.<prop>` for that format only (named as the
+  piece names it, `9x16`), and `withdrawn.<piece>`.
+- `restore_motion_kit {kit, version, expected_version}` writes the content
+  of an older version as the next one. It works when the latest version no
+  longer reads, which is how a broken charter comes back.
+
+A write answers `{kit, version, created, path, content}`, with `changed` for
+an edit and `restored` for a restore. `created` false: the charter's
+canonical text did not change, and no version was written. The charter that
+would result is checked whole before anything is written.
+
+**The file follows, both ways.** The library's base keeps every version, and
+`kits/<name>.json` is kept equal to the latest. A write replaces the file at
+once (a temporary file, then a rename) in the engine's canonical form: two
+spaces per level, the keys in their order, numbers as written (`0.50` stays
+`0.50`), so that changing one value changes one line. Every read and every
+write first compares the file with the latest version: equal, nothing
+happens; different and still a charter, the file becomes the next version,
+even when it goes back to the bytes of an older one. The file is
+`kits/<name>.json` spelled exactly so: on a disk that ignores case, as
+macOS's does by default, `kits/marque.json` is not the file of `Marque`, and
+a write of a name that differs from another charter's (in the library, or a
+file of `kits/`) only by case is refused (`InvalidKit`), on every disk, since
+both would be one file there. A rewrite keeps the file's permissions; a hard
+link to it keeps the old bytes.
+
+**Refusals**, under the engine's names, each with a `result` to go on from:
+
+- `StaleKit`: the latest version is not `expected_version`; another writer,
+  the panel or a hand edit of the file came in between. Nothing is written.
+  `result` carries the latest `version` and its `content`: make the change
+  again on them.
+- `KitFileDiverged`: `kits/<name>.json` no longer reads as a charter (not
+  JSON, refused by the format, a link, larger than a charter can be). The
+  engine never overwrites it: `result.file` gives its `path` and the
+  `issue`. Fix the file, or move it away, and write again.
+- `InvalidEdit`: an edit outside the paths above, or one that cannot be made
+  (`result.edit`: its path, or `edits[<i>]`). `InvalidKit`: the charter that
+  would result is refused, with the reason. `UnknownKit`: no such charter or
+  version (`result.kits` lists the charters there are). `IoError`: the base
+  or the file could not be used.
+
+From the command line, the same tools run with an empty project path:
+`cutmachine --call-tool "" edit_motion_kit '<json>'` prints the answer and
+exits 0, or prints the refusal and exits 1.
+
 ## The catalogue by family
 
 `cutmachine --tools` returns the catalogue, and it is the authority: each tool
@@ -514,9 +599,10 @@ included.
 | Music | `analyze_audio_beats`, `list_audio_beats`, `list_tempo_grid`, `list_music_structure`, `list_clip_tempo_beats` | [Export](export.md) |
 | Edited sound | `analyze_timeline_audio` | [Export](export.md) |
 | Captions | `add_caption_style`, `update_caption_style`, `remove_caption_style`, `set_clip_caption`, `generate_captions`, `translate_captions`, `train_caption_breaks`, `check_caption_legibility`, `import_srt` | [Export](export.md) |
-| Markers and bins | `add_marker`, `update_marker`, `remove_marker`, `add_bin`, `rename_bin`, `move_bin`, `remove_bin` (empty only), `set_media_bin`, `set_timeline_bin` (a timeline, through the project journal) | this page, [Bins](chutiers.md) |
+| Markers and bins | `add_marker`, `update_marker`, `remove_marker`, `add_bin`, `rename_bin`, `move_bin`, `remove_bin` (empty only), `set_media_bin`, `set_media_proxy`, `set_timeline_bin` (a timeline, through the project journal) | this page, [Bins](chutiers.md) |
 | Multicam | `add_multicam_group`, `set_multicam_active_angle`, `split_multicam_group`, `remove_multicam_group`, `list_multicam_groups` | [Headless commands](commandes-headless.md#multicam) |
 | Motion | `list_motion_compositions`, `describe_motion_composition`, `add_motion_composition`, `edit_motion_composition`, `remove_motion_composition`, `humanize_motion_composition`, `list_motion_templates`, `list_fonts`, `add_motion_template`, `save_motion_template`, `render_motion_frame`, `render_motion_video`, `insert_motion_clip`, `place_motion_clip`, `set_clip_motion_props`, `check_motion_safe_area`, `export_motion_after`, `verify_after_export`, `import_after_comp` (an After composition read by the bridge, what is not translated goes in `notes`, MB7) | [`MOTION_FORMAT.md`](../MOTION_FORMAT.md) |
+| Brand charters | `read_motion_kit`, `save_motion_kit`, `edit_motion_kit`, `restore_motion_kit` | [Brand charters](#brand-charters), [`MOTION_FORMAT.md`](../MOTION_FORMAT.md) |
 | After Effects | the fifteen `after_*` | [`AFTER_BRIDGE_MVP.md`](../AFTER_BRIDGE_MVP.md) |
 | DaVinci Resolve | `send_to_resolve`, `import_resolve_timeline`, `export_resolve_xml` | [Resolve](resolve.md), [Export](export.md) |
 | EDL CMX 3600 | `export_edl`, `export_edl_markers`, `import_edl_markers` | [EDL and WebVTT](edl.md) |

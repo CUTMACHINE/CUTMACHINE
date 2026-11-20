@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 # PRD19 -- ROADMAP.md. The one version number of the project: the bundle's
-# Info.plist and the binary (src/BuildInfo.h, `cutmachine --version`) both
+# Info.plist and the binary (src/engine/BuildInfo.h, `cutmachine --version`) both
 # read it from here. Changing it is a release decision, not a build detail.
 project(CUTMACHINE VERSION 0.1.0 LANGUAGES C CXX OBJC OBJCXX)
 
@@ -325,7 +325,7 @@ if(WHISPER_INTERFACE_INCLUDES)
 endif()
 
 set(SHADER_RUNTIME_PATH "${CMAKE_CURRENT_BINARY_DIR}/shader.metal")
-configure_file(src/shader.metal "${SHADER_RUNTIME_PATH}" COPYONLY)
+configure_file(src/app/shader.metal "${SHADER_RUNTIME_PATH}" COPYONLY)
 
 # AFTER-COMP -- ExtendScript stays inspectable under tools/, while the binary
 # reads a stable build-local copy at runtime. An environment override supports
@@ -418,13 +418,13 @@ foreach(_path IN LISTS CUTMACHINE_MOTION_TEMPLATE_FILES)
     string(APPEND CUTMACHINE_MOTION_TEMPLATE_ENTRIES
            "        {\"${_template}\", R\"CUTMACHINEJSON(${_json})CUTMACHINEJSON\"},\n")
 endforeach()
-configure_file(src/MotionTemplatesData.cc.in
+configure_file(src/motion/MotionTemplatesData.cc.in
                "${CMAKE_CURRENT_BINARY_DIR}/generated/MotionTemplatesData.cc"
                @ONLY)
 
 # PRD18 -- ROADMAP.md (ACP4, docs/roadmap/ACP-2026-09.md). The repository's
 # skills are the engine's procedures, served to every agent by the binary
-# itself (src/Procedures.h): cmake/EmbedProcedures.cmake writes their text
+# itself (src/agent/Procedures.h): cmake/EmbedProcedures.cmake writes their text
 # files into a generated source. It runs at build time when a skill file or
 # the script changes, and only then. The list is read here: CONFIGURE_DEPENDS
 # reconfigures when a file appears or goes, and the list file, rewritten only
@@ -464,7 +464,7 @@ set(CUTMACHINE_BUILD_INFO_SOURCE
 add_custom_target(cutmachine_build_info
     COMMAND "${CMAKE_COMMAND}"
             "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
-            "-DTEMPLATE=${CMAKE_CURRENT_SOURCE_DIR}/src/BuildInfo.cc.in"
+            "-DTEMPLATE=${CMAKE_CURRENT_SOURCE_DIR}/src/engine/BuildInfo.cc.in"
             "-DOUTPUT=${CUTMACHINE_BUILD_INFO_SOURCE}"
             "-DVERSION=${PROJECT_VERSION}"
             "-DGIT_EXECUTABLE=${GIT_EXECUTABLE}"
@@ -474,301 +474,332 @@ add_custom_target(cutmachine_build_info
     VERBATIM
 )
 
+# STRUCTURE-2026-11 ST3 -- docs/ARCHITECTURE.md. src/ is in its seven
+# modules, one directory each; a header is still included by its bare name,
+# from any of them. tests/architecture_tests.py holds which module may
+# include which.
+set(CUTMACHINE_MODULES engine media motion ui agent platform app)
+set(CUTMACHINE_SOURCE_DIRS)
+foreach(_cutmachine_module IN LISTS CUTMACHINE_MODULES)
+    list(APPEND CUTMACHINE_SOURCE_DIRS
+         "${CMAKE_CURRENT_SOURCE_DIR}/src/${_cutmachine_module}")
+endforeach()
+
 add_library(cutmachine_model
-    src/AcpClient.cc
-    src/AcpProcess.cc
-    src/AfterBridge.cc
+    src/agent/AcpClient.cc
+    src/agent/AcpProcess.cc
+    src/motion/AfterBridge.cc
     # PRD25 -- what an agent relayed to the window did, as the Agent panel
     # lists it and the timeline marks it.
-    src/AgentJournal.cc
-    src/BeatDetection.cc
-    src/BoundaryAir.cc
+    src/ui/AgentJournal.cc
+    src/media/BeatDetection.cc
+    src/media/BoundaryAir.cc
     # PRD19 -- what this build is (BuildInfo.h), written by the target above.
     "${CUTMACHINE_BUILD_INFO_SOURCE}"
-    src/CameraMetadata.cc
+    src/media/CameraMetadata.cc
     # RM3 -- docs/roadmap/REGLES-2026-10.md. Where a carton ends, learned from
     # delivered captions inside the rule's bounds, and the forge that admits
     # a model only when it beats the rule on held-out projects.
-    src/CaptionBreakModel.cc
-    src/CaptionGeneration.cc
+    src/media/CaptionBreakModel.cc
+    src/media/CaptionGeneration.cc
     # LG1 -- docs/roadmap/LEGENDES-2026-10.md. Where a carton goes, the rule
     # the export, Record and the measuring tools draw by.
-    src/CaptionLayout.cc
-    src/ChatLlmClient.cc
-    src/ChatPresentation.cc
-    src/ChatSession.cc
-    src/Cli.cc
+    src/media/CaptionLayout.cc
+    src/agent/ChatLlmClient.cc
+    src/ui/ChatPresentation.cc
+    src/agent/ChatSession.cc
+    src/agent/Cli.cc
+    # The envelope of every command's answer, and a project package's files
+    # and their durable writing: below the command line, which they served
+    # from Cli.cc until the model stopped including it.
+    src/media/CommandEnvelope.cc
+    src/engine/PackageFiles.cc
     # PRD20 -- the commands of the command line, described once.
-    src/CliCommands.cc
+    src/agent/CliCommands.cc
     # HEADLESS-2026-10 H1 -- and read once, for the app and for the build
     # without a window (headless/).
-    src/CliMain.cc
-    src/ClipAnimation.cc
+    src/agent/CliMain.cc
+    src/engine/ClipAnimation.cc
     # PRD24 -- what a clip's rectangle says on the timeline, and where.
-    src/ClipBadges.cc
+    src/ui/ClipBadges.cc
     # Out of lot -- the author, 29 October 2026. What a disabled clip does to the
     # picture and the sound, the rule every renderer asks.
-    src/ClipEnabled.cc
-    src/ClipFraming.cc
+    src/engine/ClipEnabled.cc
+    src/engine/ClipFraming.cc
     # GR11 -- one clip's grade pasted onto others.
-    src/ClipGradeCopy.cc
-    src/ClipSpeed.cc
-    src/ColorEffects.cc
-    src/CutInspection.cc
-    src/CutInspectionRender.cc
-    src/CutReview.cc
-    src/CutWords.cc
-    src/ColorManagement.cc
+    src/engine/ClipGradeCopy.cc
+    src/engine/ClipSpeed.cc
+    src/engine/ColorEffects.cc
+    src/media/CutInspection.cc
+    src/media/CutInspectionRender.cc
+    src/media/CutReview.cc
+    src/media/CutWords.cc
+    src/engine/ColorManagement.cc
     # BH3 -- the HLG delivery's curve, as DaVinci Resolve renders it.
-    src/HlgDelivery.cc
-    src/ColorCdl.cc
-    src/ColorMatch.cc
-    src/ColorMeasure.cc
+    src/engine/HlgDelivery.cc
+    src/engine/ColorCdl.cc
+    src/media/ColorMatch.cc
+    src/media/ColorMeasure.cc
     # PERF12 -- which decoders the window opens ahead of playback.
-    src/DecoderPool.cc
+    src/ui/DecoderPool.cc
     # PERF13 -- which layers of Record an opaque shot above hides.
-    src/MonitorOcclusion.cc
+    src/ui/MonitorOcclusion.cc
     # PERF14 -- the source frames playback reads of a clip.
-    src/PlaybackReads.cc
+    src/ui/PlaybackReads.cc
     # PERF15 -- one reader for the bytes of the pictures about to be shown.
-    src/PlaybackReader.cc
-    src/Document.cc
-    src/DocumentFormat.cc
+    src/ui/PlaybackReader.cc
+    src/engine/Document.cc
+    src/engine/DocumentFormat.cc
     # AX6 -- the font families motion and captions can name.
-    src/FontCatalog.cc
+    src/media/FontCatalog.cc
     # SYNCHRO-2026-10 SY1 -- the offset between two sounds of one take.
-    src/AudioOffset.cc
+    src/media/AudioOffset.cc
     # MOTION-MARQUE-2026-10 MM1 -- BS.1770 loudness and a true-peak limiter.
-    src/Loudness.cc
+    src/media/Loudness.cc
     # FC5 -- FILMCRAFT-2026-10. The engine's own sound processing: EQ,
     # dynamics, true-peak limiter, denoise, de-hum.
-    src/AudioDsp.cc
-    src/AudioDspDenoise.cc
+    src/media/AudioDsp.cc
+    src/media/AudioDspDenoise.cc
     # FC6 -- the ducking a music would follow under a voice, proposed.
-    src/AudioDspDucking.cc
-    src/AudioDspDynamics.cc
-    src/AudioDspFilters.cc
-    src/AudioDspTruePeak.cc
+    src/media/AudioDspDucking.cc
+    src/media/AudioDspDynamics.cc
+    src/media/AudioDspFilters.cc
+    src/media/AudioDspTruePeak.cc
     # SY2 -- a recorder's sound laid under its picture, linked.
-    src/SeparateSound.cc
+    src/media/SeparateSound.cc
     # SN4 -- a rendered stem laid at its BWF timecode.
-    src/SoundStem.cc
+    src/media/SoundStem.cc
     # SN7 -- a ditty rendered by cutmachine-sound-host, beside the engine.
-    src/SoundRender.cc
+    src/media/SoundRender.cc
     # MB10 -- the motion library in the user's personal SQLite base.
-    src/MotionLibraryBase.cc
-    src/Hesitations.cc
+    src/motion/MotionLibraryBase.cc
+    # CH1 -- a charter's written form and its edits by bounded paths.
+    src/motion/MotionKitEdit.cc
+    src/media/Hesitations.cc
     # PRD13 -- who the loopback HTTP server answers, decided without a socket.
-    src/HttpRequestPolicy.cc
-    src/HttpServer.cc
-    src/IdResolver.cc
-    src/Ingest.cc
-    src/InterviewShort.cc
-    src/Json.cc
+    src/agent/HttpRequestPolicy.cc
+    src/agent/HttpServer.cc
+    src/engine/IdResolver.cc
+    src/media/Ingest.cc
+    # Out of lot -- the author, 18 November 2026 (GitHub #330). The Inspector's
+    # « Son » section as policy: which clip, what a typed gain or fade means.
+    src/ui/InspectorSound.cc
+    src/media/InterviewShort.cc
+    src/engine/Json.cc
     # Out of lot -- the author, 4 November 2026. A link group split by place, for
     # the timelines cut before #213 (LinkGroupRepair.h).
-    src/LinkGroupRepair.cc
-    src/LocalEnv.cc
-    src/LookLut.cc
-    src/LookLutStorage.cc
-    src/MediaTaskManager.cc
-    src/EditLog.cc
+    src/engine/LinkGroupRepair.cc
+    src/engine/LocalEnv.cc
+    src/engine/LookLut.cc
+    src/engine/LookLutStorage.cc
+    src/engine/MediaTaskManager.cc
+    src/engine/EditLog.cc
     # MOTIF1 -- docs/roadmap/MOTIF-2026-10.md. Why an edit was made.
-    src/EditMotif.cc
-    src/EditPlan.cc
+    src/engine/EditMotif.cc
+    src/engine/EditPlan.cc
     # FC7 -- CMX 3600 lists of a timeline and its markers.
-    src/Edl.cc
+    src/media/Edl.cc
     # PA1 -- docs/roadmap/PARITE-2026-11.md. OTIO and FCPXML outputs.
-    src/Interchange.cc
+    src/media/Interchange.cc
     # PRD35 -- the engine log a server and the app keep.
-    src/EngineLog.cc
-    src/Export.cc
-    src/ExportVerification.cc
-    src/MotionParallelRender.cc
+    src/engine/EngineLog.cc
+    src/media/Export.cc
+    src/media/ExportVerification.cc
+    src/media/MotionParallelRender.cc
     # PRD1 -- docs/roadmap/PRODUIT-2026-10.md. The one launcher of other
     # programs, and the one resolution of the FFmpeg binary.
-    src/FfmpegBinary.cc
+    src/media/FfmpegBinary.cc
     # PRD2 -- what the engine asks of FFmpeg, checked before it is asked.
-    src/FfmpegCapabilities.cc
-    src/FfmpegPipe.cc
-    src/ProcessLauncher.cc
-    src/FrameCapture.cc
+    src/media/FfmpegCapabilities.cc
+    src/media/FfmpegPipe.cc
+    src/engine/ProcessLauncher.cc
+    src/media/FrameCapture.cc
     # GENERATIF-2026-10 -- paid generation: proposals, fal.ai's queue behind
     # an injected transport, the extension canvas (portable).
-    src/Generation.cc
-    src/IsolatedFrames.cc
-    src/Keyframes.cc
-    src/MotionClip.cc
-    src/MotionClipPreview.cc
-    src/MotionComposition.cc
-    src/MotionDocument.cc
-    src/MotionEvaluate.cc
+    src/media/Generation.cc
+    src/media/IsolatedFrames.cc
+    src/engine/Keyframes.cc
+    src/engine/MotionClip.cc
+    src/motion/MotionClipPreview.cc
+    src/engine/MotionComposition.cc
+    src/engine/MotionDocument.cc
+    src/engine/MotionEvaluate.cc
     # REMOTION-PARITY-2026-09 REM2 -- the media a composition plays, and
     # the sound it mixes (MotionEvaluate.cc) written for an encoder.
-    src/MotionAudio.cc
-    src/MotionMedia.cc
+    src/engine/MotionAudio.cc
+    src/engine/MotionMedia.cc
     # MOTION-AFTER-2026-09 -- a composition described for After Effects.
-    src/MotionAfterExport.cc
+    src/motion/MotionAfterExport.cc
     # MA2 -- a project After built, compared with the engine frame by frame.
-    src/MotionAfterVerify.cc
+    src/motion/MotionAfterVerify.cc
     # MB7 -- an After composition read by the bridge, as a composition.
-    src/MotionAfterImport.cc
+    src/motion/MotionAfterImport.cc
     # REM3 -- where an evaluated node lands once transformed, and the
     # raster effects on what it paints.
-    src/MotionEffects.cc
-    src/MotionGeometry.cc
+    src/motion/MotionEffects.cc
+    src/engine/MotionGeometry.cc
     # REM5 -- what a click selects and what a gesture commits.
-    src/MotionCanvas.cc
+    src/ui/MotionCanvas.cc
     # MA6 -- a machine's composition rewritten at a human's level, and a
     # composition as After shows it, for the editor's panel.
-    src/MotionHumanize.cc
-    src/MotionOutline.cc
-    src/MotionOperations.cc
-    src/MotionPath.cc
-    src/MotionPlacement.cc
-    src/MotionSafeArea.cc
-    src/MotionTemplates.cc
+    src/motion/MotionHumanize.cc
+    src/motion/MotionOutline.cc
+    src/engine/MotionOperations.cc
+    src/engine/MotionPath.cc
+    src/motion/MotionPlacement.cc
+    src/motion/MotionSafeArea.cc
+    src/motion/MotionTemplates.cc
     "${CMAKE_CURRENT_BINARY_DIR}/generated/MotionTemplatesData.cc"
-    src/MotionSpring.cc
-    src/MotionVideo.cc
-    src/Multicam.cc
-    src/MulticamCli.cc
+    src/engine/MotionSpring.cc
+    src/media/MotionVideo.cc
+    src/engine/Multicam.cc
+    src/agent/MulticamCli.cc
     # PRD14 -- the two names of a rush and the case of an enumeration, read
     # from each tool's schema before its dispatcher runs.
-    src/McpArguments.cc
-    src/McpEndpoint.cc
-    src/McpLiveBackend.cc
-    src/McpProjectBackend.cc
-    src/McpGenerationTools.cc
-    src/McpMotionClipTools.cc
-    src/McpMotionTools.cc
-    src/McpServer.cc
-    src/McpSession.cc
-    src/McpTools.cc
+    src/agent/McpArguments.cc
+    src/agent/McpEndpoint.cc
+    src/agent/McpLiveBackend.cc
+    src/agent/McpProjectBackend.cc
+    src/agent/McpGenerationTools.cc
+    src/agent/McpMotionClipTools.cc
+    src/agent/McpMotionTools.cc
+    src/agent/McpServer.cc
+    src/agent/McpSession.cc
+    src/agent/McpTools.cc
     # PROFIL-2026-11 PF1 -- the tools a server serves of the catalog.
-    src/McpToolProfiles.cc
+    src/agent/McpToolProfiles.cc
     # DECOUPAGE-2026-10 DC2 -- the catalog's tools by domain, sharing
     # McpToolsInternal.h with McpTools.cc.
-    src/McpAfterTools.cc
-    src/McpCaptionTools.cc
-    src/McpClipTools.cc
-    src/McpColorTools.cc
-    src/McpDeliveryTools.cc
-    src/McpEditTools.cc
-    src/McpPictureTools.cc
-    src/McpProjectTools.cc
-    src/McpSequenceTools.cc
-    src/McpSoundTools.cc
-    src/McpSpeechTools.cc
+    src/agent/McpAfterTools.cc
+    src/agent/McpCaptionTools.cc
+    src/agent/McpClipTools.cc
+    src/agent/McpColorTools.cc
+    src/agent/McpDeliveryTools.cc
+    src/agent/McpEditTools.cc
+    src/agent/McpPictureTools.cc
+    src/agent/McpProjectTools.cc
+    src/agent/McpSequenceTools.cc
+    src/agent/McpSoundTools.cc
+    src/agent/McpSpeechTools.cc
     # GN6b -- the local voice-over's two tools and what makes a voice the
     # engine's (GeneratedVoice.h).
-    src/McpVoiceTools.cc
-    src/GeneratedVoice.cc
-    src/MfaAlignment.cc
-    src/ToolFiles.cc
-    src/VoiceOver.cc
-    src/OperationFormat.cc
-    src/Operations.cc
-    src/PauseTightening.cc
+    src/agent/McpVoiceTools.cc
+    src/media/GeneratedVoice.cc
+    src/media/MfaAlignment.cc
+    src/engine/ToolFiles.cc
+    src/media/VoiceOver.cc
+    src/engine/OperationFormat.cc
+    src/engine/Operations.cc
+    src/media/PauseTightening.cc
     # PRD18 -- the skills, embedded: the engine's procedures. Compiled in
     # this target only, so the rule that writes the source runs once.
-    src/Procedures.cc
+    src/agent/Procedures.cc
     # DEC44 -- docs/roadmap/DONNEES-2026-10.md. A capture cut into chunks
     # stored once each, compressed.
-    src/ArchiveManifest.cc
-    src/ProjectArchive.cc
-    src/RunStep.cc
+    src/engine/ArchiveManifest.cc
+    src/engine/ProjectArchive.cc
+    src/engine/RunStep.cc
     "${CUTMACHINE_PROCEDURES_SOURCE}"
-    src/Project.cc
-    src/ProjectBin.cc
-    src/ProjectDelta.cc
-    src/ProjectRecovery.cc
-    src/ProjectStorage.cc
+    src/engine/Project.cc
+    src/engine/ProjectBin.cc
+    src/engine/ProjectDelta.cc
+    src/engine/ProjectRecovery.cc
+    src/engine/ProjectStorage.cc
     # DEC39 -- docs/roadmap/PHASES-2026-08.md. What the editor checks before
     # it reopens on another project.
-    src/ProjectSwitch.cc
-    src/RunStepStorage.cc
-    src/Proxy.cc
-    src/Relink.cc
-    src/ResolveExport.cc
+    src/engine/ProjectSwitch.cc
+    src/engine/RunStepStorage.cc
+    src/media/Proxy.cc
+    src/engine/Relink.cc
+    src/media/ResolveExport.cc
     # PA16 -- docs/roadmap/PARITE-2026-11.md. The send to Resolve, whole.
-    src/ResolveSend.cc
+    src/media/ResolveSend.cc
     # DEC15 (GR15) -- docs/roadmap/GRADE-RESOLVE-2026-10.md. What was graded
     # in a Resolve project, read from a copy of its database.
-    src/ResolveGrade.cc
-    src/ResolveContrast.cc
-    src/ResolveContrastTable.cc
-    src/ResolveImport.cc
-    src/ResolveXmlExport.cc
-    src/SequenceFormat.cc
+    src/media/ResolveGrade.cc
+    src/media/ResolveContrast.cc
+    src/engine/ResolveContrastTable.cc
+    src/media/ResolveImport.cc
+    src/media/ResolveXmlExport.cc
+    src/engine/SequenceFormat.cc
     # PRD21 -- what this machine lacks, item by item, before a tool fails.
-    src/SetupCheck.cc
+    src/media/SetupCheck.cc
     # And what the window says of it, in French (the welcome screen's line,
     # the diagnosis behind the menu).
-    src/SetupNotice.cc
-    src/SourceAddress.cc
+    src/ui/SetupNotice.cc
+    src/engine/SourceAddress.cc
     # VFR-2026-11 -- docs/roadmap/VFR-2026-11.md. Which picture a frame number
     # names, the same for the export, the verification and the monitor.
-    src/SourceGrid.cc
-    src/DocumentDelta.cc
-    src/ShotQuality.cc
+    src/engine/SourceGrid.cc
+    src/engine/DocumentDelta.cc
+    src/media/ShotQuality.cc
     # PL1 -- docs/roadmap/PLANS-2026-10.md. Described shots: validated,
     # merged and searched, portable.
-    src/ShotDescriptions.cc
-    src/SpeechSelection.cc
-    src/TranscriptAlignment.cc
-    src/SpeechOnset.cc
+    src/engine/ShotDescriptions.cc
+    src/media/SpeechSelection.cc
+    src/media/TranscriptAlignment.cc
+    src/media/SpeechOnset.cc
     # CA1 -- docs/roadmap/CADRAGE-2026-10.md. A framing that follows its
     # subject, as keys on R2's position; and the faces it is read from.
-    src/SubjectTracking.cc
-    src/SubjectTrackingSampling.cc
-    src/Stabilization.cc
-    src/StabilizationSampling.cc
-    src/SpeakerDiarization.cc
+    src/media/SubjectTracking.cc
+    src/media/SubjectTrackingSampling.cc
+    src/media/Stabilization.cc
+    src/media/StabilizationSampling.cc
+    src/media/SpeakerDiarization.cc
     # PA15 -- docs/roadmap/PARITE-2026-11.md. The roto's matte: its file and
     # its computation, through the segmenter the executable installs.
-    src/PersonMatte.cc
-    src/Subtitles.cc
-    src/TempoGrid.cc
-    src/MusicStructure.cc
-    src/Thumbnail.cc
-    src/Timeline.cc
-    src/TimelineSheets.cc
-    src/TimelineTranscription.cc
-    src/TimelineStats.cc
+    src/media/PersonMatte.cc
+    src/media/Subtitles.cc
+    src/media/TempoGrid.cc
+    src/media/MusicStructure.cc
+    src/media/Thumbnail.cc
+    src/engine/Timeline.cc
+    src/media/TimelineSheets.cc
+    src/media/TimelineTranscription.cc
+    src/media/TimelineStats.cc
     # OR4 -- docs/roadmap/DONNEES-2026-10.md. A montage checked against a
     # named policy, read-only.
-    src/TimelineCheck.cc
-    src/TimelineAudioReport.cc
-    src/TimelineView.cc
-    src/Transcription.cc
-    src/WhisperDecodingProfile.cc
+    src/media/TimelineCheck.cc
+    src/media/TimelineAudioReport.cc
+    src/ui/TimelineView.cc
+    # The timeline's display list, built in portable C++ (TimelineDrawing.h)
+    # beside the geometry a press finds.
+    src/ui/TimelineDrawing.cc
+    # CH5 -- docs/roadmap/CHARTE-2026-11.md. The Charte panel's policies:
+    # its previews, the drag that edits a charter per format, its fields
+    # and undo, where it opens. Portable; the panel only wires them.
+    src/ui/CharterCanvas.cc
+    src/ui/CharterPanelModel.cc
+    src/ui/CharterPreview.cc
+    src/ui/CharterWindow.cc
+    src/media/Transcription.cc
+    src/media/WhisperDecodingProfile.cc
     # DEC23 -- docs/roadmap/LIVRAISON-2026-09-18.md. One Whisper model
     # setting, the engine's, which the window's menu writes.
-    src/WhisperModelSetting.cc
-    src/TransitionRender.cc
+    src/agent/WhisperModelSetting.cc
+    src/engine/TransitionRender.cc
     # EF1 -- docs/roadmap/EFFETS-2026-10.md. The effects library and where
     # a dropped effect lands; portable, the tab only draws it.
-    src/EffectsLibrary.cc
+    src/ui/EffectsLibrary.cc
     # FC4 -- docs/roadmap/FILMCRAFT-2026-10.md. The trim mode as policy.
-    src/TrimSession.cc
-    src/Ulid.cc
+    src/ui/TrimSession.cc
+    src/engine/Ulid.cc
     # HEADLESS-2026-10 H4 -- where this user's data and log go, per system.
-    src/UserDirectories.cc
-    src/MonitorCompare.cc
-    src/WordBoundaries.cc
+    src/engine/UserDirectories.cc
+    src/ui/MonitorCompare.cc
+    src/media/WordBoundaries.cc
     # AGENT-2026-09 A24 -- the montage's words from the rushes' alignments.
-    src/TimelineWords.cc
-    src/VideoScopes.cc
-    src/Waveform.cc
-    src/WordAlignment.cc
+    src/media/TimelineWords.cc
+    src/ui/VideoScopes.cc
+    src/media/Waveform.cc
+    src/media/WordAlignment.cc
 )
 target_compile_options(cutmachine_model PRIVATE
     "$<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>"
 )
 # PRD19 -- the generated source exists, and is current, before it compiles.
 add_dependencies(cutmachine_model cutmachine_build_info)
-target_include_directories(cutmachine_model PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_include_directories(cutmachine_model PUBLIC ${CUTMACHINE_SOURCE_DIRS})
 target_compile_definitions(cutmachine_model PRIVATE
     CUTMACHINE_AFTER_BRIDGE_SCRIPTS="${AFTER_BRIDGE_SCRIPT_DIR}"
     # AX2 -- docs/roadmap/AX-2026-09.md. Where the build installs the aligner
@@ -816,21 +847,21 @@ target_link_libraries(cutmachine_model PRIVATE yogacore cutmachine_sqlite
 add_library(cutmachine_motion_render STATIC
     # LG1 -- docs/roadmap/LEGENDES-2026-10.md. A carton measured and drawn
     # by Core Text, with the fonts motion resolves.
-    src/CaptionRender.mm
-    src/MotionCli.cc
-    src/MotionClipPreviewRender.cc
-    src/MotionRender.mm
+    src/platform/CaptionRender.mm
+    src/platform/MotionCli.cc
+    src/platform/MotionClipPreviewRender.cc
+    src/platform/MotionRender.mm
     # MOTION-2026-09 M6 -- frames of a motion video, drawn for FFmpeg.
-    src/MotionVideoRender.cc
+    src/platform/MotionVideoRender.cc
     # AGENT-2026-09 A20 -- Vision's face rectangles, the engine's face
     # finder for a grade read on the skin (FaceFinder.h).
-    src/FaceFinderVision.mm
+    src/platform/FaceFinderVision.mm
     # PA15 -- Vision's person segmentation, the roto's segmenter
     # (PersonMatte.h).
-    src/PersonMatteVision.mm
+    src/platform/PersonMatteVision.mm
 )
 target_include_directories(cutmachine_motion_render PUBLIC
-    "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    ${CUTMACHINE_SOURCE_DIRS})
 target_link_libraries(cutmachine_motion_render PUBLIC
     cutmachine_model
     "-framework CoreFoundation"
@@ -842,80 +873,110 @@ target_link_libraries(cutmachine_motion_render PUBLIC
 )
 
 set(CUTMACHINE_APP_SOURCES
-    src/main.mm
+    src/app/main.mm
+    src/app/WindowSupport.mm
+    src/app/AppDelegate+Lifecycle.mm
+    src/app/AppDelegate+TimelineEdits.mm
+    src/app/AppDelegate+TimelineInput.mm
+    src/app/AppDelegate+Playback.mm
+    src/app/AppDelegate+Agent.mm
+    src/app/AppDelegate+Persistence.mm
+    src/app/AppDelegate+Settings.mm
+    src/app/AppDelegate+Projects.mm
+    src/app/AppDelegate+MediaTasks.mm
+    src/app/AppDelegate+MediaBrowser.mm
+    src/app/AppDelegate+Inspector.mm
+    src/app/AppDelegate+Menus.mm
+    src/app/AppDelegate+MediaTabs.mm
+    src/app/AppDelegate+Export.mm
+    src/app/AppDelegate+MonitorCompare.mm
+    src/app/AppDelegate+Workspace.mm
+    src/app/AppDelegate+Trim.mm
+    src/app/AppDelegate+Motion.mm
+    # DC3 -- docs/roadmap/DECOUPAGE-2026-10.md. The view classes main.mm
+    # held before AppDelegate, moved out unchanged.
+    src/app/TimelineMetalView.mm
+    src/app/BrowserViews.mm
+    src/app/EditorChromeViews.mm
     # GENERATIF-2026-10 GN1 -- the HTTPS transport and the Keychain key of
     # paid generation (Generation.h), installed by main.mm.
-    src/GenerationTransport.mm
-    src/AudioPlayback.mm
+    src/platform/GenerationTransport.mm
+    src/app/AudioPlayback.mm
     # PERF13 -- the monitor's sound of one rush, its sound alone. Plain C++
     # over FFmpeg (tests/audio_decode_tests.cc).
-    src/AudioDecode.cc
-    src/DecodeWorker.cc
-    src/FrameCache.cc
+    src/app/AudioDecode.cc
+    src/app/DecodeWorker.cc
+    src/app/FrameCache.cc
     # PERF14 -- what playback reads ahead, and how far (portable).
-    src/ReadAhead.cc
-    src/PerformanceMetrics.cc
-    src/MediaSource.mm
-    src/Renderer.mm
+    src/ui/ReadAhead.cc
+    src/app/PerformanceMetrics.cc
+    src/app/MediaSource.mm
+    src/app/Renderer.mm
     # CF1 -- a passive second-screen surface of Record's composite.
-    src/VideoOutput.mm
+    src/app/VideoOutput.mm
     # VQA5 -- docs/roadmap/QA-AGENTIQUE-2026-09.md. The window drawn off
     # screen, Metal surfaces included (capture_editor_window, ui_smoke).
-    src/WindowCapture.mm
-    src/MetalUiAtlas.mm
+    src/app/WindowCapture.mm
+    src/app/MetalUiAtlas.mm
     # F2.1 -- design system (ROADMAP.md). UiTheme.h/PanelLayout.h are plain
     # C++ (see tests/ui_theme_tests.cc, tests/panel_layout_tests.cc) and
     # need no .cc of their own; everything below is AppKit/Foundation-only.
-    src/UiThemeAppKit.mm
-    src/UiPreferences.mm
-    src/UiComponents.mm
-    src/PanelHostView.mm
+    src/app/UiThemeAppKit.mm
+    src/app/UiPreferences.mm
+    src/app/UiComponents.mm
+    src/app/PanelHostView.mm
     # PRD26 -- docs/roadmap/PRODUIT-2026-10b.md. The form panel of the
     # window, a sheet instead of an alert. FormPanelLayout.h (plain C++,
     # tests/form_panel_layout_tests.cc) decides; this only measures and
     # applies.
-    src/FormPanel.mm
+    src/app/FormPanel.mm
     # F2.2 -- Inspector (ROADMAP.md). InspectorGradeControls.h is plain
     # C++ (see tests/inspector_grade_controls_tests.cc) and needs no .cc of
     # its own; InspectorView.mm is AppKit-only, same as the rest of this
     # block.
-    src/InspectorView.mm
-    src/WorkspaceBar.mm
-    src/TrimBarView.mm
-    src/TrimCursors.mm
+    src/app/InspectorView.mm
+    src/app/WorkspaceBar.mm
+    src/app/TrimBarView.mm
+    src/app/TrimCursors.mm
     # EF1 -- docs/roadmap/EFFETS-2026-10.md. The « Effets » tab; its policy
     # is EffectsLibrary.h.
-    src/EffectsPanelView.mm
+    src/app/EffectsPanelView.mm
     # GR4, GR5 -- docs/roadmap/GRADE-RESOLVE-2026-10.md. The colour wheels
     # and the curve editor of the Inspector. GradeWheelModel.h and
     # GradeCurveModel.h (plain C++, tests/grade_control_models_tests.cc)
     # decide; these only draw and relay.
-    src/GradeWheelView.mm
-    src/GradeCurveView.mm
+    src/app/GradeWheelView.mm
+    src/app/GradeCurveView.mm
     # GR8 -- the hue curves' editor (GradeHueCurveModel.h decides).
-    src/GradeHueCurveView.mm
+    src/app/GradeHueCurveView.mm
     # F2.4 -- chat panel (ROADMAP.md). ChatLlmClient.cc/ChatSession.cc/
     # McpLiveBackend.cc are plain C++ and already part of cutmachine_model
     # above (see tests/chat_llm_client_tests.cc, tests/chat_session_tests.cc);
     # this is only the AppKit view that wires them to the live document.
-    src/ChatPanelView.mm
-    src/ChatMessageView.mm
+    src/app/ChatPanelView.mm
+    src/app/ChatMessageView.mm
     # REMOTION-PARITY-2026-09 REM5 -- the visual editor of motion: the
     # selection over the Record monitor and the Inspector of a node.
     # MotionCanvas.h (model, tested) decides; these only draw and relay.
-    src/MotionCanvasView.mm
-    src/MotionInspectorView.mm
+    src/app/MotionCanvasView.mm
+    src/app/MotionInspectorView.mm
+    # CH6 -- docs/roadmap/CHARTE-2026-11.md. The Charte panel, floating, and
+    # its previews. CharterPreview.h, CharterCanvas.h, CharterPanelModel.h and
+    # CharterWindow.h (portable, tests/charter_*_tests.cc) decide; these only
+    # draw, relay and call the library (MotionLibraryBase.h).
+    src/app/CharterPanel.mm
+    src/app/CharterPreviewView.mm
 )
 
 # BUILD-2026-09 -- `cutmachine` and `cutmachine_app` compile the same sources
 # with the same options, so they share one set of objects: main.mm alone takes
-# about 15 s to compile and used to be compiled once per executable (three
-# times with the UI smoke test, which keeps its own objects because
-# CUTMACHINE_UI_SMOKE_TEST compiles its harness in).
+# about 15 s to compile and used to be compiled once per executable.
+# STRUCTURE-2026-11 ST1 -- the UI smoke test links them too, instead of
+# compiling them a third time under a macro of its own.
 add_library(cutmachine_app_objects OBJECT ${CUTMACHINE_APP_SOURCES})
 add_dependencies(cutmachine_app_objects cutmachine_ui_icons)
 target_include_directories(cutmachine_app_objects PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    ${CUTMACHINE_SOURCE_DIRS})
 target_compile_options(cutmachine_app_objects PRIVATE
     $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>
 )
@@ -938,20 +999,24 @@ target_link_libraries(cutmachine_app_objects PUBLIC
     "-framework UniformTypeIdentifiers"
 )
 
-add_executable(cutmachine $<TARGET_OBJECTS:cutmachine_app_objects>)
+# STRUCTURE-2026-11 ST1 -- the entry stays out of the objects: the window
+# test links the same ones under its own (tests/ui_smoke/UiSmokeMain.mm).
+add_executable(cutmachine $<TARGET_OBJECTS:cutmachine_app_objects>
+               src/app/AppMain.mm)
 target_link_libraries(cutmachine PRIVATE cutmachine_app_objects)
 
 # A regular macOS application for Finder/Dock launches. The plain `cutmachine`
 # executable remains available for the CLI commands and automated workflows.
 add_executable(cutmachine_app MACOSX_BUNDLE
     $<TARGET_OBJECTS:cutmachine_app_objects>
-    src/shader.metal
+    src/app/AppMain.mm
+    src/app/shader.metal
     ${CUTMACHINE_ICON_PNGS}
     assets/icons/LICENSE
     # PRD23 -- every third-party licence, and THIRD_PARTY_NOTICES.md.
     ${CUTMACHINE_LICENSE_RESOURCES}
 )
-set_source_files_properties(src/shader.metal PROPERTIES
+set_source_files_properties(src/app/shader.metal PROPERTIES
     MACOSX_PACKAGE_LOCATION Resources
 )
 set_source_files_properties(${CUTMACHINE_ICON_PNGS} PROPERTIES
@@ -997,7 +1062,7 @@ add_custom_command(
     COMMENT "Joining the sound runtime for JavaScriptCore"
     VERBATIM
 )
-add_executable(cutmachine-sound-host src/SoundHost.mm "${CUTMACHINE_SOUND_BUNDLE}")
+add_executable(cutmachine-sound-host src/platform/SoundHost.mm "${CUTMACHINE_SOUND_BUNDLE}")
 target_compile_options(cutmachine-sound-host PRIVATE
     $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>)
 target_link_libraries(cutmachine-sound-host PRIVATE
@@ -1031,6 +1096,10 @@ add_custom_target(run-app
 
 include(CTest)
 if(BUILD_TESTING)
+    # STRUCTURE-2026-11 ST2 -- cutmachine_add_test(): a suite's executable
+    # and its test in one call.
+    include(cmake/CutmachineAddTest.cmake)
+
     find_package(Python3 COMPONENTS Interpreter REQUIRED)
     get_target_property(_ffmpeg_includes PkgConfig::FFMPEG
                         INTERFACE_INCLUDE_DIRECTORIES)
@@ -1044,34 +1113,34 @@ if(BUILD_TESTING)
     target_link_libraries(cutmachine_tests PRIVATE cutmachine_model)
     add_test(NAME cutmachine_model_tests COMMAND cutmachine_tests)
 
-    add_executable(cutmachine_edit_tests tests/edit_tests.cc)
-    target_link_libraries(cutmachine_edit_tests PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_edit_tests COMMAND cutmachine_edit_tests)
+    cutmachine_add_test(cutmachine_edit_tests
+        SOURCES tests/edit_tests.cc
+        LIBS cutmachine_model)
 
     # PL2 -- ROADMAP.md. Edit plans in the engine: prepared on a copy,
     # applied as previewed, refused when stale. Portable.
-    add_executable(cutmachine_edit_plan_tests tests/edit_plan_tests.cc)
-    target_link_libraries(cutmachine_edit_plan_tests PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_edit_plan_tests COMMAND cutmachine_edit_plan_tests)
-    set_tests_properties(cutmachine_edit_plan_tests PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_edit_plan_tests
+        SOURCES tests/edit_plan_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # MOTIF1, MOTIF4 -- docs/roadmap/MOTIF-2026-10.md. Why an edit was made,
     # in the journal: old journals keep their bytes, motifs round-trip,
     # folds keep them, list_motifs groups them. Portable.
-    add_executable(cutmachine_edit_motif_tests tests/edit_motif_tests.cc)
-    target_link_libraries(cutmachine_edit_motif_tests PRIVATE cutmachine_model)
-    target_compile_definitions(cutmachine_edit_motif_tests PRIVATE
-        EDIT_LOG_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/edit_log")
-    add_test(NAME cutmachine_edit_motif_tests COMMAND cutmachine_edit_motif_tests)
-    set_tests_properties(cutmachine_edit_motif_tests PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_edit_motif_tests
+        SOURCES tests/edit_motif_tests.cc
+        DEFINITIONS
+            EDIT_LOG_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/edit_log"
+        LIBS cutmachine_model
+        LABELS portable)
 
-    add_executable(cutmachine_run_step_tests tests/run_step_tests.cc)
-    target_link_libraries(cutmachine_run_step_tests PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_run_step_tests COMMAND cutmachine_run_step_tests)
-    set_tests_properties(cutmachine_run_step_tests PROPERTIES LABELS "portable")
-    add_executable(cutmachine_run_step_storage_tests tests/run_step_storage_tests.cc)
-    target_link_libraries(cutmachine_run_step_storage_tests PRIVATE cutmachine_model cutmachine_sqlite)
-    add_test(NAME cutmachine_run_step_storage_tests COMMAND cutmachine_run_step_storage_tests)
+    cutmachine_add_test(cutmachine_run_step_tests
+        SOURCES tests/run_step_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
+    cutmachine_add_test(cutmachine_run_step_storage_tests
+        SOURCES tests/run_step_storage_tests.cc
+        LIBS cutmachine_model cutmachine_sqlite)
     set_tests_properties(cutmachine_run_step_storage_tests PROPERTIES LABELS "storage" TIMEOUT 120)
     # OR3 -- DONNEES-2026-10. The Agent panel's ACP trace report needs
     # neither a model nor AppKit; keep its failure cases portable.
@@ -1082,105 +1151,75 @@ if(BUILD_TESTING)
 
     # DEC44 -- docs/roadmap/DONNEES-2026-10.md. The cut of a capture into
     # chunks, its manifest and the chunk codec, without SQLite.
-    add_executable(cutmachine_archive_manifest_tests
-                   tests/archive_manifest_tests.cc)
-    target_link_libraries(cutmachine_archive_manifest_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_archive_manifest_tests
-             COMMAND cutmachine_archive_manifest_tests)
-    set_tests_properties(cutmachine_archive_manifest_tests PROPERTIES
-        LABELS "portable")
+    cutmachine_add_test(cutmachine_archive_manifest_tests
+        SOURCES tests/archive_manifest_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
-    add_executable(cutmachine_project_archive_tests tests/project_archive_tests.cc)
-    target_link_libraries(cutmachine_project_archive_tests PRIVATE cutmachine_model cutmachine_sqlite)
-    add_test(NAME cutmachine_project_archive_tests COMMAND cutmachine_project_archive_tests)
-    set_tests_properties(cutmachine_project_archive_tests PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_project_archive_tests
+        SOURCES tests/project_archive_tests.cc
+        LIBS cutmachine_model cutmachine_sqlite
+        LABELS portable)
 
-    add_executable(cutmachine_project_archive_delivery_tests
-                   tests/project_archive_delivery_tests.cc)
-    target_link_libraries(cutmachine_project_archive_delivery_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_project_archive_delivery_tests
-             COMMAND cutmachine_project_archive_delivery_tests)
+    cutmachine_add_test(cutmachine_project_archive_delivery_tests
+        SOURCES tests/project_archive_delivery_tests.cc
+        LIBS cutmachine_model)
     set_tests_properties(cutmachine_project_archive_delivery_tests PROPERTIES
         LABELS "storage" TIMEOUT 120)
 
     # FORMAT-2026-09 -- the journal format of every operation, pinned by
     # fixtures the hand-written codec produced.
-    add_executable(cutmachine_operation_format_tests
-                   tests/operation_format_tests.cc)
-    target_link_libraries(cutmachine_operation_format_tests
-                          PRIVATE cutmachine_model)
-    target_compile_definitions(cutmachine_operation_format_tests PRIVATE
-        OPERATION_FORMAT_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/operation_format")
-    add_test(NAME cutmachine_operation_format_tests
-             COMMAND cutmachine_operation_format_tests)
+    cutmachine_add_test(cutmachine_operation_format_tests
+        SOURCES tests/operation_format_tests.cc
+        DEFINITIONS
+            OPERATION_FORMAT_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/operation_format"
+        LIBS cutmachine_model)
 
     # FORMAT-2026-09 F6 -- documents, project files and project deltas,
     # pinned by fixtures the hand-written codec produced.
-    add_executable(cutmachine_document_format_tests
-                   tests/document_format_tests.cc)
-    target_link_libraries(cutmachine_document_format_tests
-                          PRIVATE cutmachine_model)
-    target_compile_definitions(cutmachine_document_format_tests PRIVATE
-        DOCUMENT_FORMAT_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/document_format")
-    add_test(NAME cutmachine_document_format_tests
-             COMMAND cutmachine_document_format_tests)
+    cutmachine_add_test(cutmachine_document_format_tests
+        SOURCES tests/document_format_tests.cc
+        DEFINITIONS
+            DOCUMENT_FORMAT_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/document_format"
+        LIBS cutmachine_model)
 
-    add_executable(cutmachine_timeline_view_tests
-                   tests/timeline_view_tests.cc)
-    target_link_libraries(cutmachine_timeline_view_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_timeline_view_tests
-             COMMAND cutmachine_timeline_view_tests)
+    cutmachine_add_test(cutmachine_timeline_view_tests
+        SOURCES tests/timeline_view_tests.cc
+        LIBS cutmachine_model)
 
-    add_executable(cutmachine_timeline_stats_tests
-                   tests/timeline_stats_tests.cc)
-    target_link_libraries(cutmachine_timeline_stats_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_timeline_stats_tests
-             COMMAND cutmachine_timeline_stats_tests)
+    cutmachine_add_test(cutmachine_timeline_stats_tests
+        SOURCES tests/timeline_stats_tests.cc
+        LIBS cutmachine_model)
 
     # OR4 -- docs/roadmap/DONNEES-2026-10.md. The policy, the end of the film
     # composed as the export composes it, and the verdict on measures handed
     # in. Portable: no AppKit, no Metal, and FFmpeg is never run.
-    add_executable(cutmachine_timeline_check_tests
-                   tests/timeline_check_tests.cc)
-    target_link_libraries(cutmachine_timeline_check_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_timeline_check_tests
-             COMMAND cutmachine_timeline_check_tests)
-    set_tests_properties(cutmachine_timeline_check_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_timeline_check_tests
+        SOURCES tests/timeline_check_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # F1.5 -- ROADMAP.md. The multicam picture rule and the builders every
     # surface shares, with the consumers that must agree on them.
-    add_executable(cutmachine_multicam_tests tests/multicam_tests.cc)
-    target_link_libraries(cutmachine_multicam_tests PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_multicam_tests COMMAND cutmachine_multicam_tests)
+    cutmachine_add_test(cutmachine_multicam_tests
+        SOURCES tests/multicam_tests.cc
+        LIBS cutmachine_model)
 
     # Out of lot -- the author, 29 October 2026. A disabled clip is neither seen
     # nor heard: the consumers that assemble the timeline, and the toggle of
     # the window's D (ClipEnabled.h). Portable: no AppKit, FFmpeg never run.
-    add_executable(cutmachine_clip_enabled_tests tests/clip_enabled_tests.cc)
-    target_link_libraries(cutmachine_clip_enabled_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_clip_enabled_tests
-             COMMAND cutmachine_clip_enabled_tests)
-    set_tests_properties(cutmachine_clip_enabled_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_clip_enabled_tests
+        SOURCES tests/clip_enabled_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # Out of lot -- the author, 4 November 2026. A link group that binds several
     # places of a timeline cut before #213, split one group per place, as
     # one undo step (LinkGroupRepair.h). Portable: no AppKit, no FFmpeg.
-    add_executable(cutmachine_link_group_repair_tests
-                   tests/link_group_repair_tests.cc)
-    target_link_libraries(cutmachine_link_group_repair_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_link_group_repair_tests
-             COMMAND cutmachine_link_group_repair_tests)
-    set_tests_properties(cutmachine_link_group_repair_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_link_group_repair_tests
+        SOURCES tests/link_group_repair_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # R1 -- docs/roadmap/REEL-2026-09.md. The one rectangle: where a
     # clip's picture lands in the sequence frame, and which part of the
@@ -1188,94 +1227,66 @@ if(BUILD_TESTING)
     # PL1 to PL4 -- docs/roadmap/PLANS-2026-10.md. Described shots:
     # validation, the operation and its undo, the document version, the
     # merge, the search. Portable: no AppKit, no FFmpeg.
-    add_executable(cutmachine_shot_descriptions_tests
-                   tests/shot_descriptions_tests.cc)
-    target_link_libraries(cutmachine_shot_descriptions_tests PRIVATE
-                          cutmachine_model)
-    add_test(NAME cutmachine_shot_descriptions_tests
-             COMMAND cutmachine_shot_descriptions_tests)
-    set_tests_properties(cutmachine_shot_descriptions_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_shot_descriptions_tests
+        SOURCES tests/shot_descriptions_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
-    add_executable(cutmachine_clip_framing_tests tests/clip_framing_tests.cc)
-    target_link_libraries(cutmachine_clip_framing_tests PRIVATE
-                          cutmachine_model)
-    add_test(NAME cutmachine_clip_framing_tests
-             COMMAND cutmachine_clip_framing_tests)
-    set_tests_properties(cutmachine_clip_framing_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_clip_framing_tests
+        SOURCES tests/clip_framing_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # R2 -- docs/roadmap/REEL-2026-09.md. What an animated parameter is
     # worth at a frame, and what its keys become under a move, a head trim
     # and a cut. Portable: no AppKit, no Metal, no FFmpeg.
-    add_executable(cutmachine_clip_animation_tests
-                   tests/clip_animation_tests.cc)
-    target_link_libraries(cutmachine_clip_animation_tests PRIVATE
-                          cutmachine_model)
-    add_test(NAME cutmachine_clip_animation_tests
-             COMMAND cutmachine_clip_animation_tests)
-    set_tests_properties(cutmachine_clip_animation_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_clip_animation_tests
+        SOURCES tests/clip_animation_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # CA1, CA2 -- docs/roadmap/CADRAGE-2026-10.md. The operator's rule on
     # synthetic trajectories (dead zone, speed, gaps, several faces), and the
     # operations it lays on a clip, applied and undone byte for byte.
     # Portable: no AppKit, no Metal, no FFmpeg, no face finder.
-    add_executable(cutmachine_subject_tracking_tests
-                   tests/subject_tracking_tests.cc)
-    target_link_libraries(cutmachine_subject_tracking_tests PRIVATE
-                          cutmachine_model)
-    add_test(NAME cutmachine_subject_tracking_tests
-             COMMAND cutmachine_subject_tracking_tests)
-    set_tests_properties(cutmachine_subject_tracking_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_subject_tracking_tests
+        SOURCES tests/subject_tracking_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # PA7 -- docs/roadmap/PARITE-2026-11.md. A handheld shot steadied: the
     # rule on synthetic paths, the operations applied and undone byte for
     # byte, and the movement read back from a rush FFmpeg makes with shifts
     # that are known. No AppKit, no Metal; FFmpeg for the last part.
-    add_executable(cutmachine_stabilization_tests
-                   tests/stabilization_tests.cc)
-    target_link_libraries(cutmachine_stabilization_tests PRIVATE
-                          cutmachine_model)
-    target_compile_definitions(cutmachine_stabilization_tests
-        PRIVATE FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}")
-    add_test(NAME cutmachine_stabilization_tests
-             COMMAND cutmachine_stabilization_tests)
+    cutmachine_add_test(cutmachine_stabilization_tests
+        SOURCES tests/stabilization_tests.cc
+        DEFINITIONS FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}"
+        LIBS cutmachine_model)
 
     # PA8 -- docs/roadmap/PARITE-2026-11.md. A clip's mask: the rule, and
     # FFmpeg's filter held to it pixel by pixel. Header only, with FFmpeg.
-    add_executable(cutmachine_clip_mask_tests tests/clip_mask_tests.cc)
-    target_link_libraries(cutmachine_clip_mask_tests PRIVATE cutmachine_model)
-    target_compile_definitions(cutmachine_clip_mask_tests
-        PRIVATE FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}")
-    add_test(NAME cutmachine_clip_mask_tests
-             COMMAND cutmachine_clip_mask_tests)
+    cutmachine_add_test(cutmachine_clip_mask_tests
+        SOURCES tests/clip_mask_tests.cc
+        DEFINITIONS FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}"
+        LIBS cutmachine_model)
 
     # PA15 -- docs/roadmap/PARITE-2026-11.md. The roto: the matte's file, a
     # matte computed through a segmenter that stands for Vision, the export
     # and read_frame of a clip cut out by it, and Vision itself on a drawn
     # figure when this build has it.
-    add_executable(cutmachine_person_matte_tests tests/person_matte_tests.cc)
-    target_link_libraries(cutmachine_person_matte_tests PRIVATE
-                          cutmachine_model cutmachine_motion_render)
-    target_compile_definitions(cutmachine_person_matte_tests
-        PRIVATE FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}")
-    add_test(NAME cutmachine_person_matte_tests
-             COMMAND cutmachine_person_matte_tests)
+    cutmachine_add_test(cutmachine_person_matte_tests
+        SOURCES tests/person_matte_tests.cc
+        DEFINITIONS FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}"
+        LIBS cutmachine_model cutmachine_motion_render)
 
     # PA3 -- docs/roadmap/PARITE-2026-11.md. Who speaks when: the script's
     # report, the cache, the voice of a word, where the files are looked
     # for, and the tools on a stored project with a script standing for the
     # model. No AppKit; FFmpeg for the rush the tools read.
-    add_executable(cutmachine_speaker_diarization_tests
-                   tests/speaker_diarization_tests.cc)
-    target_link_libraries(cutmachine_speaker_diarization_tests PRIVATE
-                          cutmachine_model)
-    target_compile_definitions(cutmachine_speaker_diarization_tests
-        PRIVATE FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}")
-    add_test(NAME cutmachine_speaker_diarization_tests
-             COMMAND cutmachine_speaker_diarization_tests)
+    cutmachine_add_test(cutmachine_speaker_diarization_tests
+        SOURCES tests/speaker_diarization_tests.cc
+        DEFINITIONS FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}"
+        LIBS cutmachine_model)
 
     # PRD24 -- ROADMAP.md. What a clip carries, as its rectangle on the
     # timeline says it: which badges, their text, their order, which of
@@ -1288,44 +1299,36 @@ if(BUILD_TESTING)
     # model without weights is the rule, training is deterministic, the
     # forge admits only what beats the rule held out. Portable: no AppKit,
     # no renderer.
-    add_executable(cutmachine_caption_break_model_tests
-                   tests/caption_break_model_tests.cc)
-    target_link_libraries(cutmachine_caption_break_model_tests PRIVATE
-                          cutmachine_model)
-    add_test(NAME cutmachine_caption_break_model_tests
-             COMMAND cutmachine_caption_break_model_tests)
-    set_tests_properties(cutmachine_caption_break_model_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_caption_break_model_tests
+        SOURCES tests/caption_break_model_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
-    add_executable(cutmachine_caption_layout_tests
-                   tests/caption_layout_tests.cc)
-    target_link_libraries(cutmachine_caption_layout_tests PRIVATE
-                          cutmachine_model)
-    add_test(NAME cutmachine_caption_layout_tests
-             COMMAND cutmachine_caption_layout_tests)
-    set_tests_properties(cutmachine_caption_layout_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_caption_layout_tests
+        SOURCES tests/caption_layout_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
-    add_executable(cutmachine_clip_badges_tests tests/clip_badges_tests.cc)
-    target_link_libraries(cutmachine_clip_badges_tests PRIVATE
-                          cutmachine_model)
-    add_test(NAME cutmachine_clip_badges_tests
-             COMMAND cutmachine_clip_badges_tests)
-    set_tests_properties(cutmachine_clip_badges_tests
-                         PROPERTIES LABELS "portable")
+    # The timeline's display list against the geometry a press finds
+    # (TimelineDrawing.h), without a window.
+    cutmachine_add_test(cutmachine_timeline_drawing_tests
+        SOURCES tests/timeline_drawing_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
+
+    cutmachine_add_test(cutmachine_clip_badges_tests
+        SOURCES tests/clip_badges_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # PRD25 -- docs/roadmap/DIALOGUE-2026-10.md (D3). The journal of what an
     # agent relayed to the window did: which calls enter it, the French line
     # each becomes, the fold of an intervention, the bound, the clips the
     # timeline marks. Portable: no AppKit, no Metal, no socket.
-    add_executable(cutmachine_agent_journal_tests
-                   tests/agent_journal_tests.cc)
-    target_link_libraries(cutmachine_agent_journal_tests PRIVATE
-                          cutmachine_model)
-    add_test(NAME cutmachine_agent_journal_tests
-             COMMAND cutmachine_agent_journal_tests)
-    set_tests_properties(cutmachine_agent_journal_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_agent_journal_tests
+        SOURCES tests/agent_journal_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # R5 -- docs/roadmap/REEL-2026-09.md. Where a transition falls and
     # what it is worth at every frame it covers: the one answer the
@@ -1335,265 +1338,218 @@ if(BUILD_TESTING)
     # inspection of a cut renders, its level arithmetic and the comparison
     # of the words expected with the words heard.
     # Portable: no AppKit, no Metal, no FFmpeg.
-    add_executable(cutmachine_cut_inspection_tests
-                   tests/cut_inspection_tests.cc)
-    target_link_libraries(cutmachine_cut_inspection_tests PRIVATE
-                          cutmachine_model)
-    add_test(NAME cutmachine_cut_inspection_tests
-             COMMAND cutmachine_cut_inspection_tests)
-    set_tests_properties(cutmachine_cut_inspection_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_cut_inspection_tests
+        SOURCES tests/cut_inspection_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # RC1 -- docs/roadmap/RACCORDS-2026-10.md. The junctions of a timeline,
     # the frames of a band, the sound and picture measures of a junction and
     # the alerts their thresholds raise, on synthetic samples and planes.
     # Portable: no AppKit, no Metal, no FFmpeg.
-    add_executable(cutmachine_cut_review_tests tests/cut_review_tests.cc)
-    target_link_libraries(cutmachine_cut_review_tests PRIVATE
-                          cutmachine_model)
-    add_test(NAME cutmachine_cut_review_tests
-             COMMAND cutmachine_cut_review_tests)
-    set_tests_properties(cutmachine_cut_review_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_cut_review_tests
+        SOURCES tests/cut_review_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # IA3 -- docs/roadmap/IA-2026-09.md. Blocks of speech, the revision of
     # the transcript view a selection is read from, and what a selection
     # leaves out around it. Portable: no AppKit, no Metal, no FFmpeg.
-    add_executable(cutmachine_speech_selection_tests
-                   tests/speech_selection_tests.cc)
-    target_link_libraries(cutmachine_speech_selection_tests PRIVATE
-                          cutmachine_model)
-    add_test(NAME cutmachine_speech_selection_tests
-             COMMAND cutmachine_speech_selection_tests)
-    set_tests_properties(cutmachine_speech_selection_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_speech_selection_tests
+        SOURCES tests/speech_selection_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # AGENT-2026-09 A4 -- docs/roadmap/AGENT-2026-09.md. Where to enter and
     # leave on a word, from the aligned words and the measured envelope.
     # Portable: no AppKit, no Metal, no FFmpeg.
-    add_executable(cutmachine_word_boundaries_tests
-                   tests/word_boundaries_tests.cc)
-    target_link_libraries(cutmachine_word_boundaries_tests PRIVATE
-                          cutmachine_model)
-    add_test(NAME cutmachine_word_boundaries_tests
-             COMMAND cutmachine_word_boundaries_tests)
-    set_tests_properties(cutmachine_word_boundaries_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_word_boundaries_tests
+        SOURCES tests/word_boundaries_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
-    add_executable(cutmachine_timeline_words_tests
-                   tests/timeline_words_tests.cc)
-    target_link_libraries(cutmachine_timeline_words_tests PRIVATE
-                          cutmachine_model)
-    add_test(NAME cutmachine_timeline_words_tests
-             COMMAND cutmachine_timeline_words_tests)
-    set_tests_properties(cutmachine_timeline_words_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_timeline_words_tests
+        SOURCES tests/timeline_words_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
-    add_executable(cutmachine_transition_render_tests
-                   tests/transition_render_tests.cc)
-    target_link_libraries(cutmachine_transition_render_tests PRIVATE
-                          cutmachine_model)
-    add_test(NAME cutmachine_transition_render_tests
-             COMMAND cutmachine_transition_render_tests)
-    set_tests_properties(cutmachine_transition_render_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_transition_render_tests
+        SOURCES tests/transition_render_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # ON1, ON2 -- docs/roadmap/ONGLETS-2026-10.md. The window's pages: what
     # each opens and how wide (WorkspacePages.h). Portable.
-    add_executable(cutmachine_workspace_pages_tests
-                   tests/workspace_pages_tests.cc)
-    target_link_libraries(cutmachine_workspace_pages_tests PRIVATE
-                          cutmachine_model)
-    add_test(NAME cutmachine_workspace_pages_tests
-             COMMAND cutmachine_workspace_pages_tests)
-    set_tests_properties(cutmachine_workspace_pages_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_workspace_pages_tests
+        SOURCES tests/workspace_pages_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # ON3 -- docs/roadmap/ONGLETS-2026-10.md. Where the Agent's floating
     # window opens (AgentWindow.h). Portable.
-    add_executable(cutmachine_agent_window_tests
-                   tests/agent_window_tests.cc)
-    target_link_libraries(cutmachine_agent_window_tests PRIVATE
-                          cutmachine_model)
-    add_test(NAME cutmachine_agent_window_tests
-             COMMAND cutmachine_agent_window_tests)
-    set_tests_properties(cutmachine_agent_window_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_agent_window_tests
+        SOURCES tests/agent_window_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
+
+    # CH5 -- docs/roadmap/CHARTE-2026-11.md. What the Charte panel renders: the
+    # sizes, the piece's format by size, the rest frame, the placeholder. Portable.
+    cutmachine_add_test(cutmachine_charter_preview_tests
+        SOURCES tests/charter_preview_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
+
+    # CH5 -- docs/roadmap/CHARTE-2026-11.md. A drag on the Charte panel's preview as
+    # per-format edits of the charter: anchors, snapping, corner, captions. Portable.
+    cutmachine_add_test(cutmachine_charter_canvas_tests
+        SOURCES tests/charter_canvas_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
+
+    # CH5 -- docs/roadmap/CHARTE-2026-11.md. The Charte panel's fields, the edit a
+    # typed value becomes, a new charter, and the undo over versions. Portable.
+    cutmachine_add_test(cutmachine_charter_panel_model_tests
+        SOURCES tests/charter_panel_model_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
+
+    # CH5 -- docs/roadmap/CHARTE-2026-11.md. Where the Charte panel opens. Portable.
+    cutmachine_add_test(cutmachine_charter_window_tests
+        SOURCES tests/charter_window_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
+
+    # CH6 -- docs/roadmap/CHARTE-2026-11.md. A gesture on the Charte panel, round
+    # trip: outline, edits, EditMotionKit, the piece evaluated again. Portable.
+    cutmachine_add_test(cutmachine_charter_roundtrip_tests
+        SOURCES tests/charter_roundtrip_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # R2b -- docs/roadmap/REEL-2026-09.md. A fade carried by a motion clip's
     # opacity keys, exported by FFmpeg and read back. The card comes from a
     # stand-in renderer, so the suite needs no Core Text.
-    add_executable(cutmachine_motion_clip_opacity_export_tests
-                   tests/motion_clip_opacity_export_tests.cc)
-    target_link_libraries(cutmachine_motion_clip_opacity_export_tests PRIVATE
-                          cutmachine_model)
-    target_compile_definitions(cutmachine_motion_clip_opacity_export_tests
-        PRIVATE FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}")
-    add_test(NAME cutmachine_motion_clip_opacity_export_tests
-             COMMAND cutmachine_motion_clip_opacity_export_tests)
-    set_tests_properties(cutmachine_motion_clip_opacity_export_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_motion_clip_opacity_export_tests
+        SOURCES tests/motion_clip_opacity_export_tests.cc
+        DEFINITIONS FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}"
+        LIBS cutmachine_model
+        LABELS portable)
 
     # EF1 -- docs/roadmap/EFFETS-2026-10.md. Where an effect dropped on the
     # timeline lands, and the operation it applies. Portable.
-    add_executable(cutmachine_effects_library_tests
-                   tests/effects_library_tests.cc)
-    target_link_libraries(cutmachine_effects_library_tests PRIVATE
-                          cutmachine_model)
-    add_test(NAME cutmachine_effects_library_tests
-             COMMAND cutmachine_effects_library_tests)
-    set_tests_properties(cutmachine_effects_library_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_effects_library_tests
+        SOURCES tests/effects_library_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # R6 -- docs/roadmap/REEL-2026-09.md. What a .cube is read as, what
     # it is refused for, what it is worth at a colour, and where in the
     # chain the document says the look belongs.
     # Portable: no AppKit, no Metal, no FFmpeg.
-    add_executable(cutmachine_look_lut_tests tests/look_lut_tests.cc)
-    target_link_libraries(cutmachine_look_lut_tests PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_look_lut_tests COMMAND cutmachine_look_lut_tests)
-    set_tests_properties(cutmachine_look_lut_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_look_lut_tests
+        SOURCES tests/look_lut_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # G1 -- docs/roadmap/GRADE-2026-09.md. The colour measure on pictures
     # whose numbers are known by hand. Portable: no AppKit, no Metal, no
     # FFmpeg.
-    add_executable(cutmachine_color_measure_tests tests/color_measure_tests.cc)
-    target_link_libraries(cutmachine_color_measure_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_color_measure_tests
-             COMMAND cutmachine_color_measure_tests)
-    set_tests_properties(cutmachine_color_measure_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_color_measure_tests
+        SOURCES tests/color_measure_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # G7 -- a Sony camera's white balance read out of an rtmd packet, on
     # packets built by hand. Portable: no AppKit, no Metal, no FFmpeg.
-    add_executable(cutmachine_camera_metadata_tests
-                   tests/camera_metadata_tests.cc)
-    target_link_libraries(cutmachine_camera_metadata_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_camera_metadata_tests
-             COMMAND cutmachine_camera_metadata_tests)
-    set_tests_properties(cutmachine_camera_metadata_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_camera_metadata_tests
+        SOURCES tests/camera_metadata_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # G6 -- the monitor's comparison: the split's geometry and the still's
     # planes. Portable: no AppKit, no Metal, no FFmpeg.
-    add_executable(cutmachine_monitor_compare_tests
-                   tests/monitor_compare_tests.cc)
-    target_link_libraries(cutmachine_monitor_compare_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_monitor_compare_tests
-             COMMAND cutmachine_monitor_compare_tests)
-    set_tests_properties(cutmachine_monitor_compare_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_monitor_compare_tests
+        SOURCES tests/monitor_compare_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # G4 -- the CDL checked against OpenColorIO's own processor, folded
     # from a stack, and through its files. Portable: no AppKit, no Metal, no
     # FFmpeg.
-    add_executable(cutmachine_color_cdl_tests tests/color_cdl_tests.cc)
-    target_link_libraries(cutmachine_color_cdl_tests PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_color_cdl_tests COMMAND cutmachine_color_cdl_tests)
-    set_tests_properties(cutmachine_color_cdl_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_color_cdl_tests
+        SOURCES tests/color_cdl_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # BH3 -- the HLG delivery held to Resolve's render of the S-Log3 chart,
     # and the OpenColorIO chain held to its CPU reference. Portable: no
     # AppKit, no Metal, no FFmpeg.
-    add_executable(cutmachine_hlg_delivery_tests tests/hlg_delivery_tests.cc)
-    target_link_libraries(cutmachine_hlg_delivery_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_hlg_delivery_tests
-             COMMAND cutmachine_hlg_delivery_tests)
-    set_tests_properties(cutmachine_hlg_delivery_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_hlg_delivery_tests
+        SOURCES tests/hlg_delivery_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # G2 -- the match on values known by hand, and the fold checked against
     # the renderer's arithmetic. Portable: no AppKit, no Metal, no FFmpeg.
-    add_executable(cutmachine_color_match_tests tests/color_match_tests.cc)
-    target_link_libraries(cutmachine_color_match_tests PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_color_match_tests
-             COMMAND cutmachine_color_match_tests)
-    set_tests_properties(cutmachine_color_match_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_color_match_tests
+        SOURCES tests/color_match_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # The same measure end to end: files decoded by FFmpeg, then the grade,
     # the framing, the colour management and the look of the document.
-    add_executable(cutmachine_color_measure_render_tests
-                   tests/color_measure_render_tests.cc)
-    target_link_libraries(cutmachine_color_measure_render_tests
-                          PRIVATE cutmachine_model)
-    target_compile_definitions(cutmachine_color_measure_render_tests PRIVATE
-        FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}")
-    add_test(NAME cutmachine_color_measure_render_tests
-             COMMAND cutmachine_color_measure_render_tests)
+    cutmachine_add_test(cutmachine_color_measure_render_tests
+        SOURCES tests/color_measure_render_tests.cc
+        DEFINITIONS FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}"
+        LIBS cutmachine_model)
 
     # FC3 -- docs/roadmap/FILMCRAFT-2026-10.md. Slide and rate stretch: what
     # each applies, its byte-exact undo and redo, its canonical journal entry
     # and its refusals. Portable: no AppKit, no Metal, no FFmpeg.
-    add_executable(cutmachine_slide_rate_stretch_tests
-                   tests/slide_rate_stretch_tests.cc)
-    target_link_libraries(cutmachine_slide_rate_stretch_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_slide_rate_stretch_tests
-             COMMAND cutmachine_slide_rate_stretch_tests)
-    set_tests_properties(cutmachine_slide_rate_stretch_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_slide_rate_stretch_tests
+        SOURCES tests/slide_rate_stretch_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # R3 -- docs/roadmap/REEL-2026-09.md. The clip speed rule, frame by
     # frame, and the surfaces that must all name the same source frame.
     # Portable: no AppKit, no Metal, no FFmpeg.
-    add_executable(cutmachine_clip_speed_tests tests/clip_speed_tests.cc)
-    target_link_libraries(cutmachine_clip_speed_tests PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_clip_speed_tests
-             COMMAND cutmachine_clip_speed_tests)
-    set_tests_properties(cutmachine_clip_speed_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_clip_speed_tests
+        SOURCES tests/clip_speed_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # VFR-2026-11 -- docs/roadmap/VFR-2026-11.md. Which picture a frame
     # number names: the rate a source is counted at, the rounding onto its
     # grid, and the read the export and the verification share. Portable:
     # no AppKit, no Metal.
-    add_executable(cutmachine_source_grid_tests tests/source_grid_tests.cc)
-    target_link_libraries(cutmachine_source_grid_tests PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_source_grid_tests
-             COMMAND cutmachine_source_grid_tests)
-    set_tests_properties(cutmachine_source_grid_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_source_grid_tests
+        SOURCES tests/source_grid_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
-    add_executable(cutmachine_timeline_sheets_tests
-                   tests/timeline_sheets_tests.cc)
-    target_link_libraries(cutmachine_timeline_sheets_tests
-                          PRIVATE cutmachine_model)
-    target_compile_definitions(cutmachine_timeline_sheets_tests PRIVATE
-        FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}")
-    add_test(NAME cutmachine_timeline_sheets_tests
-             COMMAND cutmachine_timeline_sheets_tests)
+    cutmachine_add_test(cutmachine_timeline_sheets_tests
+        SOURCES tests/timeline_sheets_tests.cc
+        DEFINITIONS FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}"
+        LIBS cutmachine_model)
 
     # PRD19 -- ROADMAP.md. What the build says it is: a version of the
     # project's form, the commit of the checkout it was built in.
     # Portable: no AppKit, no Metal, no FFmpeg.
-    add_executable(cutmachine_build_info_tests tests/build_info_tests.cc)
-    target_link_libraries(cutmachine_build_info_tests PRIVATE
-                          cutmachine_model)
-    target_compile_definitions(cutmachine_build_info_tests PRIVATE
-        CUTMACHINE_PROJECT_VERSION="${PROJECT_VERSION}")
-    add_test(NAME cutmachine_build_info_tests
-             COMMAND cutmachine_build_info_tests)
-    set_tests_properties(cutmachine_build_info_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_build_info_tests
+        SOURCES tests/build_info_tests.cc
+        DEFINITIONS CUTMACHINE_PROJECT_VERSION="${PROJECT_VERSION}"
+        LIBS cutmachine_model
+        LABELS portable)
 
     # PRD35 -- ROADMAP.md. The engine log: a line's shape, the folder, the
     # rotation, writers in several processes, and the line a crash leaves --
     # played by forked children, never by this test's own process.
     # Portable: POSIX only, no AppKit, no FFmpeg.
-    add_executable(cutmachine_engine_log_tests tests/engine_log_tests.cc)
-    target_link_libraries(cutmachine_engine_log_tests PRIVATE
-                          cutmachine_model)
-    add_test(NAME cutmachine_engine_log_tests
-             COMMAND cutmachine_engine_log_tests)
-    set_tests_properties(cutmachine_engine_log_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_engine_log_tests
+        SOURCES tests/engine_log_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
     # The script that reads the commit, run as the build runs it against a
     # repository the test makes: the commit, its dirty flag, "unknown"
     # outside a checkout, and no rewrite when nothing changed.
@@ -1601,7 +1557,7 @@ if(BUILD_TESTING)
         add_test(NAME cutmachine_build_info_script_tests
                  COMMAND "${CMAKE_COMMAND}"
                          "-DSCRIPT=${CMAKE_CURRENT_SOURCE_DIR}/cmake/BuildInfo.cmake"
-                         "-DTEMPLATE=${CMAKE_CURRENT_SOURCE_DIR}/src/BuildInfo.cc.in"
+                         "-DTEMPLATE=${CMAKE_CURRENT_SOURCE_DIR}/src/engine/BuildInfo.cc.in"
                          "-DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/build-info-script-tests"
                          "-DGIT_EXECUTABLE=${GIT_EXECUTABLE}"
                          -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/build_info_script_tests.cmake")
@@ -1625,9 +1581,9 @@ if(BUILD_TESTING)
     # Pure-C++ MCP tool-dispatch/HTTP/JSON-RPC test (ROADMAP.md F1.1/F1.2):
     # no ProjectStorage, so it also builds and runs on a plain Linux host --
     # see tests/mcp_tools_tests.cc for details.
-    add_executable(cutmachine_mcp_tools_tests tests/mcp_tools_tests.cc)
-    target_link_libraries(cutmachine_mcp_tools_tests PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_mcp_tools_tests COMMAND cutmachine_mcp_tools_tests)
+    cutmachine_add_test(cutmachine_mcp_tools_tests
+        SOURCES tests/mcp_tools_tests.cc
+        LIBS cutmachine_model)
 
     # Integration test against the real project-file backend
     # (McpProjectBackend/ProjectStorage) -- macOS only, like cutmachine_cli_tests.
@@ -1656,52 +1612,37 @@ if(BUILD_TESTING)
 
     # AX1 -- docs/roadmap/AX-2026-09.md. The app's endpoint and the stdio
     # relay to it; the binary is run to prove `--mcp-serve --stdio` relays.
-    add_executable(cutmachine_mcp_endpoint_tests tests/mcp_endpoint_tests.cc)
-    target_link_libraries(cutmachine_mcp_endpoint_tests PRIVATE
-                          cutmachine_model)
-    target_compile_definitions(cutmachine_mcp_endpoint_tests PRIVATE
-        CUTMACHINE_EXECUTABLE="$<TARGET_FILE:cutmachine>")
-    add_dependencies(cutmachine_mcp_endpoint_tests cutmachine)
-    add_test(NAME cutmachine_mcp_endpoint_tests
-             COMMAND cutmachine_mcp_endpoint_tests)
+    cutmachine_add_test(cutmachine_mcp_endpoint_tests
+        SOURCES tests/mcp_endpoint_tests.cc
+        DEFINITIONS CUTMACHINE_EXECUTABLE="$<TARGET_FILE:cutmachine>"
+        LIBS cutmachine_model
+        DEPENDS cutmachine)
 
     # PRD13 -- ROADMAP.md. Who the loopback HTTP server answers: Host,
     # Origin, content type and bearer token, decided on a request's header
     # fields alone. The rule includes no socket header and the suite links
     # nothing but it, so it runs on a plain Linux host: portable.
-    add_executable(cutmachine_http_request_policy_tests
-                   tests/http_request_policy_tests.cc
-                   src/HttpRequestPolicy.cc)
-    target_include_directories(cutmachine_http_request_policy_tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src")
-    add_test(NAME cutmachine_http_request_policy_tests
-             COMMAND cutmachine_http_request_policy_tests)
-    set_tests_properties(cutmachine_http_request_policy_tests PROPERTIES
-        LABELS "portable")
+    cutmachine_add_test(cutmachine_http_request_policy_tests
+        SOURCES tests/http_request_policy_tests.cc src/agent/HttpRequestPolicy.cc
+        INCLUDES ${CUTMACHINE_SOURCE_DIRS}
+        LABELS portable)
 
     # PRD18 -- ROADMAP.md (ACP4). The procedures the binary carries: each
     # embedded file identical to the repository's, byte for byte, none left
     # out, and the reading of a name, a path and a link. The binary reads no
     # skill directory; only this test is told where the repository's is.
     # Plain C++ (Procedures.h): portable.
-    add_executable(cutmachine_procedures_tests tests/procedures_tests.cc)
-    target_link_libraries(cutmachine_procedures_tests PRIVATE
-                          cutmachine_model)
-    target_compile_definitions(cutmachine_procedures_tests PRIVATE
-        CUTMACHINE_SKILLS_DIR="${CUTMACHINE_SKILLS_DIR}")
-    add_test(NAME cutmachine_procedures_tests
-             COMMAND cutmachine_procedures_tests)
-    set_tests_properties(cutmachine_procedures_tests PROPERTIES
-        LABELS "portable")
+    cutmachine_add_test(cutmachine_procedures_tests
+        SOURCES tests/procedures_tests.cc
+        DEFINITIONS CUTMACHINE_SKILLS_DIR="${CUTMACHINE_SKILLS_DIR}"
+        LIBS cutmachine_model
+        LABELS portable)
 
-    add_executable(cutmachine_after_bridge_tests
-        tests/after_bridge_tests.cc)
-    target_link_libraries(cutmachine_after_bridge_tests
-                          PRIVATE cutmachine_model)
-    target_compile_definitions(cutmachine_after_bridge_tests PRIVATE
-        AFTER_BRIDGE_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/after")
-    add_test(NAME cutmachine_after_bridge_tests
-             COMMAND cutmachine_after_bridge_tests)
+    cutmachine_add_test(cutmachine_after_bridge_tests
+        SOURCES tests/after_bridge_tests.cc
+        DEFINITIONS
+            AFTER_BRIDGE_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/after"
+        LIBS cutmachine_model)
     # Pont After -- the bridge's JSX handlers under JavaScriptCore, against a
     # stand-in for After's object model (tests/after_jsx_tests.js).
     add_test(NAME cutmachine_after_jsx_tests
@@ -1820,124 +1761,99 @@ if(BUILD_TESTING)
     set_tests_properties(cutmachine_resolve_grade_probe_tests
                          PROPERTIES LABELS "portable")
 
-    add_executable(cutmachine_keyframe_tests tests/keyframe_tests.cc)
-    target_link_libraries(cutmachine_keyframe_tests PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_keyframe_tests COMMAND cutmachine_keyframe_tests)
+    cutmachine_add_test(cutmachine_keyframe_tests
+        SOURCES tests/keyframe_tests.cc
+        LIBS cutmachine_model)
 
     # MOTION-2026-09 M1 -- ROADMAP.md. Composition parsing, bindings, springs
     # and flexbox layout under fake text metrics: plain C++, no AppKit. The
     # suite also executes the complete examples of docs/MOTION_FORMAT.md so
     # the format document cannot drift from the engine.
-    add_executable(cutmachine_motion_tests tests/motion_tests.cc)
-    target_link_libraries(cutmachine_motion_tests PRIVATE cutmachine_model)
-    target_compile_definitions(cutmachine_motion_tests PRIVATE
-        MOTION_FORMAT_DOC="${CMAKE_CURRENT_SOURCE_DIR}/docs/MOTION_FORMAT.md")
-    add_test(NAME cutmachine_motion_tests COMMAND cutmachine_motion_tests)
-    set_tests_properties(cutmachine_motion_tests PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_motion_tests
+        SOURCES tests/motion_tests.cc
+        DEFINITIONS
+            MOTION_FORMAT_DOC="${CMAKE_CURRENT_SOURCE_DIR}/docs/MOTION_FORMAT.md"
+        LIBS cutmachine_model
+        LABELS portable)
 
     # MOTION-AFTER-2026-09 -- the description After builds a project from,
     # read without After.
     # MA2 -- verify_after_export, its pictures made by tests/golden_image.cc.
-    add_executable(cutmachine_motion_after_export_tests
-        tests/motion_after_export_tests.cc
-        tests/golden_image.cc)
-    target_link_libraries(cutmachine_motion_after_export_tests PRIVATE
-        cutmachine_model)
-    add_test(NAME cutmachine_motion_after_export_tests
-        COMMAND cutmachine_motion_after_export_tests)
-    set_tests_properties(cutmachine_motion_after_export_tests PROPERTIES
-        LABELS "portable")
+    cutmachine_add_test(cutmachine_motion_after_export_tests
+        SOURCES tests/motion_after_export_tests.cc tests/golden_image.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # REMOTION-PARITY-2026-09 REM1 -- ROADMAP.md. Ten independent scenes
     # freeze the shared authoring contract as exact, deterministic evaluated
     # frames. The fake metrics keep this gate portable and hermetic.
     # FC9 -- the effects are also compared, whole, with the references of
     # tests/fixtures/golden/ (tests/golden_image.h).
-    add_executable(cutmachine_motion_parity_tests
-                   tests/motion_parity_tests.cc
-                   tests/golden_image.cc)
-    target_link_libraries(cutmachine_motion_parity_tests PRIVATE
-                          cutmachine_model)
-    target_compile_definitions(cutmachine_motion_parity_tests PRIVATE
-        MOTION_PARITY_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/motion/parity"
-        GOLDEN_REFERENCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/golden"
-        GOLDEN_OUTPUT_DIR="${CMAKE_CURRENT_BINARY_DIR}/golden-output")
-    add_test(NAME cutmachine_motion_parity_tests
-             COMMAND cutmachine_motion_parity_tests)
-    set_tests_properties(cutmachine_motion_parity_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_motion_parity_tests
+        SOURCES tests/motion_parity_tests.cc tests/golden_image.cc
+        DEFINITIONS
+            MOTION_PARITY_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/motion/parity"
+            GOLDEN_REFERENCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/golden"
+            GOLDEN_OUTPUT_DIR="${CMAKE_CURRENT_BINARY_DIR}/golden-output"
+        LIBS cutmachine_model
+        LABELS portable)
 
     # FC9 -- docs/roadmap/FILMCRAFT-2026-10.md. The comparison of a render
     # with a reference PNG (PSNR, largest difference, 99th percentile, the
     # files a failure writes, CUTMACHINE_BLESS), tested on itself.
-    add_executable(cutmachine_golden_image_tests
-                   tests/golden_image_tests.cc
-                   tests/golden_image.cc)
-    target_link_libraries(cutmachine_golden_image_tests PRIVATE
-                          cutmachine_model)
-    target_compile_definitions(cutmachine_golden_image_tests PRIVATE
-        GOLDEN_OUTPUT_DIR="${CMAKE_CURRENT_BINARY_DIR}/golden-output")
-    add_test(NAME cutmachine_golden_image_tests
-             COMMAND cutmachine_golden_image_tests)
-    set_tests_properties(cutmachine_golden_image_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_golden_image_tests
+        SOURCES tests/golden_image_tests.cc tests/golden_image.cc
+        DEFINITIONS
+            GOLDEN_OUTPUT_DIR="${CMAKE_CURRENT_BINARY_DIR}/golden-output"
+        LIBS cutmachine_model
+        LABELS portable)
 
     # REMOTION-PARITY-2026-09 REM5 -- the visual editor's policy: what a
     # click selects and what a gesture commits. Plain C++, fake metrics.
-    add_executable(cutmachine_motion_canvas_tests
-                   tests/motion_canvas_tests.cc)
-    target_link_libraries(cutmachine_motion_canvas_tests PRIVATE
-                          cutmachine_model)
-    target_compile_definitions(cutmachine_motion_canvas_tests PRIVATE
-        MOTION_PARITY_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/motion/parity")
-    add_test(NAME cutmachine_motion_canvas_tests
-             COMMAND cutmachine_motion_canvas_tests)
-    set_tests_properties(cutmachine_motion_canvas_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_motion_canvas_tests
+        SOURCES tests/motion_canvas_tests.cc
+        DEFINITIONS
+            MOTION_PARITY_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/motion/parity"
+        LIBS cutmachine_model
+        LABELS portable)
 
     # MA6 -- docs/roadmap/MOTION-AFTER-2026-09.md. The humanize pass's
     # rules on fake metrics; the proof by rendering runs in the executable.
-    add_executable(cutmachine_motion_humanize_tests
-                   tests/motion_humanize_tests.cc)
-    target_link_libraries(cutmachine_motion_humanize_tests PRIVATE
-                          cutmachine_model)
-    add_test(NAME cutmachine_motion_humanize_tests
-             COMMAND cutmachine_motion_humanize_tests)
-    set_tests_properties(cutmachine_motion_humanize_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_motion_humanize_tests
+        SOURCES tests/motion_humanize_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # MOTION-2026-09 M3 -- ROADMAP.md. Compositions in the document: the
     # motion operations, their identities, refusals, journal and version.
     # Plain C++, no text measured.
-    add_executable(cutmachine_motion_document_tests
-                   tests/motion_document_tests.cc)
-    target_link_libraries(cutmachine_motion_document_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_motion_document_tests
-             COMMAND cutmachine_motion_document_tests)
-    set_tests_properties(cutmachine_motion_document_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_motion_document_tests
+        SOURCES tests/motion_document_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # MOTION-2026-09 M4 -- ROADMAP.md. Motion clips on the timeline: schema,
     # version, operations, refusals and the frame Timeline resolves. Plain
     # C++, no text measured.
     # MOTION-2026-09 M5 -- the templates, the placement by anchor and the
     # safe-area check (MotionTemplates.h, MotionPlacement.h, MotionSafeArea.h).
-    add_executable(cutmachine_motion_templates_tests
-                   tests/motion_templates_tests.cc)
-    target_link_libraries(cutmachine_motion_templates_tests PRIVATE
-                          cutmachine_model cutmachine_sqlite)
-    add_test(NAME cutmachine_motion_templates_tests
-             COMMAND cutmachine_motion_templates_tests)
-    set_tests_properties(cutmachine_motion_templates_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_motion_templates_tests
+        SOURCES tests/motion_templates_tests.cc
+        LIBS cutmachine_model cutmachine_sqlite
+        LABELS portable)
 
-    add_executable(cutmachine_motion_clip_tests tests/motion_clip_tests.cc)
-    target_link_libraries(cutmachine_motion_clip_tests PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_motion_clip_tests
-             COMMAND cutmachine_motion_clip_tests)
-    set_tests_properties(cutmachine_motion_clip_tests
-                         PROPERTIES LABELS "portable")
+    # CHARTE-2026-11 CH1, CH3 -- a charter written back: its canonical text,
+    # its edits by bounded paths, and its versions and file in the base
+    # (MotionKitEdit.h, MotionLibraryBase.h). Each check has its own library.
+    cutmachine_add_test(cutmachine_motion_kit_edit_tests
+        SOURCES tests/motion_kit_edit_tests.cc
+        LIBS cutmachine_model cutmachine_sqlite
+        LABELS portable)
+
+    cutmachine_add_test(cutmachine_motion_clip_tests
+        SOURCES tests/motion_clip_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # MOTION-2026-09 M4 -- ROADMAP.md. A motion clip exported over a shot and
     # read back at three instants, with and without colour management: the
@@ -1972,29 +1888,25 @@ if(BUILD_TESTING)
     add_test(NAME cutmachine_caption_render_tests
              COMMAND cutmachine_caption_render_tests)
 
-    add_executable(cutmachine_motion_render_tests tests/motion_render_tests.cc)
-    target_link_libraries(cutmachine_motion_render_tests PRIVATE
-                          cutmachine_motion_render)
-    target_compile_definitions(cutmachine_motion_render_tests PRIVATE
-        MOTION_FONT_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/fonts"
-        MOTION_VARIABLE_FONT_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/fonts/outfit"
-        MOTION_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/motion"
-        # M6 -- rendered videos are read back and probed.
-        FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}")
-    add_test(NAME cutmachine_motion_render_tests
-             COMMAND cutmachine_motion_render_tests)
+    cutmachine_add_test(cutmachine_motion_render_tests
+        SOURCES tests/motion_render_tests.cc
+        DEFINITIONS
+            MOTION_FONT_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/fonts"
+            MOTION_VARIABLE_FONT_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/fonts/outfit"
+            MOTION_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/motion"
+            # M6 -- rendered videos are read back and probed.
+            FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}"
+        LIBS cutmachine_motion_render)
 
     # REMOTION-PARITY-2026-09 REM2 -- media and precompositions with real
     # files made by FFmpeg and the real painter (C12, C13, C14).
-    add_executable(cutmachine_motion_media_tests tests/motion_media_tests.cc)
-    target_link_libraries(cutmachine_motion_media_tests PRIVATE
-                          cutmachine_motion_render)
-    target_compile_definitions(cutmachine_motion_media_tests PRIVATE
-        MOTION_FONT_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/fonts"
-        MOTION_PARITY_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/motion/parity"
-        FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}")
-    add_test(NAME cutmachine_motion_media_tests
-             COMMAND cutmachine_motion_media_tests)
+    cutmachine_add_test(cutmachine_motion_media_tests
+        SOURCES tests/motion_media_tests.cc
+        DEFINITIONS
+            MOTION_FONT_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/fonts"
+            MOTION_PARITY_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/motion/parity"
+            FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}"
+        LIBS cutmachine_motion_render)
 
     # REM3 -- paint, masks, effects and transitions drawn by the real
     # painter (C15-C18), and the italic face.
@@ -2037,60 +1949,48 @@ if(BUILD_TESTING)
     # F2.2 -- Inspector (ROADMAP.md). InspectorGradeControls.h is plain
     # C++, no AppKit dependency -- like UiTheme.h/PanelLayout.h above -- so
     # this builds and runs on a plain Linux host too.
-    add_executable(cutmachine_inspector_grade_controls_tests
-                   tests/inspector_grade_controls_tests.cc)
-    target_link_libraries(cutmachine_inspector_grade_controls_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_inspector_grade_controls_tests
-             COMMAND cutmachine_inspector_grade_controls_tests)
+    cutmachine_add_test(cutmachine_inspector_grade_controls_tests
+        SOURCES tests/inspector_grade_controls_tests.cc
+        LIBS cutmachine_model)
+
+    # GitHub #330 -- the Inspector's « Son » section (InspectorSound.h):
+    # which clip it sets, and what a typed gain or fade becomes.
+    cutmachine_add_test(cutmachine_inspector_sound_tests
+        SOURCES tests/inspector_sound_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # GR3 -- docs/roadmap/GRADE-RESOLVE-2026-10.md. The colour wheels and
     # the curve editor as policy (GradeWheelModel.h, GradeCurveModel.h):
     # plain C++, every gesture checked on the stack it gives.
-    add_executable(cutmachine_grade_control_models_tests
-                   tests/grade_control_models_tests.cc)
-    target_link_libraries(cutmachine_grade_control_models_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_grade_control_models_tests
-             COMMAND cutmachine_grade_control_models_tests)
-    set_tests_properties(cutmachine_grade_control_models_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_grade_control_models_tests
+        SOURCES tests/grade_control_models_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
-    add_executable(cutmachine_project_recovery_tests
-                   tests/project_recovery_tests.cc)
-    target_link_libraries(cutmachine_project_recovery_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_project_recovery_tests
-             COMMAND cutmachine_project_recovery_tests)
+    cutmachine_add_test(cutmachine_project_recovery_tests
+        SOURCES tests/project_recovery_tests.cc
+        LIBS cutmachine_model)
 
-    add_executable(cutmachine_project_tests tests/project_tests.cc)
-    target_link_libraries(cutmachine_project_tests PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_project_tests COMMAND cutmachine_project_tests)
+    cutmachine_add_test(cutmachine_project_tests
+        SOURCES tests/project_tests.cc
+        LIBS cutmachine_model)
 
-    add_executable(cutmachine_interview_short_tests
-                   tests/interview_short_tests.cc)
-    target_link_libraries(cutmachine_interview_short_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_interview_short_tests
-             COMMAND cutmachine_interview_short_tests)
+    cutmachine_add_test(cutmachine_interview_short_tests
+        SOURCES tests/interview_short_tests.cc
+        LIBS cutmachine_model)
 
-    add_executable(cutmachine_project_storage_tests
-                   tests/project_storage_tests.cc)
-    target_link_libraries(cutmachine_project_storage_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_project_storage_tests
-             COMMAND cutmachine_project_storage_tests)
+    cutmachine_add_test(cutmachine_project_storage_tests
+        SOURCES tests/project_storage_tests.cc
+        LIBS cutmachine_model)
 
-    add_executable(cutmachine_sequence_format_tests
-        tests/sequence_format_tests.cc)
-    target_link_libraries(cutmachine_sequence_format_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_sequence_format_tests
-             COMMAND cutmachine_sequence_format_tests)
+    cutmachine_add_test(cutmachine_sequence_format_tests
+        SOURCES tests/sequence_format_tests.cc
+        LIBS cutmachine_model)
 
-    add_executable(cutmachine_project_bin_tests tests/project_bin_tests.cc)
-    target_link_libraries(cutmachine_project_bin_tests PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_project_bin_tests COMMAND cutmachine_project_bin_tests)
+    cutmachine_add_test(cutmachine_project_bin_tests
+        SOURCES tests/project_bin_tests.cc
+        LIBS cutmachine_model)
 
     add_executable(cutmachine_export_tests tests/export_tests.cc)
     # LG3 -- captions are drawn by the caption renderer (Core Text).
@@ -2105,131 +2005,88 @@ if(BUILD_TESTING)
     # export's graph: levels and the strip. Its spoken-interview part reads
     # real speech with the local Whisper model when CUTMACHINE_TEST_WHISPER
     # is set, and says it skipped otherwise.
-    add_executable(cutmachine_cut_inspection_render_tests
-                   tests/cut_inspection_render_tests.cc)
-    target_link_libraries(cutmachine_cut_inspection_render_tests PRIVATE
-                          cutmachine_model)
-    target_compile_definitions(cutmachine_cut_inspection_render_tests PRIVATE
-        FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}")
-    add_test(NAME cutmachine_cut_inspection_render_tests
-             COMMAND cutmachine_cut_inspection_render_tests)
+    cutmachine_add_test(cutmachine_cut_inspection_render_tests
+        SOURCES tests/cut_inspection_render_tests.cc
+        DEFINITIONS FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}"
+        LIBS cutmachine_model)
 
     # RC1, RC2 -- docs/roadmap/RACCORDS-2026-10.md. A review of the
     # junctions rendered for real, on rushes FFmpeg's lavfi sources make:
     # an ambience that jumps, a tone cut live, a jump cut, a through edit,
     # and the bands drawn and stacked.
-    add_executable(cutmachine_cut_review_render_tests
-                   tests/cut_review_render_tests.cc)
-    target_link_libraries(cutmachine_cut_review_render_tests PRIVATE
-                          cutmachine_model)
-    target_compile_definitions(cutmachine_cut_review_render_tests PRIVATE
-        FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}")
-    add_test(NAME cutmachine_cut_review_render_tests
-             COMMAND cutmachine_cut_review_render_tests)
+    cutmachine_add_test(cutmachine_cut_review_render_tests
+        SOURCES tests/cut_review_render_tests.cc
+        DEFINITIONS FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}"
+        LIBS cutmachine_model)
 
-    add_executable(cutmachine_ingest_tests
-        tests/ingest_tests.cc
-        src/MediaSource.mm
-    )
-    target_link_libraries(cutmachine_ingest_tests PRIVATE cutmachine_model)
-    target_compile_definitions(cutmachine_ingest_tests PRIVATE
-        FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}")
-    add_test(NAME cutmachine_ingest_tests COMMAND cutmachine_ingest_tests)
+    cutmachine_add_test(cutmachine_ingest_tests
+        SOURCES tests/ingest_tests.cc src/app/MediaSource.mm
+        DEFINITIONS FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}"
+        LIBS cutmachine_model)
 
     # PRD7 -- docs/roadmap/PRODUIT-2026-10.md. What an ingest does to a
     # document once its files are read: the half the window and --ingest
     # share. The probed entries are built by the test, so no media is
     # decoded and no FFmpeg binary runs. Portable: no AppKit, no Metal.
-    add_executable(cutmachine_ingest_document_tests
-                   tests/ingest_document_tests.cc)
-    target_link_libraries(cutmachine_ingest_document_tests PRIVATE
-                          cutmachine_model)
-    add_test(NAME cutmachine_ingest_document_tests
-             COMMAND cutmachine_ingest_document_tests)
-    set_tests_properties(cutmachine_ingest_document_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_ingest_document_tests
+        SOURCES tests/ingest_document_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
-    add_executable(cutmachine_resolve_export_tests
-        tests/resolve_export_tests.cc)
-    target_link_libraries(cutmachine_resolve_export_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_resolve_export_tests
-             COMMAND cutmachine_resolve_export_tests)
+    cutmachine_add_test(cutmachine_resolve_export_tests
+        SOURCES tests/resolve_export_tests.cc
+        LIBS cutmachine_model)
 
     # R9 -- docs/roadmap/REEL-2026-09.md. The FCP7 XML writer is plain C++
     # with no AppKit, no FFmpeg and no Resolve, so it runs on a Linux host.
-    add_executable(cutmachine_resolve_xml_export_tests
-        tests/resolve_xml_export_tests.cc)
-    target_link_libraries(cutmachine_resolve_xml_export_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_resolve_xml_export_tests
-             COMMAND cutmachine_resolve_xml_export_tests)
+    cutmachine_add_test(cutmachine_resolve_xml_export_tests
+        SOURCES tests/resolve_xml_export_tests.cc
+        LIBS cutmachine_model)
 
     # DEC15 (GR15) -- docs/roadmap/GRADE-RESOLVE-2026-10.md. Resolve's grades
     # read from a copy of a project database: bodies, database and match,
     # on fixtures written without a client's data.
-    add_executable(cutmachine_resolve_grade_tests tests/resolve_grade_tests.cc)
-    target_link_libraries(cutmachine_resolve_grade_tests
-                          PRIVATE cutmachine_model cutmachine_sqlite)
-    target_compile_definitions(cutmachine_resolve_grade_tests PRIVATE
-        RESOLVE_GRADE_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/resolve_grade")
-    add_test(NAME cutmachine_resolve_grade_tests
-             COMMAND cutmachine_resolve_grade_tests)
-    set_tests_properties(cutmachine_resolve_grade_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_resolve_grade_tests
+        SOURCES tests/resolve_grade_tests.cc
+        DEFINITIONS
+            RESOLVE_GRADE_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/resolve_grade"
+        LIBS cutmachine_model cutmachine_sqlite
+        LABELS portable)
 
-    add_executable(cutmachine_resolve_import_tests
-        tests/resolve_import_tests.cc
-        src/MediaSource.mm
-    )
-    target_link_libraries(cutmachine_resolve_import_tests
-                          PRIVATE cutmachine_model cutmachine_sqlite)
-    target_compile_definitions(cutmachine_resolve_import_tests PRIVATE
-        FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}"
-        RESOLVE_GRADE_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/resolve_grade")
-    add_test(NAME cutmachine_resolve_import_tests
-             COMMAND cutmachine_resolve_import_tests)
+    cutmachine_add_test(cutmachine_resolve_import_tests
+        SOURCES tests/resolve_import_tests.cc src/app/MediaSource.mm
+        DEFINITIONS
+            FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}"
+            RESOLVE_GRADE_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/resolve_grade"
+        LIBS cutmachine_model cutmachine_sqlite)
 
-    add_executable(cutmachine_media_task_manager_tests
-        tests/media_task_manager_tests.cc
-    )
-    target_link_libraries(cutmachine_media_task_manager_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_media_task_manager_tests
-             COMMAND cutmachine_media_task_manager_tests)
+    cutmachine_add_test(cutmachine_media_task_manager_tests
+        SOURCES tests/media_task_manager_tests.cc
+        LIBS cutmachine_model)
 
-    add_executable(cutmachine_proxy_tests tests/proxy_tests.cc)
-    target_link_libraries(cutmachine_proxy_tests PRIVATE cutmachine_model)
-    target_compile_definitions(cutmachine_proxy_tests PRIVATE
-        FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}")
-    add_test(NAME cutmachine_proxy_tests COMMAND cutmachine_proxy_tests)
+    cutmachine_add_test(cutmachine_proxy_tests
+        SOURCES tests/proxy_tests.cc
+        DEFINITIONS FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}"
+        LIBS cutmachine_model)
 
-    add_executable(cutmachine_waveform_tests tests/waveform_tests.cc)
-    target_link_libraries(cutmachine_waveform_tests PRIVATE cutmachine_model)
-    target_compile_definitions(cutmachine_waveform_tests PRIVATE
-        FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}")
-    add_test(NAME cutmachine_waveform_tests COMMAND cutmachine_waveform_tests)
+    cutmachine_add_test(cutmachine_waveform_tests
+        SOURCES tests/waveform_tests.cc
+        DEFINITIONS FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}"
+        LIBS cutmachine_model)
 
-    add_executable(cutmachine_transcription_tests tests/transcription_tests.cc)
-    target_link_libraries(cutmachine_transcription_tests PRIVATE cutmachine_model)
-    target_compile_definitions(cutmachine_transcription_tests PRIVATE
-        FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}")
-    add_test(NAME cutmachine_transcription_tests
-             COMMAND cutmachine_transcription_tests)
+    cutmachine_add_test(cutmachine_transcription_tests
+        SOURCES tests/transcription_tests.cc
+        DEFINITIONS FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}"
+        LIBS cutmachine_model)
 
-    add_executable(cutmachine_hesitation_tests tests/hesitation_tests.cc)
-    target_link_libraries(cutmachine_hesitation_tests PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_hesitation_tests
-             COMMAND cutmachine_hesitation_tests)
+    cutmachine_add_test(cutmachine_hesitation_tests
+        SOURCES tests/hesitation_tests.cc
+        LIBS cutmachine_model)
 
-    add_executable(cutmachine_timeline_audio_report_tests
-        tests/timeline_audio_report_tests.cc)
-    target_link_libraries(cutmachine_timeline_audio_report_tests
-        PRIVATE cutmachine_model)
-    target_compile_definitions(cutmachine_timeline_audio_report_tests PRIVATE
-        FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}")
-    add_test(NAME cutmachine_timeline_audio_report_tests
-             COMMAND cutmachine_timeline_audio_report_tests)
+    cutmachine_add_test(cutmachine_timeline_audio_report_tests
+        SOURCES tests/timeline_audio_report_tests.cc
+        DEFINITIONS FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}"
+        LIBS cutmachine_model)
 
     add_executable(cutmachine_caption_generation_tests
         tests/caption_generation_tests.cc)
@@ -2241,316 +2098,218 @@ if(BUILD_TESTING)
     add_test(NAME cutmachine_caption_generation_tests
              COMMAND cutmachine_caption_generation_tests)
 
-    add_executable(cutmachine_word_alignment_tests
-        tests/word_alignment_tests.cc)
-    target_link_libraries(cutmachine_word_alignment_tests
-        PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_word_alignment_tests
-             COMMAND cutmachine_word_alignment_tests)
+    cutmachine_add_test(cutmachine_word_alignment_tests
+        SOURCES tests/word_alignment_tests.cc
+        LIBS cutmachine_model)
 
-    add_executable(cutmachine_frame_capture_tests tests/frame_capture_tests.cc)
-    target_link_libraries(cutmachine_frame_capture_tests PRIVATE cutmachine_model)
-    target_compile_definitions(cutmachine_frame_capture_tests PRIVATE
-        FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}")
-    add_test(NAME cutmachine_frame_capture_tests
-             COMMAND cutmachine_frame_capture_tests)
+    cutmachine_add_test(cutmachine_frame_capture_tests
+        SOURCES tests/frame_capture_tests.cc
+        DEFINITIONS FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}"
+        LIBS cutmachine_model)
 
     # R8 -- docs/roadmap/REEL-2026-09.md. Isolated frames: the detection
     # rule and the range planning are plain C++ with no FFmpeg and no
     # AppKit, so they run on a plain Linux host and under the sanitizers.
     # The decode that feeds them is exercised separately, below.
-    add_executable(cutmachine_isolated_frames_tests
-                   tests/isolated_frames_tests.cc)
-    target_link_libraries(cutmachine_isolated_frames_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_isolated_frames_tests
-             COMMAND cutmachine_isolated_frames_tests)
-    set_tests_properties(cutmachine_isolated_frames_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_isolated_frames_tests
+        SOURCES tests/isolated_frames_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
-    add_executable(cutmachine_isolated_frames_media_tests
-                   tests/isolated_frames_media_tests.cc)
-    target_link_libraries(cutmachine_isolated_frames_media_tests
-                          PRIVATE cutmachine_model)
-    target_compile_definitions(cutmachine_isolated_frames_media_tests PRIVATE
-        FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}")
-    add_test(NAME cutmachine_isolated_frames_media_tests
-             COMMAND cutmachine_isolated_frames_media_tests)
+    cutmachine_add_test(cutmachine_isolated_frames_media_tests
+        SOURCES tests/isolated_frames_media_tests.cc
+        DEFINITIONS FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}"
+        LIBS cutmachine_model)
 
-    add_executable(cutmachine_shot_quality_tests tests/shot_quality_tests.cc)
-    target_link_libraries(cutmachine_shot_quality_tests PRIVATE cutmachine_model)
-    target_compile_definitions(cutmachine_shot_quality_tests PRIVATE
-        FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}")
-    add_test(NAME cutmachine_shot_quality_tests
-             COMMAND cutmachine_shot_quality_tests)
+    cutmachine_add_test(cutmachine_shot_quality_tests
+        SOURCES tests/shot_quality_tests.cc
+        DEFINITIONS FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}"
+        LIBS cutmachine_model)
 
-    add_executable(cutmachine_document_delta_tests
-        tests/document_delta_tests.cc)
-    target_link_libraries(cutmachine_document_delta_tests
-        PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_document_delta_tests
-             COMMAND cutmachine_document_delta_tests)
+    cutmachine_add_test(cutmachine_document_delta_tests
+        SOURCES tests/document_delta_tests.cc
+        LIBS cutmachine_model)
 
-    add_executable(cutmachine_transcript_alignment_tests
-        tests/transcript_alignment_tests.cc)
-    target_link_libraries(cutmachine_transcript_alignment_tests
-        PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_transcript_alignment_tests
-             COMMAND cutmachine_transcript_alignment_tests)
+    cutmachine_add_test(cutmachine_transcript_alignment_tests
+        SOURCES tests/transcript_alignment_tests.cc
+        LIBS cutmachine_model)
 
-    add_executable(cutmachine_source_address_tests
-        tests/source_address_tests.cc)
-    target_link_libraries(cutmachine_source_address_tests
-        PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_source_address_tests
-             COMMAND cutmachine_source_address_tests)
+    cutmachine_add_test(cutmachine_source_address_tests
+        SOURCES tests/source_address_tests.cc
+        LIBS cutmachine_model)
 
-    add_executable(cutmachine_pause_tightening_tests
-        tests/pause_tightening_tests.cc)
-    target_link_libraries(cutmachine_pause_tightening_tests
-        PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_pause_tightening_tests
-             COMMAND cutmachine_pause_tightening_tests)
+    cutmachine_add_test(cutmachine_pause_tightening_tests
+        SOURCES tests/pause_tightening_tests.cc
+        LIBS cutmachine_model)
 
-    add_executable(cutmachine_cut_words_tests tests/cut_words_tests.cc)
-    target_link_libraries(cutmachine_cut_words_tests PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_cut_words_tests
-             COMMAND cutmachine_cut_words_tests)
+    cutmachine_add_test(cutmachine_cut_words_tests
+        SOURCES tests/cut_words_tests.cc
+        LIBS cutmachine_model)
 
-    add_executable(cutmachine_boundary_air_tests
-        tests/boundary_air_tests.cc)
-    target_link_libraries(cutmachine_boundary_air_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_boundary_air_tests
-             COMMAND cutmachine_boundary_air_tests)
+    cutmachine_add_test(cutmachine_boundary_air_tests
+        SOURCES tests/boundary_air_tests.cc
+        LIBS cutmachine_model)
 
-    add_executable(cutmachine_speech_onset_tests tests/speech_onset_tests.cc)
-    target_link_libraries(cutmachine_speech_onset_tests PRIVATE cutmachine_model)
-    target_compile_definitions(cutmachine_speech_onset_tests PRIVATE
-        FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}")
-    add_test(NAME cutmachine_speech_onset_tests
-             COMMAND cutmachine_speech_onset_tests)
+    cutmachine_add_test(cutmachine_speech_onset_tests
+        SOURCES tests/speech_onset_tests.cc
+        DEFINITIONS FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}"
+        LIBS cutmachine_model)
 
-    add_executable(cutmachine_subtitle_tests tests/subtitle_tests.cc)
-    target_link_libraries(cutmachine_subtitle_tests PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_subtitle_tests COMMAND cutmachine_subtitle_tests)
+    cutmachine_add_test(cutmachine_subtitle_tests
+        SOURCES tests/subtitle_tests.cc
+        LIBS cutmachine_model)
 
     # FC7 -- docs/roadmap/FILMCRAFT-2026-10.md. The CMX 3600 writer and the
     # marker reader against lists written by hand (tests/fixtures/edl).
     # Portable: no AppKit, no FFmpeg, no Resolve.
-    add_executable(cutmachine_edl_tests tests/edl_tests.cc)
-    target_link_libraries(cutmachine_edl_tests PRIVATE cutmachine_model)
-    target_compile_definitions(cutmachine_edl_tests PRIVATE
-        EDL_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/edl")
-    add_test(NAME cutmachine_edl_tests COMMAND cutmachine_edl_tests)
-    set_tests_properties(cutmachine_edl_tests PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_edl_tests
+        SOURCES tests/edl_tests.cc
+        DEFINITIONS
+            EDL_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/edl"
+        LIBS cutmachine_model
+        LABELS portable)
 
     # PA1 -- docs/roadmap/PARITE-2026-11.md. The OTIO and FCPXML writers
     # against what each format asks for, spelled by hand in the test.
     # Portable: no AppKit, no FFmpeg, no other editor.
-    add_executable(cutmachine_interchange_tests tests/interchange_tests.cc)
-    target_link_libraries(cutmachine_interchange_tests
-        PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_interchange_tests
-             COMMAND cutmachine_interchange_tests)
-    set_tests_properties(cutmachine_interchange_tests
-        PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_interchange_tests
+        SOURCES tests/interchange_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
-    add_executable(cutmachine_thumbnail_tests tests/thumbnail_tests.cc)
-    target_link_libraries(cutmachine_thumbnail_tests PRIVATE cutmachine_model)
-    target_compile_definitions(cutmachine_thumbnail_tests PRIVATE
-        FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}")
-    add_test(NAME cutmachine_thumbnail_tests COMMAND cutmachine_thumbnail_tests)
+    cutmachine_add_test(cutmachine_thumbnail_tests
+        SOURCES tests/thumbnail_tests.cc
+        DEFINITIONS FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}"
+        LIBS cutmachine_model)
 
-    add_executable(cutmachine_fft_tests tests/fft_tests.cc)
-    target_include_directories(cutmachine_fft_tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src")
-    add_test(NAME cutmachine_fft_tests COMMAND cutmachine_fft_tests)
+    cutmachine_add_test(cutmachine_fft_tests
+        SOURCES tests/fft_tests.cc
+        INCLUDES ${CUTMACHINE_SOURCE_DIRS})
 
     # F2.1 -- design system (ROADMAP.md). UiTheme.h and PanelLayout.h are
     # plain C++, no AppKit dependency, so -- like Fft.h above -- these build
     # and run on a plain Linux host.
-    add_executable(cutmachine_ui_theme_tests tests/ui_theme_tests.cc)
-    target_include_directories(cutmachine_ui_theme_tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src")
-    add_test(NAME cutmachine_ui_theme_tests COMMAND cutmachine_ui_theme_tests)
+    cutmachine_add_test(cutmachine_ui_theme_tests
+        SOURCES tests/ui_theme_tests.cc
+        INCLUDES ${CUTMACHINE_SOURCE_DIRS})
 
     # PERF-2026-09 -- the Record monitor's hold rule. PlaybackPresentation.h
     # is plain C++ with no AppKit dependency, like UiTheme.h/PanelLayout.h
     # around it, so this runs on a plain Linux host and under the sanitizers.
-    add_executable(cutmachine_playback_presentation_tests
-                   tests/playback_presentation_tests.cc)
-    target_include_directories(cutmachine_playback_presentation_tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src")
-    add_test(NAME cutmachine_playback_presentation_tests
-             COMMAND cutmachine_playback_presentation_tests)
+    cutmachine_add_test(cutmachine_playback_presentation_tests
+        SOURCES tests/playback_presentation_tests.cc
+        INCLUDES ${CUTMACHINE_SOURCE_DIRS})
 
     # PERF10 -- docs/roadmap/PERF-2026-09.md. Which decoders the editor keeps
     # open: DecoderPool.h is plain C++ with no AppKit or FFmpeg dependency,
     # main.mm only wires it, so this runs on a plain Linux host. PERF12 --
     # which ones it opens ahead of playback, read from a document: linked to
     # the model library like the other portable suites, still no AppKit.
-    add_executable(cutmachine_decoder_pool_tests tests/decoder_pool_tests.cc)
-    target_include_directories(cutmachine_decoder_pool_tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src")
-    target_link_libraries(cutmachine_decoder_pool_tests PRIVATE
-                          cutmachine_model)
-    add_test(NAME cutmachine_decoder_pool_tests
-             COMMAND cutmachine_decoder_pool_tests)
-    set_tests_properties(cutmachine_decoder_pool_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_decoder_pool_tests
+        SOURCES tests/decoder_pool_tests.cc
+        INCLUDES ${CUTMACHINE_SOURCE_DIRS}
+        LIBS cutmachine_model
+        LABELS portable)
 
     # PERF13 -- which layers of Record an opaque shot above hides, so that
     # playback neither decodes nor asks for them: MonitorOcclusion.h is plain
     # C++ read from a document, main.mm only wires it.
-    add_executable(cutmachine_monitor_occlusion_tests
-                   tests/monitor_occlusion_tests.cc)
-    target_include_directories(cutmachine_monitor_occlusion_tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src")
-    target_link_libraries(cutmachine_monitor_occlusion_tests PRIVATE
-                          cutmachine_model)
-    add_test(NAME cutmachine_monitor_occlusion_tests
-             COMMAND cutmachine_monitor_occlusion_tests)
-    set_tests_properties(cutmachine_monitor_occlusion_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_monitor_occlusion_tests
+        SOURCES tests/monitor_occlusion_tests.cc
+        INCLUDES ${CUTMACHINE_SOURCE_DIRS}
+        LIBS cutmachine_model
+        LABELS portable)
 
     # PERF14 -- what playback reads ahead of the picture it shows: a shot up
     # to its last frame and no further, the decoded budget shared among the
     # sources read, the bytes of the next seconds asked for in pieces.
     # ReadAhead.h and PlaybackReads.h are plain C++, main.mm and
     # DecodeWorker.cc only wire them.
-    add_executable(cutmachine_read_ahead_tests
-        tests/read_ahead_tests.cc
-        src/ReadAhead.cc
-    )
-    target_include_directories(cutmachine_read_ahead_tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src")
-    target_link_libraries(cutmachine_read_ahead_tests PRIVATE
-                          cutmachine_model)
-    add_test(NAME cutmachine_read_ahead_tests
-             COMMAND cutmachine_read_ahead_tests)
-    set_tests_properties(cutmachine_read_ahead_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_read_ahead_tests
+        SOURCES tests/read_ahead_tests.cc src/ui/ReadAhead.cc
+        INCLUDES ${CUTMACHINE_SOURCE_DIRS}
+        LIBS cutmachine_model
+        LABELS portable)
 
     # PERF10 -- the worker's read-ahead at rest and in playback, against a
     # real decode of a generated clip.
-    add_executable(cutmachine_decode_worker_tests
-        tests/decode_worker_tests.cc
-        src/DecodeWorker.cc
-        src/FrameCache.cc
-        src/ReadAhead.cc
-        src/PerformanceMetrics.cc
-        src/MediaSource.mm
-        # VF2, VF3 -- the rate and the grid the decoder counts on.
-        src/SourceGrid.cc
-        src/Ulid.cc
-    )
-    target_include_directories(cutmachine_decode_worker_tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src")
-    target_link_libraries(cutmachine_decode_worker_tests PRIVATE
-                          PkgConfig::FFMPEG)
-    target_compile_definitions(cutmachine_decode_worker_tests PRIVATE
-        FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}")
-    add_test(NAME cutmachine_decode_worker_tests
-             COMMAND cutmachine_decode_worker_tests)
+    cutmachine_add_test(cutmachine_decode_worker_tests
+        SOURCES
+            tests/decode_worker_tests.cc
+            src/app/DecodeWorker.cc
+            src/app/FrameCache.cc
+            src/ui/ReadAhead.cc
+            src/app/PerformanceMetrics.cc
+            src/app/MediaSource.mm
+            # VF2, VF3 -- the rate and the grid the decoder counts on.
+            src/engine/SourceGrid.cc
+            src/engine/Ulid.cc
+        INCLUDES ${CUTMACHINE_SOURCE_DIRS}
+        DEFINITIONS FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}"
+        LIBS PkgConfig::FFMPEG)
 
     # PERF10 -- a cached picture owns its bytes. FrameCache.cc needs only
     # libavutil, so this runs on a plain Linux host too.
-    add_executable(cutmachine_frame_cache_tests
-        tests/frame_cache_tests.cc
-        src/FrameCache.cc
-        src/ReadAhead.cc
-    )
-    target_include_directories(cutmachine_frame_cache_tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src")
-    target_link_libraries(cutmachine_frame_cache_tests PRIVATE
-                          PkgConfig::FFMPEG)
-    add_test(NAME cutmachine_frame_cache_tests
-             COMMAND cutmachine_frame_cache_tests)
-    set_tests_properties(cutmachine_frame_cache_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_frame_cache_tests
+        SOURCES tests/frame_cache_tests.cc src/app/FrameCache.cc src/ui/ReadAhead.cc
+        INCLUDES ${CUTMACHINE_SOURCE_DIRS}
+        LIBS PkgConfig::FFMPEG
+        LABELS portable)
 
     # PERF13 -- the monitor's sound reads a rush's sound and not its
     # pictures, and decodes the same samples. AudioDecode.cc needs only
     # FFmpeg, so this runs on a plain Linux host too.
-    add_executable(cutmachine_audio_decode_tests
-        tests/audio_decode_tests.cc
-        src/AudioDecode.cc
-    )
-    target_include_directories(cutmachine_audio_decode_tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src")
-    target_compile_definitions(cutmachine_audio_decode_tests PRIVATE
-        FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}"
-    )
-    target_link_libraries(cutmachine_audio_decode_tests PRIVATE
-                          PkgConfig::FFMPEG)
-    add_test(NAME cutmachine_audio_decode_tests
-             COMMAND cutmachine_audio_decode_tests)
-    set_tests_properties(cutmachine_audio_decode_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_audio_decode_tests
+        SOURCES tests/audio_decode_tests.cc src/app/AudioDecode.cc
+        INCLUDES ${CUTMACHINE_SOURCE_DIRS}
+        DEFINITIONS FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}"
+        LIBS PkgConfig::FFMPEG
+        LABELS portable)
 
     # PERF7 -- ROADMAP.md. The timeline render cost report: the policy
     # (RenderCostMeter.h) is plain C++ with no AppKit dependency, main.mm
     # only times the two calls it measures, so this runs on a plain Linux
     # host and under the sanitizers.
-    add_executable(cutmachine_render_cost_meter_tests
-                   tests/render_cost_meter_tests.cc)
-    target_include_directories(cutmachine_render_cost_meter_tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src")
-    add_test(NAME cutmachine_render_cost_meter_tests
-             COMMAND cutmachine_render_cost_meter_tests)
-    set_tests_properties(cutmachine_render_cost_meter_tests PROPERTIES
-        LABELS "portable")
+    cutmachine_add_test(cutmachine_render_cost_meter_tests
+        SOURCES tests/render_cost_meter_tests.cc
+        INCLUDES ${CUTMACHINE_SOURCE_DIRS}
+        LABELS portable)
 
-    add_executable(cutmachine_panel_layout_tests tests/panel_layout_tests.cc)
-    target_include_directories(cutmachine_panel_layout_tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src")
-    add_test(NAME cutmachine_panel_layout_tests
-             COMMAND cutmachine_panel_layout_tests)
+    cutmachine_add_test(cutmachine_panel_layout_tests
+        SOURCES tests/panel_layout_tests.cc
+        INCLUDES ${CUTMACHINE_SOURCE_DIRS})
 
     # F2.5 -- playback transport (ROADMAP.md). TransportBar.h and Timecode.h
     # are plain C++, no AppKit dependency, so -- like UiTheme.h/PanelLayout.h
     # above -- these build and run on a plain Linux host.
-    add_executable(cutmachine_transport_bar_tests
-                   tests/transport_bar_tests.cc)
-    target_include_directories(cutmachine_transport_bar_tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src")
-    add_test(NAME cutmachine_transport_bar_tests
-             COMMAND cutmachine_transport_bar_tests)
+    cutmachine_add_test(cutmachine_transport_bar_tests
+        SOURCES tests/transport_bar_tests.cc
+        INCLUDES ${CUTMACHINE_SOURCE_DIRS})
 
     # Visual QA of 19 September 2026 -- PlayheadFrameRate reads a Document,
     # whose members draw a ULID: the test links Ulid.cc, still without
     # AppKit or the model library.
-    add_executable(cutmachine_timecode_tests tests/timecode_tests.cc
-                   src/Ulid.cc)
-    target_include_directories(cutmachine_timecode_tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src")
-    add_test(NAME cutmachine_timecode_tests COMMAND cutmachine_timecode_tests)
+    cutmachine_add_test(cutmachine_timecode_tests
+        SOURCES tests/timecode_tests.cc src/engine/Ulid.cc
+        INCLUDES ${CUTMACHINE_SOURCE_DIRS})
 
     # PRD27 -- docs/roadmap/PRODUIT-2026-10b.md. What VoiceOver reads of the
     # Metal views (UiAccessibility.h): their names, and the timeline's value,
     # the playhead's timecode and the selected shots. Portable: header-only,
     # main.mm only hands it to AppKit.
-    add_executable(cutmachine_ui_accessibility_tests
-                   tests/ui_accessibility_tests.cc src/Ulid.cc)
-    target_include_directories(cutmachine_ui_accessibility_tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src")
-    add_test(NAME cutmachine_ui_accessibility_tests
-             COMMAND cutmachine_ui_accessibility_tests)
-    set_tests_properties(cutmachine_ui_accessibility_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_ui_accessibility_tests
+        SOURCES tests/ui_accessibility_tests.cc src/engine/Ulid.cc
+        INCLUDES ${CUTMACHINE_SOURCE_DIRS}
+        LABELS portable)
 
     # F2.3 -- Media panel view-model (ROADMAP.md). MediaPanelModel.h depends
     # on Document.h/Operations.h (GenerateUlid needs Ulid.cc), so unlike
     # UiTheme.h/PanelLayout.h above it links cutmachine_model, but it is
     # still plain C++ with no AppKit dependency and runs on a plain Linux
     # host the same way cutmachine_project_bin_tests does.
-    add_executable(cutmachine_media_panel_model_tests
-                   tests/media_panel_model_tests.cc)
-    target_link_libraries(cutmachine_media_panel_model_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_media_panel_model_tests
-             COMMAND cutmachine_media_panel_model_tests)
+    cutmachine_add_test(cutmachine_media_panel_model_tests
+        SOURCES tests/media_panel_model_tests.cc
+        LIBS cutmachine_model)
 
     add_executable(cutmachine_beat_detection_tests
                    tests/beat_detection_tests.cc)
@@ -2567,70 +2326,50 @@ if(BUILD_TESTING)
     # onsets BeatDetection already cached, so this suite decodes nothing and
     # needs neither FFmpeg nor AppKit: it builds its onset lists itself and
     # runs on a plain Linux host, like the other portable suites.
-    add_executable(cutmachine_tempo_grid_tests tests/tempo_grid_tests.cc
-                   src/TempoGrid.cc src/Ulid.cc)
-    target_include_directories(cutmachine_tempo_grid_tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src")
-    add_test(NAME cutmachine_tempo_grid_tests
-             COMMAND cutmachine_tempo_grid_tests)
-    set_tests_properties(cutmachine_tempo_grid_tests PROPERTIES
-        LABELS "portable")
+    cutmachine_add_test(cutmachine_tempo_grid_tests
+        SOURCES tests/tempo_grid_tests.cc src/media/TempoGrid.cc src/engine/Ulid.cc
+        INCLUDES ${CUTMACHINE_SOURCE_DIRS}
+        LABELS portable)
 
     # Where a track's energy moves, beat by beat (MusicStructure.h): the
     # grid and the envelope are built by the test, so it needs neither
     # FFmpeg nor AppKit and runs on a plain Linux host.
-    add_executable(cutmachine_music_structure_tests
-                   tests/music_structure_tests.cc src/MusicStructure.cc)
-    target_include_directories(cutmachine_music_structure_tests PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src")
-    add_test(NAME cutmachine_music_structure_tests
-             COMMAND cutmachine_music_structure_tests)
-    set_tests_properties(cutmachine_music_structure_tests PROPERTIES
-        LABELS "portable")
+    cutmachine_add_test(cutmachine_music_structure_tests
+        SOURCES tests/music_structure_tests.cc src/media/MusicStructure.cc
+        INCLUDES ${CUTMACHINE_SOURCE_DIRS}
+        LABELS portable)
 
-    add_executable(cutmachine_relink_tests tests/relink_tests.cc)
-    target_link_libraries(cutmachine_relink_tests PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_relink_tests COMMAND cutmachine_relink_tests)
+    cutmachine_add_test(cutmachine_relink_tests
+        SOURCES tests/relink_tests.cc
+        LIBS cutmachine_model)
 
     # F2.4 -- chat panel (ROADMAP.md). Both pure C++ (Json/McpTools/
     # ChatLlmClient/ChatSession only), no AppKit -- see each file's own
     # header comment for what they prove, in particular that a chat-driven
     # tool call dispatches through the real McpToolRegistry::Call and
     # EditLog::Apply, not a parallel mutation path.
-    add_executable(cutmachine_chat_llm_client_tests
-                   tests/chat_llm_client_tests.cc)
-    target_link_libraries(cutmachine_chat_llm_client_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_chat_llm_client_tests
-             COMMAND cutmachine_chat_llm_client_tests)
+    cutmachine_add_test(cutmachine_chat_llm_client_tests
+        SOURCES tests/chat_llm_client_tests.cc
+        LIBS cutmachine_model)
 
-    add_executable(cutmachine_chat_session_tests tests/chat_session_tests.cc)
-    target_link_libraries(cutmachine_chat_session_tests PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_chat_session_tests
-             COMMAND cutmachine_chat_session_tests)
+    cutmachine_add_test(cutmachine_chat_session_tests
+        SOURCES tests/chat_session_tests.cc
+        LIBS cutmachine_model)
 
     # ACP8 -- the machine report cannot hide a human warning or disappear
     # when its fence is malformed. The policy has no AppKit dependency.
-    add_executable(cutmachine_chat_presentation_tests
-                   tests/chat_presentation_tests.cc)
-    target_link_libraries(cutmachine_chat_presentation_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_chat_presentation_tests
-             COMMAND cutmachine_chat_presentation_tests)
-    set_tests_properties(cutmachine_chat_presentation_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_chat_presentation_tests
+        SOURCES tests/chat_presentation_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
-    add_executable(cutmachine_chat_message_view_tests
-                   tests/chat_message_view_tests.mm
-                   src/ChatMessageView.mm src/UiThemeAppKit.mm
-                   src/UiComponents.mm)
-    target_link_libraries(cutmachine_chat_message_view_tests
-                          PRIVATE cutmachine_model
-                          "-framework AppKit" "-framework QuartzCore")
-    target_compile_options(cutmachine_chat_message_view_tests PRIVATE
-                           $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>)
-    add_test(NAME cutmachine_chat_message_view_tests
-             COMMAND cutmachine_chat_message_view_tests)
+    cutmachine_add_test(cutmachine_chat_message_view_tests
+        SOURCES
+            tests/chat_message_view_tests.mm
+            src/app/ChatMessageView.mm src/app/UiThemeAppKit.mm
+            src/app/UiComponents.mm
+        OPTIONS $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>
+        LIBS cutmachine_model "-framework AppKit" "-framework QuartzCore")
 
     # ACP1, ACP2 -- docs/roadmap/ACP-2026-09.md. The Agent panel's client of
     # an external coding agent, against a scripted agent, and its process
@@ -2639,147 +2378,106 @@ if(BUILD_TESTING)
     # canvas, the queue, the key kept out of every message, proposals spent
     # once, and propose_generation then generate_media on a real project.
     # Portable: no network, no AppKit.
-    add_executable(cutmachine_generation_tests tests/generation_tests.cc)
-    target_link_libraries(cutmachine_generation_tests PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_generation_tests
-             COMMAND cutmachine_generation_tests)
-    set_tests_properties(cutmachine_generation_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_generation_tests
+        SOURCES tests/generation_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
-    add_executable(cutmachine_acp_client_tests tests/acp_client_tests.cc)
-    target_link_libraries(cutmachine_acp_client_tests PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_acp_client_tests
-             COMMAND cutmachine_acp_client_tests)
-    set_tests_properties(cutmachine_acp_client_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_acp_client_tests
+        SOURCES tests/acp_client_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # PRD22 -- ROADMAP.md. The Agent panel's "Moteur IA" dialog as policy
     # (AiEngineForm.h): the fields each protocol uses, their placeholders,
     # what the dialog opens with and the pinned ACP adapters. Portable: plain
     # C++, the AppKit form only applies it.
-    add_executable(cutmachine_ai_engine_form_tests
-                   tests/ai_engine_form_tests.cc)
-    target_link_libraries(cutmachine_ai_engine_form_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_ai_engine_form_tests
-             COMMAND cutmachine_ai_engine_form_tests)
-    set_tests_properties(cutmachine_ai_engine_form_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_ai_engine_form_tests
+        SOURCES tests/ai_engine_form_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # PRD26 -- docs/roadmap/PRODUIT-2026-10b.md. The window's form panel as
     # policy (FormPanelLayout.h): the keys and roles of its buttons, its
     # frames, how a refusal grows it, its colours. Portable: header-only, no
     # AppKit.
-    add_executable(cutmachine_form_panel_layout_tests
-                   tests/form_panel_layout_tests.cc)
-    target_include_directories(cutmachine_form_panel_layout_tests PRIVATE
-                               "${CMAKE_CURRENT_SOURCE_DIR}/src")
-    add_test(NAME cutmachine_form_panel_layout_tests
-             COMMAND cutmachine_form_panel_layout_tests)
-    set_tests_properties(cutmachine_form_panel_layout_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_form_panel_layout_tests
+        SOURCES tests/form_panel_layout_tests.cc
+        INCLUDES ${CUTMACHINE_SOURCE_DIRS}
+        LABELS portable)
 
     # The window's keyboard shortcuts as policy (KeyboardShortcuts.h): the
     # defaults, held to DaVinci Resolve's keys, and how a combination reads
     # and shows. Portable: header-only, no AppKit.
-    add_executable(cutmachine_keyboard_shortcuts_tests
-                   tests/keyboard_shortcuts_tests.cc)
-    target_include_directories(cutmachine_keyboard_shortcuts_tests PRIVATE
-                               "${CMAKE_CURRENT_SOURCE_DIR}/src")
-    add_test(NAME cutmachine_keyboard_shortcuts_tests
-             COMMAND cutmachine_keyboard_shortcuts_tests)
-    set_tests_properties(cutmachine_keyboard_shortcuts_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_keyboard_shortcuts_tests
+        SOURCES tests/keyboard_shortcuts_tests.cc
+        INCLUDES ${CUTMACHINE_SOURCE_DIRS}
+        LABELS portable)
 
     # FC4 -- docs/roadmap/FILMCRAFT-2026-10.md. The trim mode (TrimSession.h):
     # edit point selection, nudges, extend to the playhead, the J/K/L dynamic
     # trim on an injected clock, the Trim Monitor, each through the existing
     # trim operations and EditLog::Apply. Portable: no AppKit, no FFmpeg.
-    add_executable(cutmachine_trim_session_tests tests/trim_session_tests.cc)
-    target_link_libraries(cutmachine_trim_session_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_trim_session_tests
-             COMMAND cutmachine_trim_session_tests)
-    set_tests_properties(cutmachine_trim_session_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_trim_session_tests
+        SOURCES tests/trim_session_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # PRD1 -- docs/roadmap/PRODUIT-2026-10.md. The one launcher of other
     # programs, on /bin/sh, and the one resolution of the FFmpeg binary, on
     # shell scripts named ffmpeg. Portable: no AppKit, no FFmpeg, no network.
-    add_executable(cutmachine_process_launcher_tests
-                   tests/process_launcher_tests.cc)
-    target_link_libraries(cutmachine_process_launcher_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_process_launcher_tests
-             COMMAND cutmachine_process_launcher_tests)
-    set_tests_properties(cutmachine_process_launcher_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_process_launcher_tests
+        SOURCES tests/process_launcher_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # GN6a -- docs/roadmap/GENERATIF-2026-10.md. Where the local voice-over's
     # Python, script and models are looked for, what the engine hands the
     # script, and a run against a shell standing in for Python: the report
     # read back, a failure's error output kept, cancellation. Portable: no
     # AppKit, no FFmpeg, no model.
-    add_executable(cutmachine_voice_over_tests tests/voice_over_tests.cc)
-    target_link_libraries(cutmachine_voice_over_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_voice_over_tests
-             COMMAND cutmachine_voice_over_tests)
-    set_tests_properties(cutmachine_voice_over_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_voice_over_tests
+        SOURCES tests/voice_over_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # GN6b -- docs/roadmap/GENERATIF-2026-10.md. design_voice and
     # generate_voice_over on a project package, against a shell standing in
     # for Python that hands back a real WAV: ingested, marked, undone; the
     # refusal of any reference that is not a voice the engine made (DEC49).
     # Portable: no AppKit, no model; FFmpeg reads the WAV at ingest.
-    add_executable(cutmachine_voice_over_tools_tests
-                   tests/voice_over_tools_tests.cc)
-    target_link_libraries(cutmachine_voice_over_tools_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_voice_over_tools_tests
-             COMMAND cutmachine_voice_over_tools_tests)
-    set_tests_properties(cutmachine_voice_over_tools_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_voice_over_tools_tests
+        SOURCES tests/voice_over_tools_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # DEC39 -- docs/roadmap/PHASES-2026-08.md. Fichier › Ouvrir un projet…
     # and Nouveau projet… in the editor: the checks made before it reopens
     # on another project, on packages made in a temporary folder. Portable:
     # no AppKit, no FFmpeg, no network.
-    add_executable(cutmachine_project_switch_tests
-                   tests/project_switch_tests.cc)
-    target_link_libraries(cutmachine_project_switch_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_project_switch_tests
-             COMMAND cutmachine_project_switch_tests)
-    set_tests_properties(cutmachine_project_switch_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_project_switch_tests
+        SOURCES tests/project_switch_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # PRD2 -- docs/roadmap/PRODUIT-2026-10.md. FFmpeg checked before it
     # serves, against a script named ffmpeg that lists fewer filters and
     # encoders than the engine uses and logs every call it receives: the
     # refusal is named and nothing but the listings is launched. Portable:
     # no AppKit, no FFmpeg, no network.
-    add_executable(cutmachine_ffmpeg_capabilities_tests
-                   tests/ffmpeg_capabilities_tests.cc)
-    target_link_libraries(cutmachine_ffmpeg_capabilities_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_ffmpeg_capabilities_tests
-             COMMAND cutmachine_ffmpeg_capabilities_tests)
-    set_tests_properties(cutmachine_ffmpeg_capabilities_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_ffmpeg_capabilities_tests
+        SOURCES tests/ffmpeg_capabilities_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # PRD21 -- docs/roadmap/PRODUIT-2026-10b.md. The setup report, each item
     # in each state, on a machine the test makes up: no $HOME, no real key,
     # no Keychain, no FFmpeg launched. And the order MFA is looked for in.
     # Portable: no AppKit, no network.
-    add_executable(cutmachine_setup_check_tests tests/setup_check_tests.cc)
-    target_link_libraries(cutmachine_setup_check_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_setup_check_tests
-             COMMAND cutmachine_setup_check_tests)
-    set_tests_properties(cutmachine_setup_check_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_setup_check_tests
+        SOURCES tests/setup_check_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # AX-2026-09 AX6 -- how fc-list is read, how fontconfig compares a
     # family, which families a caption would export in another font, and
@@ -2787,152 +2485,108 @@ if(BUILD_TESTING)
     # Portable: no Core Text, and fontconfig is optional.
     # SYNCHRO-2026-10 SY2 -- a recorder's sound laid under its picture at a
     # given offset, linked, in one undo; then carried by a word cut. Portable.
-    add_executable(cutmachine_separate_sound_tests
-                   tests/separate_sound_tests.cc)
-    target_link_libraries(cutmachine_separate_sound_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_separate_sound_tests
-             COMMAND cutmachine_separate_sound_tests)
-    set_tests_properties(cutmachine_separate_sound_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_separate_sound_tests
+        SOURCES tests/separate_sound_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # SN4 -- docs/roadmap/SON-2026-10.md. A stem laid at its BWF timecode:
     # the header read, the renderer's rounding inverted, one undo. Portable.
-    add_executable(cutmachine_sound_stem_tests tests/sound_stem_tests.cc)
-    target_link_libraries(cutmachine_sound_stem_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_sound_stem_tests
-             COMMAND cutmachine_sound_stem_tests)
-    set_tests_properties(cutmachine_sound_stem_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_sound_stem_tests
+        SOURCES tests/sound_stem_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # SYNCHRO-2026-10 SY1 -- the offset between two sounds of one take, on
     # synthetic signals: exact to the sample, or refused by name. Portable.
-    add_executable(cutmachine_audio_offset_tests tests/audio_offset_tests.cc)
-    target_link_libraries(cutmachine_audio_offset_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_audio_offset_tests
-             COMMAND cutmachine_audio_offset_tests)
-    set_tests_properties(cutmachine_audio_offset_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_audio_offset_tests
+        SOURCES tests/audio_offset_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # MOTION-MARQUE-2026-10 MM1 -- the loudness meter and the limiter on
     # EBU Tech 3341's signals. Portable.
-    add_executable(cutmachine_loudness_tests tests/loudness_tests.cc)
-    target_link_libraries(cutmachine_loudness_tests PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_loudness_tests COMMAND cutmachine_loudness_tests)
-    set_tests_properties(cutmachine_loudness_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_loudness_tests
+        SOURCES tests/loudness_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # FC5 -- FILMCRAFT-2026-10. The sound-processing library against its
     # contract (blocks, allocations, latency, identity) and known answers.
     # Portable.
-    add_executable(cutmachine_audio_dsp_tests tests/audio_dsp_tests.cc)
-    target_link_libraries(cutmachine_audio_dsp_tests PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_audio_dsp_tests COMMAND cutmachine_audio_dsp_tests)
-    set_tests_properties(cutmachine_audio_dsp_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_audio_dsp_tests
+        SOURCES tests/audio_dsp_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # FC5 -- FFmpeg's RBJ biquads as an oracle for ours. Skipped (77), and
     # said so, without an FFmpeg that has them.
-    add_executable(cutmachine_audio_dsp_ffmpeg_tests
-                   tests/audio_dsp_ffmpeg_tests.cc)
-    target_link_libraries(cutmachine_audio_dsp_ffmpeg_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_audio_dsp_ffmpeg_tests
-             COMMAND cutmachine_audio_dsp_ffmpeg_tests)
+    cutmachine_add_test(cutmachine_audio_dsp_ffmpeg_tests
+        SOURCES tests/audio_dsp_ffmpeg_tests.cc
+        LIBS cutmachine_model)
     set_tests_properties(cutmachine_audio_dsp_ffmpeg_tests
                          PROPERTIES LABELS "portable" SKIP_RETURN_CODE 77)
 
     # FC6 -- FILMCRAFT-2026-10. The proposed ducking on synthetic voices,
     # to the sample. Portable.
-    add_executable(cutmachine_audio_dsp_ducking_tests
-                   tests/audio_dsp_ducking_tests.cc)
-    target_link_libraries(cutmachine_audio_dsp_ducking_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_audio_dsp_ducking_tests
-             COMMAND cutmachine_audio_dsp_ducking_tests)
-    set_tests_properties(cutmachine_audio_dsp_ducking_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_audio_dsp_ducking_tests
+        SOURCES tests/audio_dsp_ducking_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
-    add_executable(cutmachine_font_catalog_tests tests/font_catalog_tests.cc)
-    target_link_libraries(cutmachine_font_catalog_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_font_catalog_tests
-             COMMAND cutmachine_font_catalog_tests)
-    set_tests_properties(cutmachine_font_catalog_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_font_catalog_tests
+        SOURCES tests/font_catalog_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # PRD21, the window's part. What the window says of that report
     # (SetupNotice.h): the welcome screen's line when something required is
     # missing, the diagnosis in French, the window's own Whisper model and
     # Keychain key counted. Portable: plain C++, main.mm only shows it.
-    add_executable(cutmachine_setup_notice_tests
-                   tests/setup_notice_tests.cc)
-    target_link_libraries(cutmachine_setup_notice_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_setup_notice_tests
-             COMMAND cutmachine_setup_notice_tests)
-    set_tests_properties(cutmachine_setup_notice_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_setup_notice_tests
+        SOURCES tests/setup_notice_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # DEC23 -- docs/roadmap/LIVRAISON-2026-09-18.md. The window's Whisper
     # model written as the engine's setting, and the old preference migrated
     # once, on a settings file of the suite's own. Portable: plain C++.
-    add_executable(cutmachine_whisper_model_setting_tests
-                   tests/whisper_model_setting_tests.cc)
-    target_link_libraries(cutmachine_whisper_model_setting_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_whisper_model_setting_tests
-             COMMAND cutmachine_whisper_model_setting_tests)
-    set_tests_properties(cutmachine_whisper_model_setting_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_whisper_model_setting_tests
+        SOURCES tests/whisper_model_setting_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # HEADLESS-2026-10 H4 -- docs/roadmap/HEADLESS-2026-10.md. Where this
     # user's data and log go (UserDirectories.h), macOS and Linux from one
     # host. Portable: plain C++.
-    add_executable(cutmachine_user_directories_tests
-                   tests/user_directories_tests.cc)
-    target_link_libraries(cutmachine_user_directories_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_user_directories_tests
-             COMMAND cutmachine_user_directories_tests)
-    set_tests_properties(cutmachine_user_directories_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_user_directories_tests
+        SOURCES tests/user_directories_tests.cc
+        LIBS cutmachine_model
+        LABELS portable)
 
     # The whole chain with real processes: a fake ACP agent in Python starts
     # the real `--mcp-serve --stdio` binary the session hands it, and its
     # marker lands in the project through the engine. macOS only, like
     # cutmachine_mcp_endpoint_tests (ProjectStorage, the binary).
-    add_executable(cutmachine_acp_agent_tests tests/acp_agent_tests.cc)
-    target_link_libraries(cutmachine_acp_agent_tests PRIVATE cutmachine_model)
-    target_compile_definitions(cutmachine_acp_agent_tests PRIVATE
-        CUTMACHINE_EXECUTABLE="$<TARGET_FILE:cutmachine>"
-        CUTMACHINE_PYTHON="${Python3_EXECUTABLE}"
-        CUTMACHINE_FAKE_ACP_AGENT="${CMAKE_CURRENT_SOURCE_DIR}/tests/fake_acp_agent.py")
-    add_dependencies(cutmachine_acp_agent_tests cutmachine)
-    add_test(NAME cutmachine_acp_agent_tests
-             COMMAND cutmachine_acp_agent_tests)
+    cutmachine_add_test(cutmachine_acp_agent_tests
+        SOURCES tests/acp_agent_tests.cc
+        DEFINITIONS
+            CUTMACHINE_EXECUTABLE="$<TARGET_FILE:cutmachine>"
+            CUTMACHINE_PYTHON="${Python3_EXECUTABLE}"
+            CUTMACHINE_FAKE_ACP_AGENT="${CMAKE_CURRENT_SOURCE_DIR}/tests/fake_acp_agent.py"
+        LIBS cutmachine_model
+        DEPENDS cutmachine)
 
-    # F1.3 -- wheels and curves (ROADMAP.md). Compiles src/shader.metal as
+    # F1.3 -- wheels and curves (ROADMAP.md). Compiles src/app/shader.metal as
     # Renderer.mm does and compares its applyColorGrade, on the GPU, with
     # ColorEffects.cc's. Needs a Metal device, not a window; skipped (77)
     # without one.
-    add_executable(cutmachine_color_grade_shader_tests
-                   tests/color_grade_shader_tests.mm)
-    target_compile_options(cutmachine_color_grade_shader_tests PRIVATE
-        $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>
-    )
-    target_compile_definitions(cutmachine_color_grade_shader_tests PRIVATE
-        CUTMACHINE_SHADER_SOURCE="${CMAKE_CURRENT_SOURCE_DIR}/src/shader.metal"
-    )
-    target_link_libraries(cutmachine_color_grade_shader_tests PRIVATE
-        cutmachine_model
-        "-framework Foundation"
-        "-framework Metal"
-    )
-    add_test(NAME cutmachine_color_grade_shader_tests
-             COMMAND cutmachine_color_grade_shader_tests)
+    cutmachine_add_test(cutmachine_color_grade_shader_tests
+        SOURCES tests/color_grade_shader_tests.mm
+        OPTIONS $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>
+        DEFINITIONS
+            CUTMACHINE_SHADER_SOURCE="${CMAKE_CURRENT_SOURCE_DIR}/src/app/shader.metal"
+        LIBS cutmachine_model "-framework Foundation" "-framework Metal")
     set_tests_properties(cutmachine_color_grade_shader_tests PROPERTIES
                          SKIP_RETURN_CODE 77)
 
@@ -2940,22 +2594,12 @@ if(BUILD_TESTING)
     # monitor is mixed in the SDR display view. Compiles the real shader and
     # compares its compositeDisplayReferred with ColorManagement.cc's rule,
     # on the GPU. Skipped (77) without a Metal device.
-    add_executable(cutmachine_display_referred_shader_tests
-                   tests/display_referred_shader_tests.mm)
-    target_compile_options(cutmachine_display_referred_shader_tests PRIVATE
-        $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>
-    )
-    target_compile_definitions(cutmachine_display_referred_shader_tests
-        PRIVATE
-        CUTMACHINE_SHADER_SOURCE="${CMAKE_CURRENT_SOURCE_DIR}/src/shader.metal"
-    )
-    target_link_libraries(cutmachine_display_referred_shader_tests PRIVATE
-        cutmachine_model
-        "-framework Foundation"
-        "-framework Metal"
-    )
-    add_test(NAME cutmachine_display_referred_shader_tests
-             COMMAND cutmachine_display_referred_shader_tests)
+    cutmachine_add_test(cutmachine_display_referred_shader_tests
+        SOURCES tests/display_referred_shader_tests.mm
+        OPTIONS $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>
+        DEFINITIONS
+            CUTMACHINE_SHADER_SOURCE="${CMAKE_CURRENT_SOURCE_DIR}/src/app/shader.metal"
+        LIBS cutmachine_model "-framework Foundation" "-framework Metal")
     set_tests_properties(cutmachine_display_referred_shader_tests PROPERTIES
                          SKIP_RETURN_CODE 77)
 
@@ -2963,39 +2607,31 @@ if(BUILD_TESTING)
     # (Renderer.mm, frames from the app's DecodeWorker) beside the exported
     # file, patch by patch, graded and with motion, with and without colour
     # management. Skipped (77) without a Metal device.
-    add_executable(cutmachine_monitor_export_parity_tests
-        tests/monitor_export_parity_tests.mm
-        src/Renderer.mm
-        src/MetalUiAtlas.mm
-        src/DecodeWorker.cc
-        src/FrameCache.cc
-        src/ReadAhead.cc
-        src/PerformanceMetrics.cc
-        src/MediaSource.mm
-    )
-    add_dependencies(cutmachine_monitor_export_parity_tests
-                     cutmachine_ui_icons)
-    target_include_directories(cutmachine_monitor_export_parity_tests
-                               PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
-    target_compile_options(cutmachine_monitor_export_parity_tests PRIVATE
-        $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>
-    )
-    target_compile_definitions(cutmachine_monitor_export_parity_tests PRIVATE
-        CUTMACHINE_SHADER_PATH="${SHADER_RUNTIME_PATH}"
-        CUTMACHINE_ICON_DIR="${CUTMACHINE_ICON_OUTPUT_DIR}"
-        FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}"
-    )
-    target_link_libraries(cutmachine_monitor_export_parity_tests PRIVATE
-        cutmachine_motion_render
-        PkgConfig::FFMPEG
-        "-framework AppKit"
-        "-framework Foundation"
-        "-framework Metal"
-        "-framework MetalPerformanceShaders"
-        "-framework QuartzCore"
-    )
-    add_test(NAME cutmachine_monitor_export_parity_tests
-             COMMAND cutmachine_monitor_export_parity_tests)
+    cutmachine_add_test(cutmachine_monitor_export_parity_tests
+        SOURCES
+            tests/monitor_export_parity_tests.mm
+            src/app/Renderer.mm
+            src/app/MetalUiAtlas.mm
+            src/app/DecodeWorker.cc
+            src/app/FrameCache.cc
+            src/ui/ReadAhead.cc
+            src/app/PerformanceMetrics.cc
+            src/app/MediaSource.mm
+        INCLUDES ${CUTMACHINE_SOURCE_DIRS}
+        OPTIONS $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>
+        DEFINITIONS
+            CUTMACHINE_SHADER_PATH="${SHADER_RUNTIME_PATH}"
+            CUTMACHINE_ICON_DIR="${CUTMACHINE_ICON_OUTPUT_DIR}"
+            FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}"
+        LIBS
+            cutmachine_motion_render
+            PkgConfig::FFMPEG
+            "-framework AppKit"
+            "-framework Foundation"
+            "-framework Metal"
+            "-framework MetalPerformanceShaders"
+            "-framework QuartzCore"
+        DEPENDS cutmachine_ui_icons)
     set_tests_properties(cutmachine_monitor_export_parity_tests PROPERTIES
                          SKIP_RETURN_CODE 77 TIMEOUT 300)
 
@@ -3003,32 +2639,25 @@ if(BUILD_TESTING)
     # colour read back from the monitor's own passes: the marks land where
     # VideoScopes.h places them, and each level is painted its band.
     # Skipped (77) without a Metal device.
-    add_executable(cutmachine_video_scope_render_tests
-        tests/video_scope_render_tests.mm
-        src/Renderer.mm
-        src/MetalUiAtlas.mm
-    )
-    add_dependencies(cutmachine_video_scope_render_tests cutmachine_ui_icons)
-    target_include_directories(cutmachine_video_scope_render_tests
-                               PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
-    target_compile_options(cutmachine_video_scope_render_tests PRIVATE
-        $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>
-    )
-    target_compile_definitions(cutmachine_video_scope_render_tests PRIVATE
-        CUTMACHINE_SHADER_PATH="${SHADER_RUNTIME_PATH}"
-        CUTMACHINE_ICON_DIR="${CUTMACHINE_ICON_OUTPUT_DIR}"
-    )
-    target_link_libraries(cutmachine_video_scope_render_tests PRIVATE
-        cutmachine_model
-        PkgConfig::FFMPEG
-        "-framework AppKit"
-        "-framework Foundation"
-        "-framework Metal"
-        "-framework MetalPerformanceShaders"
-        "-framework QuartzCore"
-    )
-    add_test(NAME cutmachine_video_scope_render_tests
-             COMMAND cutmachine_video_scope_render_tests)
+    cutmachine_add_test(cutmachine_video_scope_render_tests
+        SOURCES
+            tests/video_scope_render_tests.mm
+            src/app/Renderer.mm
+            src/app/MetalUiAtlas.mm
+        INCLUDES ${CUTMACHINE_SOURCE_DIRS}
+        OPTIONS $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>
+        DEFINITIONS
+            CUTMACHINE_SHADER_PATH="${SHADER_RUNTIME_PATH}"
+            CUTMACHINE_ICON_DIR="${CUTMACHINE_ICON_OUTPUT_DIR}"
+        LIBS
+            cutmachine_model
+            PkgConfig::FFMPEG
+            "-framework AppKit"
+            "-framework Foundation"
+            "-framework Metal"
+            "-framework MetalPerformanceShaders"
+            "-framework QuartzCore"
+        DEPENDS cutmachine_ui_icons)
     set_tests_properties(cutmachine_video_scope_render_tests PROPERTIES
                          SKIP_RETURN_CODE 77 TIMEOUT 120)
 
@@ -3036,33 +2665,25 @@ if(BUILD_TESTING)
     # loop through the monitor's passes: grabbed, then shown beside the
     # live picture, with and without colour management. Skipped (77)
     # without a Metal device.
-    add_executable(cutmachine_monitor_compare_render_tests
-        tests/monitor_compare_render_tests.mm
-        src/Renderer.mm
-        src/MetalUiAtlas.mm
-    )
-    add_dependencies(cutmachine_monitor_compare_render_tests
-                     cutmachine_ui_icons)
-    target_include_directories(cutmachine_monitor_compare_render_tests
-                               PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
-    target_compile_options(cutmachine_monitor_compare_render_tests PRIVATE
-        $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>
-    )
-    target_compile_definitions(cutmachine_monitor_compare_render_tests PRIVATE
-        CUTMACHINE_SHADER_PATH="${SHADER_RUNTIME_PATH}"
-        CUTMACHINE_ICON_DIR="${CUTMACHINE_ICON_OUTPUT_DIR}"
-    )
-    target_link_libraries(cutmachine_monitor_compare_render_tests PRIVATE
-        cutmachine_model
-        PkgConfig::FFMPEG
-        "-framework AppKit"
-        "-framework Foundation"
-        "-framework Metal"
-        "-framework MetalPerformanceShaders"
-        "-framework QuartzCore"
-    )
-    add_test(NAME cutmachine_monitor_compare_render_tests
-             COMMAND cutmachine_monitor_compare_render_tests)
+    cutmachine_add_test(cutmachine_monitor_compare_render_tests
+        SOURCES
+            tests/monitor_compare_render_tests.mm
+            src/app/Renderer.mm
+            src/app/MetalUiAtlas.mm
+        INCLUDES ${CUTMACHINE_SOURCE_DIRS}
+        OPTIONS $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>
+        DEFINITIONS
+            CUTMACHINE_SHADER_PATH="${SHADER_RUNTIME_PATH}"
+            CUTMACHINE_ICON_DIR="${CUTMACHINE_ICON_OUTPUT_DIR}"
+        LIBS
+            cutmachine_model
+            PkgConfig::FFMPEG
+            "-framework AppKit"
+            "-framework Foundation"
+            "-framework Metal"
+            "-framework MetalPerformanceShaders"
+            "-framework QuartzCore"
+        DEPENDS cutmachine_ui_icons)
     set_tests_properties(cutmachine_monitor_compare_render_tests PROPERTIES
                          SKIP_RETURN_CODE 77 TIMEOUT 120)
 
@@ -3070,97 +2691,66 @@ if(BUILD_TESTING)
     # Record: the monitor's passes render the same values with it and
     # without it, with and without colour management. Skipped (77) without
     # a Metal device.
-    add_executable(cutmachine_monitor_occlusion_render_tests
-        tests/monitor_occlusion_render_tests.mm
-        src/Renderer.mm
-        src/MetalUiAtlas.mm
-    )
-    add_dependencies(cutmachine_monitor_occlusion_render_tests
-                     cutmachine_ui_icons)
-    target_include_directories(cutmachine_monitor_occlusion_render_tests
-                               PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
-    target_compile_options(cutmachine_monitor_occlusion_render_tests PRIVATE
-        $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>
-    )
-    target_compile_definitions(cutmachine_monitor_occlusion_render_tests
-                               PRIVATE
-        CUTMACHINE_SHADER_PATH="${SHADER_RUNTIME_PATH}"
-        CUTMACHINE_ICON_DIR="${CUTMACHINE_ICON_OUTPUT_DIR}"
-    )
-    target_link_libraries(cutmachine_monitor_occlusion_render_tests PRIVATE
-        cutmachine_model
-        PkgConfig::FFMPEG
-        "-framework AppKit"
-        "-framework Foundation"
-        "-framework Metal"
-        "-framework MetalPerformanceShaders"
-        "-framework QuartzCore"
-    )
-    add_test(NAME cutmachine_monitor_occlusion_render_tests
-             COMMAND cutmachine_monitor_occlusion_render_tests)
+    cutmachine_add_test(cutmachine_monitor_occlusion_render_tests
+        SOURCES
+            tests/monitor_occlusion_render_tests.mm
+            src/app/Renderer.mm
+            src/app/MetalUiAtlas.mm
+        INCLUDES ${CUTMACHINE_SOURCE_DIRS}
+        OPTIONS $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>
+        DEFINITIONS
+            CUTMACHINE_SHADER_PATH="${SHADER_RUNTIME_PATH}"
+            CUTMACHINE_ICON_DIR="${CUTMACHINE_ICON_OUTPUT_DIR}"
+        LIBS
+            cutmachine_model
+            PkgConfig::FFMPEG
+            "-framework AppKit"
+            "-framework Foundation"
+            "-framework Metal"
+            "-framework MetalPerformanceShaders"
+            "-framework QuartzCore"
+        DEPENDS cutmachine_ui_icons)
     set_tests_properties(cutmachine_monitor_occlusion_render_tests PROPERTIES
                          SKIP_RETURN_CODE 77 TIMEOUT 120)
 
-    add_executable(cutmachine_audio_playback_tests
-        tests/audio_playback_tests.mm
-        src/AudioPlayback.mm
-        src/AudioDecode.cc
-    )
-    target_compile_options(cutmachine_audio_playback_tests PRIVATE
-        $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>
-    )
-    target_compile_definitions(cutmachine_audio_playback_tests PRIVATE
-        FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}"
-    )
-    target_link_libraries(cutmachine_audio_playback_tests PRIVATE
-        cutmachine_model
-        PkgConfig::FFMPEG
-        "-framework AVFAudio"
-        "-framework Foundation"
-    )
-    add_test(NAME cutmachine_audio_playback_tests
-             COMMAND cutmachine_audio_playback_tests)
+    cutmachine_add_test(cutmachine_audio_playback_tests
+        SOURCES
+            tests/audio_playback_tests.mm
+            src/app/AudioPlayback.mm
+            src/app/AudioDecode.cc
+        OPTIONS $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>
+        DEFINITIONS FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}"
+        LIBS
+            cutmachine_model
+            PkgConfig::FFMPEG
+            "-framework AVFAudio"
+            "-framework Foundation")
 
     # Native AppKit/Metal smoke test. It launches the real AppDelegate against
     # a disposable project and exercises target/action wiring in-process, so
     # it needs a macOS WindowServer but no Accessibility permission.
     # PRD8 -- docs/roadmap/PRODUIT-2026-10.md. The harness is a category of
     # AppDelegate in its own file, compiled into this target alone.
-    add_executable(cutmachine_ui_smoke_tests ${CUTMACHINE_APP_SOURCES}
-                   src/UiSmokeHarness.mm)
-    add_dependencies(cutmachine_ui_smoke_tests cutmachine_ui_icons)
-    target_include_directories(cutmachine_ui_smoke_tests
-                               PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
-    target_compile_options(cutmachine_ui_smoke_tests PRIVATE
-        $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>
-    )
-    target_compile_definitions(cutmachine_ui_smoke_tests PRIVATE
-        CUTMACHINE_UI_SMOKE_TEST=1
-        CUTMACHINE_SHADER_PATH="${SHADER_RUNTIME_PATH}"
-        CUTMACHINE_ICON_DIR="${CUTMACHINE_ICON_OUTPUT_DIR}"
-        # PERF-2026-09. The smoke fixture's media used to be a text file, so
-        # every source in it was offline and no decoder ever opened. Real
-        # media is what lets the smoke run assert anything about decoders at
-        # all -- and it puts actual frames through the monitors besides.
-        FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}"
-    )
-    # cutmachine_motion_render links cutmachine_model publicly; naming the
-    # model first as well put the archive twice on the link line.
-    target_link_libraries(cutmachine_ui_smoke_tests PRIVATE
-        cutmachine_motion_render
-        PkgConfig::FFMPEG
-        "-framework AppKit"
-        "-framework AVFAudio"
-        "-framework Foundation"
-        "-framework Metal"
-        "-framework MetalPerformanceShaders"
-        "-framework QuartzCore"
-        "-framework ScreenCaptureKit"
-        "-framework Security"
-        "-framework UniformTypeIdentifiers"
-    )
-    add_test(NAME cutmachine_ui_smoke_tests
-             COMMAND cutmachine_ui_smoke_tests --ui-smoke)
+    # STRUCTURE-2026-11 ST1 -- it links the editor's own objects, under an
+    # entry that installs the hooks it observes them through
+    # (src/app/AppTestHooks.h, tests/ui_smoke/UiSmokeMain.mm).
+    cutmachine_add_test(cutmachine_ui_smoke_tests
+        SOURCES
+            $<TARGET_OBJECTS:cutmachine_app_objects>
+            tests/ui_smoke/UiSmokeMain.mm
+            tests/ui_smoke/UiSmokeHarness.mm
+        INCLUDES
+            ${CUTMACHINE_SOURCE_DIRS}
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/ui_smoke"
+        OPTIONS $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>
+        DEFINITIONS
+            # PERF-2026-09. The smoke fixture's media used to be a text file, so
+            # every source in it was offline and no decoder ever opened. Real
+            # media is what lets the smoke run assert anything about decoders at
+            # all -- and it puts actual frames through the monitors besides.
+            FFMPEG_EXECUTABLE="${FFMPEG_EXECUTABLE}"
+        LIBS cutmachine_app_objects "-framework ScreenCaptureKit"
+        ARGS --ui-smoke)
     # PERF7 -- ROADMAP.md. The smoke run keeps the timeline render cost
     # report on, so the path main.mm takes when the editor is measured is the
     # one this test exercises; the report lands in the build tree, never in a
@@ -3180,14 +2770,10 @@ if(BUILD_TESTING)
     # PRD28 -- how the window test reports a check it could not play: what
     # each need asks of the screen, its last line, the status CTest reads.
     # Portable: header-only, no AppKit, no window.
-    add_executable(cutmachine_smoke_report_tests
-                   tests/smoke_report_tests.cc)
-    target_include_directories(cutmachine_smoke_report_tests PRIVATE
-                               "${CMAKE_CURRENT_SOURCE_DIR}/src")
-    add_test(NAME cutmachine_smoke_report_tests
-             COMMAND cutmachine_smoke_report_tests)
-    set_tests_properties(cutmachine_smoke_report_tests
-                         PROPERTIES LABELS "portable")
+    cutmachine_add_test(cutmachine_smoke_report_tests
+        SOURCES tests/smoke_report_tests.cc
+        INCLUDES ${CUTMACHINE_SOURCE_DIRS}
+        LABELS portable)
 
     add_test(
         NAME cutmachine_sidecar_tests
@@ -3212,26 +2798,17 @@ if(BUILD_TESTING)
     # artifacts under "Test copilot/". Register them here so exact-time,
     # stateful edit-log and storage-failure properties run with the normal
     # local CTest gate instead of existing only as unaudited source files.
-    add_executable(cutmachine_rational_time_property_tests
-                   tests/rational_time_property_tests.cc)
-    target_link_libraries(cutmachine_rational_time_property_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_rational_time_property_tests
-             COMMAND cutmachine_rational_time_property_tests)
+    cutmachine_add_test(cutmachine_rational_time_property_tests
+        SOURCES tests/rational_time_property_tests.cc
+        LIBS cutmachine_model)
 
-    add_executable(cutmachine_edit_sequence_tests
-                   tests/edit_sequence_tests.cc)
-    target_link_libraries(cutmachine_edit_sequence_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_edit_sequence_tests
-             COMMAND cutmachine_edit_sequence_tests)
+    cutmachine_add_test(cutmachine_edit_sequence_tests
+        SOURCES tests/edit_sequence_tests.cc
+        LIBS cutmachine_model)
 
-    add_executable(cutmachine_storage_fault_injection_tests
-                   tests/storage_fault_injection_tests.cc)
-    target_link_libraries(cutmachine_storage_fault_injection_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_storage_fault_injection_tests
-             COMMAND cutmachine_storage_fault_injection_tests)
+    cutmachine_add_test(cutmachine_storage_fault_injection_tests
+        SOURCES tests/storage_fault_injection_tests.cc
+        LIBS cutmachine_model)
 
     set_tests_properties(
         cutmachine_rational_time_property_tests
@@ -3245,60 +2822,43 @@ if(BUILD_TESTING)
     # markers: every operation is refused without a trace, or validates and
     # undoes and redoes byte for byte, and the whole sequence undoes to the
     # start. CUTMACHINE_OP_SEED replays the seed a failure prints.
-    add_executable(cutmachine_operation_property_tests
-                   tests/operation_property_tests.cc)
-    target_link_libraries(cutmachine_operation_property_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_operation_property_tests
-             COMMAND cutmachine_operation_property_tests)
-    set_tests_properties(cutmachine_operation_property_tests PROPERTIES
-        LABELS "portable;regression"
-    )
+    cutmachine_add_test(cutmachine_operation_property_tests
+        SOURCES tests/operation_property_tests.cc
+        LIBS cutmachine_model
+        LABELS portable regression)
 
     # S6 -- SAVING_ROADMAP.md. Project history recorded as deltas: every
     # project operation round-trips byte for byte on an interview-sized
     # fixture with a bounded journal entry, and a pre-S6 journal still
     # replays and shrinks once read.
-    add_executable(cutmachine_project_history_tests
-                   tests/project_history_tests.cc)
-    target_link_libraries(cutmachine_project_history_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_project_history_tests
-             COMMAND cutmachine_project_history_tests)
+    cutmachine_add_test(cutmachine_project_history_tests
+        SOURCES tests/project_history_tests.cc
+        LIBS cutmachine_model)
 
     # DEC24 -- SAVING_ROADMAP.md. A project journal written before S6,
     # frozen in tests/fixtures/project_log, migrated at the opening under
     # the session lock: written back as deltas, the rest of the package byte
     # for byte, every undo and redo where it was. Plain C++.
-    add_executable(cutmachine_project_log_migration_tests
-                   tests/project_log_migration_tests.cc)
-    target_link_libraries(cutmachine_project_log_migration_tests
-                          PRIVATE cutmachine_model)
-    target_compile_definitions(cutmachine_project_log_migration_tests PRIVATE
-        PROJECT_LOG_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/project_log")
-    add_test(NAME cutmachine_project_log_migration_tests
-             COMMAND cutmachine_project_log_migration_tests)
+    cutmachine_add_test(cutmachine_project_log_migration_tests
+        SOURCES tests/project_log_migration_tests.cc
+        DEFINITIONS
+            PROJECT_LOG_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/project_log"
+        LIBS cutmachine_model)
 
     # S7 -- SAVING_ROADMAP.md. Project file version 3: canonical round trip,
     # version-2 files migrated to the same project, and a file that grows
     # with each timeline's content rather than with copies of the library.
-    add_executable(cutmachine_project_format_tests
-                   tests/project_format_tests.cc)
-    target_link_libraries(cutmachine_project_format_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_project_format_tests
-             COMMAND cutmachine_project_format_tests)
+    cutmachine_add_test(cutmachine_project_format_tests
+        SOURCES tests/project_format_tests.cc
+        LIBS cutmachine_model)
 
     # S8 -- SAVING_ROADMAP.md. The reproducible save benchmark PERF-2026-09
     # lacked: an interview-shaped package built in memory, driven through
     # the CLI and the editor's commit path, with the bytes written held to
     # bounds and every timing printed.
-    add_executable(cutmachine_save_benchmark_tests
-                   tests/save_benchmark_tests.cc)
-    target_link_libraries(cutmachine_save_benchmark_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_save_benchmark_tests
-             COMMAND cutmachine_save_benchmark_tests)
+    cutmachine_add_test(cutmachine_save_benchmark_tests
+        SOURCES tests/save_benchmark_tests.cc
+        LIBS cutmachine_model)
 
     set_tests_properties(
         cutmachine_storage_fault_injection_tests
@@ -3318,14 +2878,11 @@ if(BUILD_TESTING)
     # PERF8 -- ROADMAP.md. The load side of the same reference: opening a
     # project and an MCP server's tool calls, on S8's fixture, with the work
     # each step does (package parses, media probes, media hashes, package
-    # files committed -- src/WorkCounters.h) held to bounds and every timing
+    # files committed -- src/engine/WorkCounters.h) held to bounds and every timing
     # printed. scripts/perf_bench.sh runs it on the external drive.
-    add_executable(cutmachine_load_benchmark_tests
-                   tests/load_benchmark_tests.cc)
-    target_link_libraries(cutmachine_load_benchmark_tests
-                          PRIVATE cutmachine_model)
-    add_test(NAME cutmachine_load_benchmark_tests
-             COMMAND cutmachine_load_benchmark_tests)
+    cutmachine_add_test(cutmachine_load_benchmark_tests
+        SOURCES tests/load_benchmark_tests.cc
+        LIBS cutmachine_model)
     set_tests_properties(cutmachine_load_benchmark_tests PROPERTIES
         LABELS "storage;perf"
         TIMEOUT 300

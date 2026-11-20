@@ -9,6 +9,7 @@
 #include "ClipFraming.h"
 #include "EditLog.h"
 #include "Operations.h"
+#include "ShotQuality.h"
 #include "Stabilization.h"
 
 #include <cmath>
@@ -21,28 +22,9 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
-
-template <typename Function>
-void Test(const std::string& name, Function function) {
-    const int before = failures;
-    try {
-        function();
-        if (failures == before) std::cout << "PASS: " << name << '\n';
-    } catch (const std::exception& exception) {
-        ++failures;
-        std::cerr << "FAIL: " << name << ": " << exception.what() << '\n';
-    }
-}
 
 double Fraction(const EffectParamValue& value) {
     return static_cast<double>(value.num) / static_cast<double>(value.den);
@@ -542,6 +524,93 @@ int main() {
               "a rush that is not there: " + error);
         std::error_code ignored;
         std::filesystem::remove_all(directory, ignored);
+    });
+
+    Test("a subject crossing part of the frame is not the camera", [] {
+        // Two 768 x 432 analysis planes: a still texture the camera moves
+        // across by whole pixels, and a band down the middle -- the centre
+        // column of blocks -- where a subject of another texture moves the
+        // other way.
+        constexpr int32_t kWidth = 768;
+        constexpr int32_t kHeight = 432;
+        const auto texture = [](int64_t x, int64_t y, int64_t salt) {
+            return static_cast<uint8_t>(
+                std::lround(127.5 + 127.5 * Tremble((y * 4099) + x, salt)));
+        };
+        const auto planes = [&](int32_t subjectDx) {
+            std::vector<uint8_t> previous(kWidth * kHeight);
+            std::vector<uint8_t> current(kWidth * kHeight);
+            for (int32_t y = 0; y < kHeight; ++y) {
+                for (int32_t x = 0; x < kWidth; ++x) {
+                    const bool subject = subjectDx != 0 && x >= 300 && x < 470;
+                    const size_t index = static_cast<size_t>(y) * kWidth + x;
+                    if (subject) {
+                        previous[index] = texture(x, y, 2);
+                        current[index] = texture(x - subjectDx, y, 2);
+                    } else {
+                        previous[index] = texture(x, y, 1);
+                        current[index] = texture(x - 3, y + 2, 1);
+                    }
+                }
+            }
+            return std::make_pair(previous, current);
+        };
+        const auto [still, moved] = planes(0);
+        const GlobalMotion camera =
+            EstimateGlobalMotion(still.data(), moved.data(), kWidth, kHeight);
+        const GlobalMotion cameraConsensus =
+            EstimateGlobalMotion(still.data(), moved.data(), kWidth, kHeight,
+                                 GlobalMotionFit::Consensus);
+        Check(camera.blocks == 9 &&
+                  std::fabs(camera.translation_x - 3.0) < 0.3 &&
+                  std::fabs(camera.translation_y + 2.0) < 0.3,
+              "the camera alone is read: " +
+                  std::to_string(camera.translation_x) + ", " +
+                  std::to_string(camera.translation_y));
+        Check(cameraConsensus.set_aside == 0 &&
+                  cameraConsensus.translation_x == camera.translation_x &&
+                  cameraConsensus.translation_y == camera.translation_y &&
+                  cameraConsensus.zoom == camera.zoom,
+              "where every block agrees, the consensus is the same fit to "
+              "the bit");
+
+        const auto [before, after] = planes(-7);
+        const GlobalMotion all =
+            EstimateGlobalMotion(before.data(), after.data(), kWidth, kHeight);
+        const GlobalMotion consensus =
+            EstimateGlobalMotion(before.data(), after.data(), kWidth, kHeight,
+                                 GlobalMotionFit::Consensus);
+        Check(all.blocks == 9 && all.set_aside == 0 &&
+                  std::fabs(all.translation_x - camera.translation_x) > 2.0,
+              "every block fitted, the subject drags the camera: " +
+                  std::to_string(all.translation_x));
+        Check(consensus.blocks == 9 && consensus.set_aside == 3 &&
+                  std::fabs(consensus.translation_x - camera.translation_x) <
+                      0.25 &&
+                  std::fabs(consensus.translation_y - camera.translation_y) <
+                      0.25,
+              "the three blocks of the subject are left out: " +
+                  std::to_string(consensus.set_aside) + " set aside, " +
+                  std::to_string(consensus.translation_x) + ", " +
+                  std::to_string(consensus.translation_y));
+    });
+
+    Test("frames whose blocks were left out are counted", [] {
+        StabilizationInput input = Landscape(50);
+        std::vector<double> placeX;
+        std::vector<double> placeY;
+        Shake(input, 0.0, 2.0 / 1920.0, placeX, placeY);
+        for (size_t frame = 10; frame < 20; ++frame)
+            input.motion[frame].blocks_set_aside = 3;
+        StabilizationResult result;
+        std::string error;
+        Check(ComputeStabilization(input, {}, result, error) &&
+                  result.frames_blocks_set_aside == 10,
+              "ten frames had blocks left out: " +
+                  std::to_string(result.frames_blocks_set_aside) + error);
+        const std::string json = SerializeStabilizationResult(result);
+        Check(json.find("\"frames_blocks_set_aside\":10") != std::string::npos,
+              "and the answer says so: " + json);
     });
 
     return failures == 0 ? 0 : 1;

@@ -28,18 +28,11 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace {
 
 namespace fs = std::filesystem;
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 std::string Quote(const std::string& text) { return "'" + text + "'"; }
 

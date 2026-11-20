@@ -29,6 +29,8 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 // Every allocation of the process is counted while `g_counting` is set: the
 // contract is that Process, SetParameter and Reset make none.
 namespace {
@@ -56,15 +58,6 @@ namespace {
 using audio_dsp::CreateEffect;
 using audio_dsp::Effect;
 using audio_dsp::EffectIds;
-
-int failures = 0;
-
-void Check(bool condition, const std::string& label) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << label << '\n';
-    }
-}
 
 std::string Text(double value) { return std::to_string(value); }
 

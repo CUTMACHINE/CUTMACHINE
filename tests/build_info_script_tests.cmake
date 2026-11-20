@@ -4,7 +4,7 @@
 # run with nothing changed leaves the generated source untouched -- which is
 # what keeps a build at the same commit from recompiling it.
 #
-#   cmake -DSCRIPT=<cmake/BuildInfo.cmake> -DTEMPLATE=<src/BuildInfo.cc.in>
+#   cmake -DSCRIPT=<cmake/BuildInfo.cmake> -DTEMPLATE=<src/engine/BuildInfo.cc.in>
 #         -DWORK_DIR=<scratch directory> -DGIT_EXECUTABLE=<git>
 #         -P build_info_script_tests.cmake
 

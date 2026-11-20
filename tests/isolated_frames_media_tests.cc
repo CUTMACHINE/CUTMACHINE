@@ -20,6 +20,8 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 // R8 -- docs/roadmap/REEL-2026-09.md. The decode half. Everything about
 // which frames are isolated is settled in isolated_frames_tests.cc on
 // synthetic series; this file proves the pass actually feeds them the frames
@@ -28,15 +30,6 @@
 // one thing a select expression and a muxer's cadence can silently ruin.
 
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 std::string Quote(const std::filesystem::path& path) {
     std::string result = "'";

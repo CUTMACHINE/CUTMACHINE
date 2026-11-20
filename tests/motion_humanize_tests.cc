@@ -19,18 +19,11 @@
 #include <tuple>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace {
 
 using mcp_json::Value;
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 Value Json(const std::string& text) {
     Value value;

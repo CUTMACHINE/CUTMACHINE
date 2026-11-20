@@ -1,7 +1,7 @@
 # Stockage, portabilité et partage des projets
 
-> Relu contre le code le 3 octobre 2026 (`src/ProjectStorage.cc`,
-> `src/DocumentFormat.cc`, `src/Cli.cc`, `src/LookLutStorage.h`). Non
+> Relu contre le code le 3 octobre 2026 (`src/engine/ProjectStorage.cc`,
+> `src/engine/DocumentFormat.cc`, `src/agent/Cli.cc`, `src/engine/LookLutStorage.h`). Non
 > vérifié : la page de démarrage et l’avertissement d’intégrité tels que la
 > fenêtre les présente, et les trois critères non cochés de la section 7.
 

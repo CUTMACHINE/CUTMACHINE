@@ -13,32 +13,13 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 #ifndef GOLDEN_OUTPUT_DIR
 #error "GOLDEN_OUTPUT_DIR names where the tests may write"
 #endif
 
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
-
-template <typename Function>
-void Test(const std::string& name, Function function) {
-    const int before = failures;
-    try {
-        function();
-        if (failures == before) std::cout << "PASS: " << name << '\n';
-    } catch (const std::exception& e) {
-        ++failures;
-        std::cerr << "FAIL: " << name << ": threw: " << e.what() << '\n';
-    }
-}
 
 // A ramp over x and y, a constant blue and an alpha that varies: every
 // channel carries something a decoder could swap or drop.

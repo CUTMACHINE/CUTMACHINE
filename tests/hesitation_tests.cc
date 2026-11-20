@@ -9,19 +9,12 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 // ITW2 -- ROADMAP.md. A vowel held on fixed formants is a hesitation
 // candidate; speech whose formants keep moving is not.
 
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 constexpr double kPi = 3.14159265358979323846;
 constexpr int kRate = 16000;

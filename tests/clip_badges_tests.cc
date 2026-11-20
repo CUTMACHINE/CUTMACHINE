@@ -25,30 +25,9 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
-
-template <typename Function>
-void Test(const std::string& name, Function function) {
-    const int before = failures;
-    try {
-        function();
-        if (failures == before) {
-            std::cout << "PASS: " << name << '\n';
-        }
-    } catch (const std::exception& exception) {
-        ++failures;
-        std::cerr << "FAIL: " << name << ": " << exception.what() << '\n';
-    }
-}
 
 const Ulid kMedia = "01KPRD24000000000000000001";
 const Ulid kPicture = "01KPRD24000000000000000002";
@@ -636,19 +615,21 @@ int main() {
                   Labels(Signage(document, kShot).badges));
     });
 
-    Test("the priority is speed, motion, animation, framing, grade", [] {
+    Test("the priority is speed, gain, motion, animation, framing, grade", [] {
         // The order of the enumeration is the order of the row and the
         // order badges are given up in, last first. PRD25 -- the agent's
         // mark comes before all of them. DEC36 -- then a generated picture.
         Check(ClipBadgeKind::Agent < ClipBadgeKind::Generated &&
                   ClipBadgeKind::Generated < ClipBadgeKind::Speed &&
-                  ClipBadgeKind::Speed < ClipBadgeKind::Motion &&
+                  ClipBadgeKind::Speed < ClipBadgeKind::Gain &&
+                  ClipBadgeKind::Gain < ClipBadgeKind::Motion &&
                   ClipBadgeKind::Motion < ClipBadgeKind::Animation &&
                   ClipBadgeKind::Animation < ClipBadgeKind::Framing &&
                   ClipBadgeKind::Framing < ClipBadgeKind::Grade,
               "ClipBadgeKind is declared in priority order");
-        Check(ClipBadgeLabel(ClipBadgeKind::Speed).empty(),
-              "a speed has no fixed label");
+        Check(ClipBadgeLabel(ClipBadgeKind::Speed).empty() &&
+                  ClipBadgeLabel(ClipBadgeKind::Gain).empty(),
+              "a speed and a gain have no fixed label");
         Check(ClipBadgeLabel(ClipBadgeKind::Agent) == "AGENT",
               "the agent's mark reads as the panel is called");
         Check(ClipBadgeLabel(ClipBadgeKind::Generated) == kGenerated,
@@ -658,6 +639,49 @@ int main() {
                   ClipBadgeLabel(ClipBadgeKind::Framing) == "CADRE" &&
                   ClipBadgeLabel(ClipBadgeKind::Grade) == kGrade,
               "the fixed labels");
+    });
+
+    Test("GitHub #330: a sound's gain says itself, its fades do not", [] {
+        Check(ClipGainBadgeLabel({-18, 1}) == "-18 dB" &&
+                  ClipGainBadgeLabel({3, 1}) == "+3 dB" &&
+                  ClipGainBadgeLabel({-9, 2}) == "-4.5 dB" &&
+                  ClipGainBadgeLabel({-1, 3}) == "-0.3 dB" &&
+                  ClipGainBadgeLabel({-1, 20}) == "-0.1 dB" &&
+                  ClipGainBadgeLabel({-120, 1}) == "-120 dB",
+              "whole decibels, else the nearest tenth, half away from zero");
+        Check(ClipGainBadgeLabel({0, 1}).empty() &&
+                  ClipGainBadgeLabel({0, 7}).empty() &&
+                  ClipGainBadgeLabel({1, 40}).empty() &&
+                  ClipGainBadgeLabel({5, 0}).empty() &&
+                  ClipGainBadgeLabel({5, -1}).empty(),
+              "no gain, a gain under a twentieth, a bad fraction: nothing");
+        EditLog log;
+        Document document = Montage(log);
+        Check(Signage(document, kSound).badges.empty(),
+              "a sound at its own level says nothing");
+        Apply(document, log,
+              SetClipAudioOperation{kSound, {0, 1}, {12, 25}, {25, 25}},
+              "fades only");
+        Check(Signage(document, kSound).badges.empty(),
+              "its fades are drawn on its body, not written on a badge");
+        Apply(document, log,
+              SetClipAudioOperation{kSound, {-18, 1}, {12, 25}, {25, 25}},
+              "set_clip_audio");
+        const ClipSignage signage = Signage(document, kSound);
+        Check(Kinds(signage.badges) ==
+                      std::vector<ClipBadgeKind>{ClipBadgeKind::Gain} &&
+                  Labels(signage.badges) == "-18 dB" &&
+                  ClipBadgeFillColor(ClipBadgeKind::Gain).a ==
+                      ui::theme::kClipBadgeFill.a,
+              "the gain reads on a plate like the speed's: " +
+                  Labels(signage.badges));
+        Check(Signage(document, kShot).badges.empty(),
+              "the picture linked to the sound says nothing of it");
+        EditError error = EditError::None;
+        std::string message;
+        Check(log.Undo(document, error, message) &&
+                  Signage(document, kSound).badges.empty(),
+              "an undo of the gain takes the badge away: " + message);
     });
 
     Test("the angle a multicam group takes off screen is a state, not a badge",

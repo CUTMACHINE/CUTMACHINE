@@ -1,7 +1,7 @@
 # Audio
 
 > The mouse gestures and what one hears are not verified by reading; the
-> colours are those of the tokens in `src/UiTheme.h`.
+> colours are those of the tokens in `src/ui/UiTheme.h`.
 
 The audio streams of the sources are decoded by FFmpeg, then converted to
 16-bit stereo 48 kHz PCM by `libswresample`. An `AVAudioSourceNode` mixes in
@@ -20,6 +20,41 @@ sound together, including the accelerated forward/reverse shuttle at 2× and 4×
 closing or an undo rebuilds the mix plan at the exact junction.
 Summed samples are clamped to `[-1, 1]` to avoid numeric overflow when mixing
 several tracks.
+
+In the window, a clip's gain and fades are seen and set without the agent:
+
+- **On the timeline**, an audio clip with a fade is veiled from the top of its
+  body as deep as the ramp lowers the sound, one column every two points (the
+  linear envelope playback and export apply, the product where a fade in and
+  a fade out meet), with the ramp's edge in a light line; its name and badges
+  stay on top. A clip with a gain carries a badge with its value (`-18 dB`,
+  `-4.5 dB`, `+3 dB`), after the speed badge (`ClipBadges.h`). With the
+  Selection or Trim tool, the audio clip under the pointer and the selected
+  ones show two square handles at the top of the body, one where the fade in
+  ends and one where the fade out starts (in the corners when there is no
+  fade). Dragging a handle toward the middle lengthens its fade, rounded to
+  the nearest frame of the sequence and never past the other fade (the rule a
+  trim already keeps); the status line gives the length, and the release is a
+  single `SetClipAudioOperation`, one undo step. A handle wins over the edge
+  under it only in its own square: below it, the edge trims as before. A
+  locked track, a clip narrower than three handles and a clip showing its
+  Retime controls offer no handle (`VisibleTimelineAudioFades`,
+  `TimelineView.h`, gives the drawn and the pressed geometry alike).
+- **In the Inspector**, the **Son** (Sound) section sets the selected audio
+  clip or, for a picture, its first linked sound at the same place, A1 first
+  (the header then names the track, « Son · A1 »). **Gain** is a slider from
+  -60 to +12 dB, written at its release (double click: 0 dB), and a field
+  that takes -120 to +48 dB to the nearest tenth (`-18`, `-4,5 dB`). **Fondu
+  d'entrée** and **Fondu de sortie** (fade in, fade out) take a number of
+  frames (`12`), seconds and frames (`1:05`) or seconds (`0,5 s`), rounded to
+  the nearest frame, or a step of one frame; a length an agent set off the
+  frame grid reads in seconds. A value out of range, or a fade longer than
+  what the other one leaves, is refused in words under the rows
+  (`InspectorSound.h`). Each change is one `SetClipAudioOperation`, one undo
+  step; the section takes no room for a clip without sound.
+
+A clip's gain does not vary over time (no keyframes): `propose_ducking`
+proposes a curve and modifies nothing ([below](#proposing-ducking-under-a-voice)).
 
 When an old project is opened, every video clip whose migration flag still
 indicates embedded sound is split. The application creates audio tracks as

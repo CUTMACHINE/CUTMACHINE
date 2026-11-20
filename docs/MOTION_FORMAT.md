@@ -5,7 +5,7 @@
 > été cherchés dans `src/`, `tests/` et le catalogue, et les seize qui n'y
 > sont pas sont ceux que le texte donne lui-même pour absents ou extérieurs ;
 > les types de nœud, les présentations de transition et la règle de version
-> ont été relus dans `src/MotionComposition.cc` et `src/Document.h`. Non
+> ont été relus dans `src/engine/MotionComposition.cc` et `src/engine/Document.h`. Non
 > vérifié : chaque phrase autour de ces noms, les mesures citées, le rendu et
 > l'export After Effects. Les exemples complets sont exécutés par
 > `cutmachine_motion_tests`, qui n'a pas été lancé pour cette relecture.
@@ -1754,10 +1754,12 @@ Le catalogue lit **deux étagères** :
 **Le dossier, boîte de dépôt.** `~/.local/share/cutmachine/motion-library`
 (où MB1 rangeait la bibliothèque) reste le format d'échange : un
 `<nom>.json` par pièce, un `kits/<nom>.json` par kit. À chaque lecture de
-la bibliothèque, un fichier dont la base n'a pas encore le contenu pour ce
-nom y entre comme sa version suivante ; le moteur ne modifie ni ne retire
-jamais rien du dossier. Un générateur écrit donc son fichier là, et une
-bibliothèque d'avant MB10 entre dans la base à la première lecture.
+la bibliothèque, un fichier de pièce dont la base n'a pas encore le contenu
+pour ce nom y entre comme sa version suivante ; le moteur ne modifie ni ne
+retire jamais un fichier de pièce. Un générateur écrit donc son fichier là,
+et une bibliothèque d'avant MB10 entre dans la base à la première lecture.
+Les kits suivent une autre règle, dans les deux sens (« Une charte écrite
+par le moteur », plus bas).
 `$CUTMACHINE_MOTION_LIBRARY` nomme un autre dossier : il est alors la
 boîte de dépôt, et la base est `library.sqlite` dedans. Les versions ne
 changent jamais une fois écrites (la base refuse toute modification et
@@ -1890,6 +1892,42 @@ chemin de fichier, lui, n'est rien de plus qu'une valeur. Un fichier
 l'y copie : le moteur ne le copie pas. `list_motion_templates` redonne
 `pieces` pour chaque charte qui en a ; `motion-kit.v1` ne les prend pas.
 
+**Une valeur pour un seul format.** Une pièce se règle aussi format par
+format : sous `pieces.<pièce>.formats`, par le nom que la pièce donne à
+ce format (`9x16` dans les pièces livrées ; le moteur ne le suppose
+jamais), les valeurs qui ne valent que pour lui.
+
+```json
+"pieces": {
+  "logo": {
+    "marge_haut": 10,
+    "formats": {
+      "9x16": { "marge_haut": 20, "marge_droite": 14 }
+    }
+  }
+}
+```
+
+Ici le logo a une marge haute de 10 % en 16:9 et en 1:1, et de 20 % en
+9:16. L'ordre de fusion : les rôles partagés, puis les valeurs de la pièce
+pour tous ses formats (elles deviennent les défauts des props et
+remplacent la valeur de chaque format qui les règle), puis les valeurs
+d'un format, écrites dans ce format seul (ses `props`, créées s'il n'en a
+pas), les autres formats restant tels quels : une valeur pour `9x16`
+l'emporte en 9:16, et là seulement, sur celle de tous les formats.
+`formats` est la seule clé de `pieces.<pièce>` dont la valeur est un
+objet, et donc le seul nom qu'une prop n'y peut pas prendre. À la lecture,
+seule la forme est vérifiée, comme pour les valeurs d'à côté : un objet non
+vide de formats, chacun un nom valide qui tient un objet non vide de
+chaînes non vides, de nombres ou de booléens, un rôle partagé gardant son
+type. À l'ajout de la pièce, un format qu'elle ne déclare pas est refusé
+avec la liste de ceux qu'elle a, et une prop qu'elle n'a pas ou une valeur
+qu'elle ne prend pas l'est comme ailleurs (`KitMismatch`). Une charte peut
+ne donner à une pièce que des valeurs par format. Les couleurs et les
+polices d'un format comptent parmi celles que la charte permet. Un binaire
+qui ne connaît pas `formats` refuse une telle charte (une valeur objet n'y
+est pas admise) plutôt que d'en appliquer la moitié.
+
 Une charte retire aussi une pièce, avec sa raison, dans les mots de qui
 l'a décidé :
 
@@ -1905,6 +1943,34 @@ l'a décidé :
 s'ajoute, en connaissance de cause. Une pièce n'est pas à la fois retirée
 et réglée dans `pieces`, et une raison vide est refusée.
 `list_motion_templates` redonne `withdrawn` sous la charte.
+
+**Une charte écrite par le moteur.** Une charte ne s'écrit plus seulement
+à la main : le moteur l'écrit aussi, et garde `kits/<marque>.json` égal à
+sa dernière version dans les deux sens. Il l'écrit sous une forme
+canonique, celle des fichiers de pièce (deux espaces par niveau, une
+courte liste de valeurs sur sa ligne), en gardant l'ordre des clés, les
+nombres tels qu'ils sont écrits (`0.50` reste `0.50`) et l'UTF-8 : un
+réglage change une ligne du fichier. Une modification se dit par un chemin
+borné (`pieces.logo.formats.9x16.marge_haut`, `palette.0`…), et la
+charte qui en sort est relue en entier avant d'être écrite. Chaque
+écriture est une version de plus dans la base, sauf quand le texte
+canonique ne change pas ; revenir à une version, c'est l'écrire à nouveau.
+Le fichier est remplacé d'un coup (un fichier temporaire, puis un
+renommage). À chaque lecture, le fichier relu est comparé à la dernière
+version seulement : égal, rien ; différent et lisible comme charte, une
+version de plus, même s'il revient aux octets d'une version plus
+ancienne ; illisible (ou un lien, ou plus gros qu'une charte ne peut
+l'être), il est dit divergent, la dernière version reste celle de la base
+et toute écriture est refusée (`KitFileDiverged`) : le moteur n'écrase pas
+un travail en cours. Une écriture porte la version qu'elle a lue, et elle
+est refusée (`StaleKit`) si une autre est venue entretemps, une édition à
+la main comprise. Le fichier d'une charte est `kits/<marque>.json` écrit
+exactement ainsi : sur un disque qui ignore la casse, celui d'un Mac par
+défaut, `kits/marque.json` n'est pas le fichier de `Marque`, et l'écriture
+d'un nom qui ne diffère d'une autre charte (de la base, ou d'un fichier de
+`kits/`) que par la casse est refusée (`InvalidKit`), sur tous les disques :
+ce serait le même fichier. Une réécriture garde les permissions du fichier.
+Les pièces gardent la règle de la boîte de dépôt.
 
 `save_motion_template {composition_id, template, description, use?,
 avoid?, invariants?, origin?, overwrite?}` est le chemin de retour : une

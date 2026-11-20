@@ -63,16 +63,9 @@
 #include <utility>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 std::string Read(const std::filesystem::path& path) {
     std::ifstream input(path, std::ios::binary);
@@ -176,9 +169,12 @@ LibraryMedia AudioRush(const Ulid& id, const std::string& file) {
 // editor's task manager), and none of this may need a Whisper model.
 void CheckChatTranscriptionParity(const std::filesystem::path& directory) {
     // The model is a local setting (LocalEnv.h): point the settings file at
-    // nothing, so the developer's own configuration never leaks in.
+    // nothing, so the developer's own configuration never leaks in. A test
+    // run before this one may have loaded that file into the environment
+    // already (LoadDotEnvFile), so the settings this test reads go too.
     ::setenv("CUTMACHINE_ENV_FILE", (directory / "absent.env").c_str(), 1);
     ::unsetenv("CUTMACHINE_WHISPER_MODEL");
+    ::unsetenv("CUTMACHINE_WHISPER_HESITATIONS_MODEL");
 
     const Ulid speech = "01K31000000000000000000001";
     const Ulid mute = "01K31000000000000000000002";
@@ -591,7 +587,6 @@ void CheckChatIngestParity(const std::filesystem::path& directory) {
             outcome = plan.outcome;
             Document staged = liveDocument;
             EditLog stagedLog = liveLog;
-            ApplyIngestRepairs(staged, plan);
             EditError editError = EditError::None;
             if (plan.HasJournalEntry() &&
                 !stagedLog.Apply(staged, plan.operation, editError, message)) {
@@ -4810,6 +4805,289 @@ void CheckMotionLibraryOverMcp(const std::filesystem::path& directory) {
     server.Stop();
 }
 
+// CH4 -- docs/roadmap/CHARTE-2026-11.md. A charter written by the agent over
+// MCP, the way the panel writes it (DEC60): kits/<name>.json follows every
+// version, the pieces take the new value at the size it was given for, a
+// stale write and a broken hand edit are refused, and an older version comes
+// back. The library is the directory main() points CUTMACHINE_MOTION_LIBRARY
+// at, emptied first.
+void CheckMotionKitsOverMcp(const std::filesystem::path& directory) {
+    const std::filesystem::path library = directory / "motion-library";
+    std::filesystem::remove_all(library);
+    const std::filesystem::path file = library / "kits" / "marque.json";
+    Document document;
+    document.sequence.width = 1080;
+    document.sequence.height = 1920;
+    std::string path;
+    std::string error;
+    Check(CreatePortableProject(
+              (directory / "Charters.cutmachine-project").string(),
+              Project::FromDocument(document, "Charters"), path, error),
+          "charter package saves: " + error);
+    McpProjectBackend backend(path);
+    McpServer server(backend);
+    Check(server.Start(0, error), "charter MCP server starts: " + error);
+    const int port = server.Port();
+    int id = 100;
+    const auto call = [&](const std::string& tool,
+                          const std::string& arguments) {
+        return ToolCall(port, ++id, tool, arguments);
+    };
+    const auto parsed = [&](const mcp_json::Value& result) {
+        mcp_json::Value value;
+        mcp_json::Value::Parse(ToolText(result), value, error);
+        return value;
+    };
+    const auto text = [](const mcp_json::Value& value, const char* key) {
+        const mcp_json::Value* found = value.Find(key);
+        return found != nullptr && found->IsString() ? found->AsString()
+                                                     : std::string();
+    };
+    const auto number = [](const mcp_json::Value& value, const char* key) {
+        const mcp_json::Value* found = value.Find(key);
+        return found != nullptr ? found->Dump() : std::string();
+    };
+    // A refusal's payload: {"ok":false,"error":...,"detail":...,"result"}.
+    const auto refusal = [&](const mcp_json::Value& result) {
+        const mcp_json::Value answer = parsed(result);
+        const mcp_json::Value* payload = answer.Find("result");
+        return payload != nullptr ? *payload : mcp_json::Value::MakeObject();
+    };
+
+    const mcp_json::Value empty = call("read_motion_kit", "{}");
+    const mcp_json::Value emptyResult = parsed(empty);
+    Check(ToolOk(empty) &&
+              ToolText(empty).find("\"kits\":[]") != std::string::npos &&
+              emptyResult.Find("library") != nullptr &&
+              text(*emptyResult.Find("library"), "directory") ==
+                  library.string() &&
+              !std::filesystem::exists(library),
+          "an empty library lists no charter and is not created: " +
+              ToolText(empty));
+    const mcp_json::Value absent =
+        call("read_motion_kit", R"({"kit":"marque"})");
+    Check(
+        !ToolOk(absent) &&
+            ToolText(absent).find("\"error\":\"UnknownKit\"") !=
+                std::string::npos &&
+            ToolText(absent).find("known: none") != std::string::npos &&
+            !std::filesystem::exists(library),
+        "a charter the library does not have is unknown: " + ToolText(absent));
+
+    // Created at version 1, the file written with the content's bytes: the
+    // keys in the order given, 12.50 as written.
+    const std::string charter =
+        R"({"format":"brand-kit.v1","description":"Marque.",)"
+        R"("props":{"accent":"#1A5C8E","police":"Exemple Sans"},)"
+        R"("palette":["#F2B33D"],)"
+        R"("pieces":{"logo":{"largeur":12.50,"marge_haut":8}}})";
+    const mcp_json::Value created =
+        call("save_motion_kit", R"({"kit":"marque","expected_version":0,)"
+                                R"("content":)" +
+                                    charter + "}");
+    const mcp_json::Value createdResult = parsed(created);
+    const std::string first = text(createdResult, "content");
+    Check(ToolOk(created) && number(createdResult, "version") == "1" &&
+              number(createdResult, "created") == "true" &&
+              text(createdResult, "path") == file.string() &&
+              std::filesystem::exists(file) && Read(file) == first &&
+              first.find("\"largeur\": 12.50,") != std::string::npos &&
+              first.find("\"format\": \"brand-kit.v1\",\n  \"description\"") !=
+                  std::string::npos,
+          "save_motion_kit creates the charter and its file, byte for byte: " +
+              ToolText(created));
+    const mcp_json::Value again =
+        call("save_motion_kit", R"({"kit":"marque","expected_version":1,)"
+                                R"("content":)" +
+                                    charter + "}");
+    Check(ToolOk(again) && number(parsed(again), "version") == "1" &&
+              number(parsed(again), "created") == "false" &&
+              Read(file) == first,
+          "the same charter again writes no version: " + ToolText(again));
+    const mcp_json::Value taken =
+        call("save_motion_kit", R"({"kit":"marque","expected_version":0,)"
+                                R"("content":)" +
+                                    charter + "}");
+    Check(!ToolOk(taken) &&
+              ToolText(taken).find("\"error\":\"StaleKit\"") !=
+                  std::string::npos &&
+              number(refusal(taken), "version") == "1",
+          "creating a charter that exists is stale: " + ToolText(taken));
+
+    // DEC62 -- one value for the 9:16 format of the logo, by path.
+    const mcp_json::Value edited =
+        call("edit_motion_kit",
+             R"({"kit":"marque","expected_version":1,"edits":[)"
+             R"({"path":"pieces.logo.formats.9x16.marge_haut","value":22}]})");
+    const mcp_json::Value editedResult = parsed(edited);
+    const std::string second = text(editedResult, "content");
+    Check(ToolOk(edited) && number(editedResult, "version") == "2" &&
+              number(editedResult, "changed") == "true" &&
+              Read(file) == second && second != first &&
+              second.find("\"marge_haut\": 8,\n      \"formats\": {\n        "
+                          "\"9x16\": {\n          \"marge_haut\": 22\n") !=
+                  std::string::npos &&
+              second.find("\"largeur\": 12.50,") != std::string::npos,
+          "edit_motion_kit writes the 9:16 margin into the file, the rest as "
+          "it was: " +
+              ToolText(edited));
+    const mcp_json::Value listed = call("list_motion_templates", "{}");
+    Check(
+        ToolOk(listed) &&
+            ToolText(listed).find(R"({"name":"marque","version":2,)") !=
+                std::string::npos &&
+            ToolText(listed).find(R"("formats":{"9x16":{"marge_haut":22}})") !=
+                std::string::npos,
+        "list_motion_templates lists the new version: " + ToolText(listed));
+
+    // The margin reaches the logo at 9:16, and only there.
+    const auto margin = [&](const mcp_json::Value& result) {
+        const mcp_json::Value value = parsed(result);
+        const mcp_json::Value* composition = value.Find("composition");
+        const mcp_json::Value* definition =
+            composition != nullptr ? composition->Find("definition") : nullptr;
+        const mcp_json::Value* props =
+            definition != nullptr ? definition->Find("props") : nullptr;
+        const mcp_json::Value* prop =
+            props != nullptr ? props->Find("marge_haut") : nullptr;
+        return prop != nullptr ? number(*prop, "default") : std::string();
+    };
+    const mcp_json::Value tall =
+        call("add_motion_template", R"({"template":"logo","kit":"marque"})");
+    Check(ToolOk(tall) && text(parsed(tall), "format") == "9x16" &&
+              margin(tall) == "22",
+          "the logo added at 9:16 takes the charter's 9:16 margin: " +
+              ToolText(tall));
+    const mcp_json::Value timeline =
+        call("add_timeline", R"({"name":"Paysage","width":1920,"height":1080,)"
+                             R"("frame_rate":{"num":25,"den":1}})");
+    const mcp_json::Value timelineResult = parsed(timeline);
+    const mcp_json::Value* createdIds =
+        timelineResult.Find("created_timeline_ids");
+    const std::string wide = createdIds != nullptr && createdIds->IsArray() &&
+                                     !createdIds->AsArray().empty() &&
+                                     createdIds->AsArray()[0].IsString()
+                                 ? createdIds->AsArray()[0].AsString()
+                                 : std::string();
+    Check(ToolOk(timeline) && !wide.empty(),
+          "a 16:9 timeline is added: " + ToolText(timeline));
+    const mcp_json::Value flat =
+        call("add_motion_template", R"({"template":"logo","kit":"marque",)"
+                                    R"("timeline_id":")" +
+                                        wide + "\"}");
+    Check(ToolOk(flat) && text(parsed(flat), "format") == "16x9" &&
+              margin(flat) == "8",
+          "and at 16:9 the margin it gives every format: " + ToolText(flat));
+
+    // A write on an older version is refused, with the latest to start
+    // again from, and writes nothing.
+    const mcp_json::Value stale = call(
+        "edit_motion_kit", R"({"kit":"marque","expected_version":1,"edits":[)"
+                           R"({"path":"palette.0","value":"#000000"}]})");
+    const mcp_json::Value staleResult = refusal(stale);
+    Check(!ToolOk(stale) &&
+              ToolText(stale).find("\"error\":\"StaleKit\"") !=
+                  std::string::npos &&
+              number(staleResult, "version") == "2" &&
+              text(staleResult, "content") == second && Read(file) == second,
+          "a stale edit is refused with the latest version and content: " +
+              ToolText(stale));
+
+    // A hand edit of the file is read in as the next version.
+    std::string byHand = second;
+    const size_t at = byHand.find("\"marge_haut\": 22");
+    if (at != std::string::npos) {
+        byHand.replace(at, std::string("\"marge_haut\": 22").size(),
+                       "\"marge_haut\": 24");
+    }
+    std::ofstream(file, std::ios::binary | std::ios::trunc) << byHand;
+    const mcp_json::Value reread =
+        call("read_motion_kit", R"({"kit":"marque"})");
+    const mcp_json::Value rereadResult = parsed(reread);
+    const mcp_json::Value* fileState = rereadResult.Find("file");
+    Check(ToolOk(reread) && number(rereadResult, "version") == "3" &&
+              text(rereadResult, "content") == byHand && fileState != nullptr &&
+              text(*fileState, "state") == "matches" &&
+              ToolText(reread).find(R"("message":"kit marque v3")") !=
+                  std::string::npos &&
+              rereadResult.Find("summary") != nullptr &&
+              ToolText(reread).find(R"("colors":["#1a5c8e","#f2b33d"])") !=
+                  std::string::npos,
+          "a hand edit of the file is imported as version 3: " +
+              ToolText(reread));
+
+    // A hand edit that is not a charter is said, and never overwritten.
+    const std::string broken = "{\"format\":";
+    std::ofstream(file, std::ios::binary | std::ios::trunc) << broken;
+    const mcp_json::Value diverged =
+        call("read_motion_kit", R"({"kit":"marque"})");
+    const mcp_json::Value divergedResult = parsed(diverged);
+    const mcp_json::Value* divergedFile = divergedResult.Find("file");
+    Check(ToolOk(diverged) && number(divergedResult, "version") == "3" &&
+              divergedFile != nullptr &&
+              text(*divergedFile, "state") == "diverged" &&
+              !text(*divergedFile, "issue").empty() &&
+              text(divergedResult, "content") == byHand,
+          "a broken file is read as diverged, the base keeping version 3: " +
+              ToolText(diverged));
+    const mcp_json::Value refused =
+        call("edit_motion_kit",
+             R"({"kit":"marque","expected_version":3,"edits":[)"
+             R"({"path":"description","value":"Marque, revue."}]})");
+    const mcp_json::Value refusedResult = refusal(refused);
+    const mcp_json::Value* refusedFile = refusedResult.Find("file");
+    Check(!ToolOk(refused) &&
+              ToolText(refused).find("\"error\":\"KitFileDiverged\"") !=
+                  std::string::npos &&
+              refusedFile != nullptr &&
+              text(*refusedFile, "path") == file.string() &&
+              !text(*refusedFile, "issue").empty() && Read(file) == broken,
+          "a write over a broken file is refused, file and reason named: " +
+              ToolText(refused));
+    const mcp_json::Value notRestored =
+        call("restore_motion_kit", R"({"kit":"marque","version":1,)"
+                                   R"("expected_version":3})");
+    Check(!ToolOk(notRestored) &&
+              ToolText(notRestored).find("\"error\":\"KitFileDiverged\"") !=
+                  std::string::npos &&
+              Read(file) == broken,
+          "and so is a restore: " + ToolText(notRestored));
+
+    // The file fixed by hand, version 1 comes back as version 4.
+    std::ofstream(file, std::ios::binary | std::ios::trunc) << byHand;
+    const mcp_json::Value restored =
+        call("restore_motion_kit", R"({"kit":"marque","version":1,)"
+                                   R"("expected_version":3})");
+    const mcp_json::Value restoredResult = parsed(restored);
+    Check(ToolOk(restored) && number(restoredResult, "version") == "4" &&
+              number(restoredResult, "restored") == "1" &&
+              text(restoredResult, "content") == first && Read(file) == first,
+          "once the file reads again, an older version is restored: " +
+              ToolText(restored));
+    const mcp_json::Value history =
+        call("read_motion_kit", R"({"kit":"marque","versions_limit":10,)"
+                                R"("version":2})");
+    const mcp_json::Value historyResult = parsed(history);
+    const mcp_json::Value* versions = historyResult.Find("versions");
+    const mcp_json::Value* requested = historyResult.Find("requested");
+    std::vector<std::string> sources;
+    if (versions != nullptr && versions->IsArray()) {
+        for (const mcp_json::Value& row : versions->AsArray()) {
+            sources.push_back(number(row, "version") + " " +
+                              text(row, "source"));
+        }
+    }
+    Check(ToolOk(history) &&
+              sources == std::vector<std::string>{"4 restore v1",
+                                                  "3 " + file.string(),
+                                                  "2 edit_motion_kit",
+                                                  "1 save_motion_kit"} &&
+              requested != nullptr && text(*requested, "content") == second,
+          "the versions, newest first, and version 2 as it was: " +
+              ToolText(history));
+    server.Stop();
+}
+
 void CheckMotionTemplatesOverMcp(const std::filesystem::path& directory) {
     InstallMotionFrameRenderer();
     Document document;
@@ -7278,6 +7556,7 @@ int main() {
     CheckMotionCompositionsOverMcp(directory);
     CheckMotionTemplatesOverMcp(directory);
     CheckMotionLibraryOverMcp(directory);
+    CheckMotionKitsOverMcp(directory);
     CheckHumanizeOverMcp(directory);
     CheckEditCacheMatchesPackage(directory);
     // MOTIF6 -- docs/roadmap/MOTIF-2026-10.md.

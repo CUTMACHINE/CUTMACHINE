@@ -19,12 +19,13 @@ relit dans celui de la racine :
   l'archive des projets, DEC44 ; Strudel et fraction.js, rien de compilé,
   pour la suite du son, SN9) ;
 - les suites de tests (`portable_tests.py`), exécutables C++ comme scripts
-  Python ou CMake.
+  Python ou CMake, déclarées à la main ou par `cutmachine_add_test`
+  (`cmake/CutmachineAddTest.cmake`, STRUCTURE-2026-11 ST2).
 
 Un seul fichier est remplacé :
 
-- `src/main.mm` (AppKit) devient `src/HeadlessMain.cc`. Les deux passent la
-  ligne de commande à `RunCliCommand` (`src/CliMain.h`) : chaque commande
+- `src/app/main.mm` (AppKit) devient `src/agent/HeadlessMain.cc`. Les deux passent la
+  ligne de commande à `RunCliCommand` (`src/agent/CliMain.h`) : chaque commande
   existe ici, lue de la même façon.
 
 `CommonCrypto` (SHA-256) est servi par OpenSSL, par un en-tête qui n'est que
@@ -116,4 +117,4 @@ nommer.
 
 Les données de l'utilisateur vont sous `~/.local/share/cutmachine` (archive
 des projets, bibliothèque de motion) et le journal sous
-`~/.local/state/cutmachine` (`src/UserDirectories.h`).
+`~/.local/state/cutmachine` (`src/engine/UserDirectories.h`).

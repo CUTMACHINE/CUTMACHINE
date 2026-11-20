@@ -1,7 +1,7 @@
 /*
  * MOTION-AFTER-2026-09 -- builds an After Effects project from the
  * after-motion.v1 description `cutmachine --export-motion-after` writes
- * (src/MotionAfterExport.h). Every node is a layer or a precomposition and
+ * (src/motion/MotionAfterExport.h). Every node is a layer or a precomposition and
  * every keyframe a keyframe: the project is there to be retouched.
  *
  * Two ways in. Through the bridge (MA1, method build_motion_project, tool

@@ -17,8 +17,8 @@ missing from its path is refused with `MediaMissing`, with the path searched. In
 strict mode, `read_frame` on a `media_id` does not need a `timeline_id`.
 
 The division of labour is the same as everywhere else: what is **provable** is
-decided by code ([`ShotQuality.h`](../../src/ShotQuality.h)), what needs a look
-gets an image ([`FrameCapture.h`](../../src/FrameCapture.h)). Nothing in
+decided by code ([`ShotQuality.h`](../../src/media/ShotQuality.h)), what needs a look
+gets an image ([`FrameCapture.h`](../../src/media/FrameCapture.h)). Nothing in
 `FrameCapture` decides, it renders.
 
 On the transport side, the image crosses MCP as an `image` block next to the

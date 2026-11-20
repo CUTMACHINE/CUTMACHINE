@@ -26,20 +26,13 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 #ifndef EDIT_LOG_FIXTURES_DIR
 #error "EDIT_LOG_FIXTURES_DIR must point at tests/fixtures/edit_log"
 #endif
 
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 const Ulid kSource = "01K30000000000000000000001";
 const Ulid kVideo = "01K30000000000000000000002";

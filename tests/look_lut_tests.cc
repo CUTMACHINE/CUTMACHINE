@@ -18,18 +18,13 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace {
 
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
-
-void Test(const std::string& name, void (*body)()) {
+// This suite's own named test, which TestSupport.h's Test would otherwise
+// take the place of for a lambda; kept, with its output.
+void Case(const std::string& name, void (*body)()) {
     const int before = failures;
     body();
     if (failures == before) std::cout << "ok: " << name << '\n';
@@ -98,7 +93,7 @@ ColorManagementSettings Managed() {
 }  // namespace
 
 int main() {
-    Test("an identity cube reads back and leaves a colour alone", [] {
+    Case("an identity cube reads back and leaves a colour alone", [] {
         LookLutSamples lut;
         std::string error;
         Check(ParseLookLutCube(IdentityCube(17), lut, error),
@@ -116,7 +111,7 @@ int main() {
         }
     });
 
-    Test("a cube is applied, and in the direction it is written", [] {
+    Case("a cube is applied, and in the direction it is written", [] {
         LookLutSamples lut;
         std::string error;
         Check(ParseLookLutCube(InvertedCube(2), lut, error),
@@ -128,7 +123,7 @@ int main() {
             "an inverted cube did not invert");
     });
 
-    Test("a value outside the cube is clamped to its domain, not wrapped", [] {
+    Case("a value outside the cube is clamped to its domain, not wrapped", [] {
         LookLutSamples lut;
         std::string error;
         Check(ParseLookLutCube(InvertedCube(2), lut, error), error);
@@ -140,7 +135,7 @@ int main() {
         Check(Near(high[0], 0.0), "an input above 1 did not clamp to 1");
     });
 
-    Test("interpolation between samples is trilinear", [] {
+    Case("interpolation between samples is trilinear", [] {
         // A cube of two samples per side holding the identity: every value
         // between them is the linear mix, which is what a texture lookup
         // and FFmpeg's interp=trilinear both compute.
@@ -155,7 +150,7 @@ int main() {
               "corners");
     });
 
-    Test("what a .cube is refused for", [] {
+    Case("what a .cube is refused for", [] {
         const auto refused = [](const std::string& text,
                                 const std::string& what) {
             LookLutSamples lut;
@@ -213,7 +208,7 @@ int main() {
         refused("0 0 0\nLUT_3D_SIZE 2\n", "puts a value before its size");
     });
 
-    Test("a digest is a SHA-256 and the package path is content-addressed", [] {
+    Case("a digest is a SHA-256 and the package path is content-addressed", [] {
         Check(IsLookLutDigest(std::string(64, 'a')), "64 hex refused");
         Check(!IsLookLutDigest(std::string(63, 'a')), "63 hex accepted");
         Check(!IsLookLutDigest(std::string(64, 'A')),
@@ -225,7 +220,7 @@ int main() {
               "the package path moved");
     });
 
-    Test("where the document says the look belongs", [] {
+    Case("where the document says the look belongs", [] {
         LookLutStage stage = LookLutStage::None;
         std::string error;
         ColorManagementSettings unmanaged;
@@ -288,7 +283,7 @@ int main() {
               "a malformed digest is accepted");
     });
 
-    Test("a document carries the look, or is refused by name", [] {
+    Case("a document carries the look, or is refused by name", [] {
         Document document;
         document.sequence.tracks = {{GenerateUlid(), "video", 0, {}}};
         std::string error;
@@ -317,7 +312,7 @@ int main() {
               "a look with a space and no digest is accepted");
     });
 
-    Test("only a look makes a document version 14", [] {
+    Case("only a look makes a document version 14", [] {
         DocumentSequence sequence;
         Check(!HoldsSequenceLut(sequence), "an empty sequence holds a look");
         Check(DocumentFormatVersion(false, false, false, false, false, false,

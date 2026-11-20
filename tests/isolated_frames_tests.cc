@@ -12,6 +12,8 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 // R8 -- docs/roadmap/REEL-2026-09.md. The portable half of the ticket: the
 // detection rule and the range planning, with no FFmpeg and no macOS. This
 // is where acceptance criteria 1 and 2 are decided, because this is where
@@ -21,15 +23,6 @@
 // frame at 182, and the same flash halved by a dissolve's opacity.
 
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 constexpr int32_t kWidth = 96;
 constexpr int32_t kHeight = 54;

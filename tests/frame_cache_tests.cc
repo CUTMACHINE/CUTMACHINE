@@ -20,16 +20,9 @@ extern "C" {
 #include <iostream>
 #include <string>
 
+#include "TestSupport.h"
+
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 // A picture whose planes live in one buffer drawn from `pool`, the way a
 // decoder hands them out.

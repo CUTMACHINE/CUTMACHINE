@@ -11,18 +11,13 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace {
 
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
-
-void Test(const std::string& name, const std::function<void()>& body) {
+// This suite's own named test, which TestSupport.h's Test would otherwise
+// take the place of for a lambda; kept, with its output.
+void Case(const std::string& name, const std::function<void()>& body) {
     const int before = failures;
     body();
     std::cout << (failures == before ? "PASS: " : "FAIL: ") << name << '\n';
@@ -92,7 +87,7 @@ bool HasAlert(const CutInspectionWords& words, const std::string& kind,
 }  // namespace
 
 int main() {
-    Test("a clip's head names the cut, the window straddles it", [] {
+    Case("a clip's head names the cut, the window straddles it", [] {
         CutInspectionPlan plan;
         std::string error;
         Check(PlanCutInspection(ThreeShots(),
@@ -115,7 +110,7 @@ int main() {
               "the pictures are ascending and reach both edges");
     });
 
-    Test("a clip's tail, and a window clipped by the timeline's end", [] {
+    Case("a clip's tail, and a window clipped by the timeline's end", [] {
         CutInspectionPlan plan;
         std::string error;
         CutInspectionRequest request =
@@ -131,7 +126,7 @@ int main() {
               "inside the window");
     });
 
-    Test("a window clipped by the timeline's start", [] {
+    Case("a window clipped by the timeline's start", [] {
         CutInspectionPlan plan;
         std::string error;
         CutInspectionRequest request;
@@ -143,7 +138,7 @@ int main() {
               "the window starts at the film's first frame and says so");
     });
 
-    Test("refusals, by name", [] {
+    Case("refusals, by name", [] {
         CutInspectionPlan plan;
         std::string error;
         Check(!PlanCutInspection(ThreeShots(),
@@ -181,7 +176,7 @@ int main() {
               "a window holding no frame is refused");
     });
 
-    Test("two pictures are exactly the pair around the cut", [] {
+    Case("two pictures are exactly the pair around the cut", [] {
         CutInspectionPlan plan;
         std::string error;
         CutInspectionRequest request = AtClip("01K9G00000000000000000000B");
@@ -192,7 +187,7 @@ int main() {
               "the pair around the cut, and nothing else");
     });
 
-    Test("levels: a tone before the cut, silence after it", [] {
+    Case("levels: a tone before the cut, silence after it", [] {
         CutInspectionPlan plan;
         plan.rate = {25, 1};
         plan.first = 0;
@@ -228,7 +223,7 @@ int main() {
               "a mix shorter than the window is refused");
     });
 
-    Test("expected words: edges, and a word a cut runs through", [] {
+    Case("expected words: edges, and a word a cut runs through", [] {
         CutInspectionPlan plan;
         plan.rate = {25, 1};
         plan.first = 25;
@@ -254,7 +249,7 @@ int main() {
               "the word a cut runs through raises the one alert");
     });
 
-    Test("heard against expected: missing, extra, inflected, edges", [] {
+    Case("heard against expected: missing, extra, inflected, edges", [] {
         CutInspectionPlan plan;
         plan.rate = {25, 1};
         plan.first = 25;
@@ -290,7 +285,7 @@ int main() {
                   std::to_string(words.alerts.size()));
     });
 
-    Test("two readings that group their words differently agree", [] {
+    Case("two readings that group their words differently agree", [] {
         CutInspectionPlan plan;
         plan.rate = {25, 1};
         plan.first = 0;
@@ -311,7 +306,7 @@ int main() {
                   std::to_string(words.alerts.size()));
     });
 
-    Test("no transcript: said, and a reading raises nothing", [] {
+    Case("no transcript: said, and a reading raises nothing", [] {
         CutInspectionPlan plan;
         plan.rate = {25, 1};
         plan.first = 0;

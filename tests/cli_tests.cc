@@ -40,16 +40,9 @@
 
 #include <unistd.h>
 
+#include "TestSupport.h"
+
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 void CheckFailureEnvelope(const std::string& output, const std::string& label,
                           const std::string& expectedError) {
@@ -477,6 +470,57 @@ int main() {
         Check(UsageRefusal({"--backup-project-archive", "now"})
                       .find("--backup-project-archive") != std::string::npos,
               "the copy takes no argument");
+    }
+
+    // CH4 -- docs/roadmap/CHARTE-2026-11.md. The charter tools from the
+    // command line, with no project (the empty path of --call-tool): 0 on
+    // an answer, 1 on a refusal, the library the one the child is given.
+    {
+        const std::filesystem::path library = directory / "charter-library";
+        const std::string inLibrary =
+            "CUTMACHINE_MOTION_LIBRARY=" + library.string();
+        const auto callTool = [&](const std::string& tool,
+                                  const std::string& arguments) {
+            return RunCommand({"/usr/bin/env", inLibrary, CUTMACHINE_EXECUTABLE,
+                               "--call-tool", "", tool, arguments});
+        };
+        const CliRun listed = callTool("read_motion_kit", "{}");
+        Check(listed.exited && listed.status == 0 &&
+                  Contains(listed.output, "\"kits\":[]") &&
+                  Contains(listed.output, library.string()),
+              "--call-tool \"\" read_motion_kit lists the charters with no "
+              "project: " +
+                  listed.output);
+        const CliRun saved = callTool(
+            "save_motion_kit",
+            R"({"kit":"marque","expected_version":0,"content":)"
+            R"({"format":"brand-kit.v1","description":"Marque.",)"
+            R"("props":{"accent":"#1A5C8E","police":"Exemple Sans"}}})");
+        Check(saved.exited && saved.status == 0 &&
+                  Contains(saved.output, "\"version\":1"),
+              "save_motion_kit creates a charter from the command line: " +
+                  saved.output);
+        const CliRun edited =
+            callTool("edit_motion_kit",
+                     R"({"kit":"marque","expected_version":1,"edits":)"
+                     R"([{"path":"props.accent","value":"#2B6D9F"}]})");
+        Check(edited.exited && edited.status == 0 &&
+                  Contains(edited.output, "\"version\":2") &&
+                  Contains(Read(library / "kits" / "marque.json"),
+                           "\"accent\": \"#2B6D9F\""),
+              "edit_motion_kit edits it, file included: " + edited.output);
+        const CliRun stale =
+            callTool("edit_motion_kit",
+                     R"({"kit":"marque","expected_version":1,"edits":)"
+                     R"([{"path":"props.accent","value":"#000000"}]})");
+        Check(
+            stale.exited && stale.status == 1 &&
+                !RefusalDetail(stale.output, "a stale charter edit", "StaleKit")
+                     .empty() &&
+                Contains(Read(library / "kits" / "marque.json"),
+                         "\"accent\": \"#2B6D9F\""),
+            "a stale edit exits 1, by name, and writes nothing: " +
+                stale.output);
     }
 
     // PRD19 -- ROADMAP.md. `--version` says what the binary is: the

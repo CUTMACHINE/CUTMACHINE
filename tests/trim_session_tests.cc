@@ -18,6 +18,8 @@
 #include <variant>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace {
 
 using trim::DescribeTrimMonitor;
@@ -28,27 +30,6 @@ using trim::TrimRefusal;
 using trim::TrimSession;
 using trim::TrimSide;
 using trim::TrimStyle;
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
-
-template <typename Function>
-void Test(const std::string& name, Function function) {
-    const int before = failures;
-    try {
-        function();
-        if (before == failures) std::cout << "PASS: " << name << '\n';
-    } catch (const std::exception& exception) {
-        ++failures;
-        std::cerr << "FAIL: " << name << ": " << exception.what() << '\n';
-    }
-}
 
 const std::string kSourceOne = "01KTR000000000000000000S01";
 const std::string kSourceTwo = "01KTR000000000000000000S02";

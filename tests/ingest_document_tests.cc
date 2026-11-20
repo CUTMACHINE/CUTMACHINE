@@ -26,16 +26,9 @@
 #include <variant>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 // A camera rush as ProbeIngestFile leaves it: headers read, level measured.
 LibraryMedia ProbedRush() {
@@ -397,6 +390,66 @@ int main() {
               sourceless.sources[0].id == sourceless.library[0].id,
           "a known entry without a source gets it back");
 
+    // The two repairs are an operation's, not writes beside it
+    // (IngestMediaOperation's `completed` and `mounted`): one journal entry,
+    // undone and redone byte for byte, the entry put back as it was.
+    {
+        Document stale = empty;
+        LibraryMedia unread;
+        unread.path = "../rushes/C0001.MP4";
+        unread.filename = "old name";
+        unread.rate = {25, 1};
+        unread.duration = {250, 25};
+        unread.proxy_path = "proxies/C0001.mov";
+        unread.metadata_complete = false;
+        stale.library.push_back(unread);
+        const std::string before = stale.SaveToString();
+        const IngestPlan plan =
+            PlanProbedMedia(stale, project, {Read(first)}, std::nullopt);
+        Check(plan.HasJournalEntry() && plan.operation.added.empty() &&
+                  plan.operation.filed.empty() &&
+                  plan.operation.completed.size() == 1 &&
+                  plan.operation.completed[0].id == unread.id &&
+                  plan.operation.mounted.size() == 1 &&
+                  plan.operation.mounted[0] == unread.id &&
+                  stale.SaveToString() == before,
+              "the plan carries the completion and the source it mounts, and "
+              "changes nothing");
+        EditLog log;
+        EditError error = EditError::None;
+        std::string message;
+        Check(log.Apply(stale, plan.operation, error, message) &&
+                  log.AppliedCount() == 1 &&
+                  stale.library[0].metadata_complete &&
+                  stale.library[0].proxy_path == "proxies/C0001.mov" &&
+                  stale.FindSource(unread.id) != nullptr &&
+                  stale.Validate(reason),
+              "the repairs apply as one journal entry: " + message + reason);
+        const std::string after = stale.SaveToString();
+        Check(log.Undo(stale, error, message) && stale.SaveToString() == before,
+              "undo puts the entry back unread and unmounted, byte for byte: " +
+                  message);
+        Check(log.Redo(stale, error, message) && stale.SaveToString() == after,
+              "redo repairs it again, byte for byte: " + message);
+        const std::string journal = log.Serialize();
+        EditLog reread;
+        Check(EditLog::Deserialize(journal, reread, error, message) &&
+                  reread.Serialize() == journal &&
+                  journal.find("\"completed\"") != std::string::npos &&
+                  journal.find("\"restored\"") != std::string::npos,
+              "the journal carries both repairs and their inverse: " + message);
+        Document replayed = stale;
+        Check(reread.Undo(replayed, error, message) &&
+                  replayed.SaveToString() == before,
+              "and its reread entry undoes the same: " + message);
+        Operation inverse = RemoveClipOperation{};
+        Operation twice = plan.operation;
+        Document mounted = stale;
+        Check(!ApplyOperation(mounted, twice, inverse, error, message) &&
+                  error == EditError::InvalidOperation,
+              "mounting an entry that has a source is refused: " + message);
+    }
+
     // DEC32 (PRD7) -- docs/roadmap/PRODUIT-2026-10.md. The ingest as an
     // operation: planned without touching the document, one step of a
     // journal, undone and redone byte for byte, written and read back as it
@@ -418,7 +471,8 @@ int main() {
                   plan.operation.bin_id == bin.id &&
                   plan.operation.added[0].bin_id == bin.id &&
                   plan.outcome.moved == 1 && plan.outcome.skipped == 2 &&
-                  plan.completed.empty() && plan.mounted.empty(),
+                  plan.operation.completed.empty() &&
+                  plan.operation.mounted.empty(),
               "the plan: one new entry in the bin, the known one filed there, "
               "a second path to the new file skipped");
         Check(base.SaveToString() == before, "planning changes nothing");
@@ -456,6 +510,8 @@ int main() {
         const std::string json = SerializeOperation(plan.operation);
         Operation parsed = RemoveClipOperation{};
         Check(json.rfind("{\"type\":\"IngestMedia\",\"added\":[{", 0) == 0 &&
+                  json.find("\"completed\"") == std::string::npos &&
+                  json.find("\"mounted\"") == std::string::npos &&
                   DeserializeOperation(json, parsed, error, message) &&
                   std::holds_alternative<IngestMediaOperation>(parsed) &&
                   SerializeOperation(parsed) == json,

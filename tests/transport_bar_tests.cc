@@ -11,30 +11,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
-
-template <typename Function>
-void Test(const std::string& name, Function function) {
-    const int before = failures;
-    try {
-        function();
-        if (before == failures) std::cout << "PASS: " << name << '\n';
-    } catch (const std::exception& exception) {
-        ++failures;
-        std::cerr << "FAIL: " << name << ": " << exception.what() << '\n';
-    }
-}
-
-}  // namespace
+#include "TestSupport.h"
 
 int main() {
     Test("J/L shuttle ramps and reverses deterministically", [] {

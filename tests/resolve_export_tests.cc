@@ -11,21 +11,14 @@
 #include <iostream>
 #include <string>
 
+#include "TestSupport.h"
+
 // PA16 -- docs/roadmap/PARITE-2026-11.md. The descriptor of the one send
 // that carries a whole montage to Resolve (schema v3). What each field has
 // to be was measured on Resolve 21.1.0.17 on 13 November 2026; the header of
-// src/ResolveExport.h says how.
+// src/media/ResolveExport.h says how.
 
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 LibraryMedia Media(const std::string& id, const std::string& name,
                    int32_t rateNum) {

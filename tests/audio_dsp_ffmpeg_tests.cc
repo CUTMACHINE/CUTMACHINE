@@ -31,16 +31,9 @@
 
 #include <unistd.h>
 
+#include "TestSupport.h"
+
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& label) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << label << '\n';
-    }
-}
 
 constexpr int32_t kRate = 48000;
 constexpr size_t kLength = 48000;

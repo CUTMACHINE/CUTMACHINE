@@ -8,6 +8,8 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 // IA9 -- ROADMAP.md. Le cœur est pur : deux documents, des mots en mémoire.
 // Ce qui est épinglé ici, c'est ce que le ticket promet -- un mot entier
 // retiré, un mot entamé et un mot visé sont nommés et classés, une coupe dans
@@ -15,15 +17,6 @@
 // pistes son, quelle que soit l'opération qui l'a retirée.
 
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 const char kSource[] = "01K40000000000000000000001";
 const char kOther[] = "01K40000000000000000000002";

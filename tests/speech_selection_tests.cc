@@ -14,18 +14,13 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace {
 
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
-
-void Test(const std::string& name, const std::function<void()>& body) {
+// This suite's own named test, which TestSupport.h's Test would otherwise
+// take the place of for a lambda; kept, with its output.
+void Case(const std::string& name, const std::function<void()>& body) {
     const int before = failures;
     body();
     std::cout << (failures == before ? "PASS: " : "FAIL: ") << name << '\n';
@@ -93,7 +88,7 @@ SpeechSegmentRequest Spans(const std::string& first,
 }  // namespace
 
 int main() {
-    Test("sentence ends and case read French punctuation", [] {
+    Case("sentence ends and case read French punctuation", [] {
         Check(TextEndsSentence("dans la cour."), "a full stop ends");
         Check(TextEndsSentence("Vraiment\xC2\xA0?"), "a spaced ? ends");
         Check(TextEndsSentence("« C'est fini ! »"),
@@ -111,7 +106,7 @@ int main() {
         Check(!TextStartsLowercase("Et moi"), "a capital starts a sentence");
     });
 
-    Test("blocks follow sentences, pauses and sources", [] {
+    Case("blocks follow sentences, pauses and sources", [] {
         const std::vector<SpeechBlock> blocks = BuildSpeechBlocks(Interview());
         Check(blocks.size() == 5, "five blocks from seven cues");
         if (blocks.size() != 5) {
@@ -139,7 +134,7 @@ int main() {
         }
     });
 
-    Test("a view that starts mid-sentence says so", [] {
+    Case("a view that starts mid-sentence says so", [] {
         // The rush trimmed so its first word is "le": the film would open
         // on "...le four".
         std::vector<TimelineTranscriptSpan> spans = Interview();
@@ -157,7 +152,7 @@ int main() {
               "a block whose last cue has no final mark closes mid-sentence");
     });
 
-    Test("a jump cut inside a sentence is not a mid-sentence start", [] {
+    Case("a jump cut inside a sentence is not a mid-sentence start", [] {
         // A hesitation of 0.8 s taken out between "c'était" and "de": two
         // blocks, the sentence whole to the ear.
         std::vector<TimelineTranscriptSpan> cut = {
@@ -193,7 +188,7 @@ int main() {
               "swapped, both halves are flagged");
     });
 
-    Test("the revision names what the ids designate", [] {
+    Case("the revision names what the ids designate", [] {
         const std::vector<TimelineTranscriptSpan> spans = Interview();
         const std::string revision = TranscriptViewRevision(spans);
         Check(revision.size() == 16, "sixteen hex digits");
@@ -224,7 +219,7 @@ int main() {
               "a reservation changes it");
     });
 
-    Test("an old S2 is refused, never re-resolved", [] {
+    Case("an old S2 is refused, never re-resolved", [] {
         const std::vector<TimelineTranscriptSpan> before = Interview();
         const std::string read = TranscriptViewRevision(before);
         // An insertion ahead of everything: the same numbers now name other
@@ -253,7 +248,7 @@ int main() {
               "no revision at all is not the current one");
     });
 
-    Test("block runs resolve through the span path", [] {
+    Case("block runs resolve through the span path", [] {
         const std::vector<TimelineTranscriptSpan> spans = Interview();
         SpeechSelectionError kind = SpeechSelectionError::None;
         std::string error;
@@ -312,7 +307,7 @@ int main() {
               "an end id of the other kind is refused");
     });
 
-    Test("a word that refers back, without its antecedent, is visible", [] {
+    Case("a word that refers back, without its antecedent, is visible", [] {
         const std::vector<TimelineTranscriptSpan> spans = Interview();
         SpeechSelectionError kind = SpeechSelectionError::None;
         std::string error;
@@ -352,7 +347,7 @@ int main() {
               "kept elsewhere, but not heard before it, once reordered");
     });
 
-    Test("a selection that starts mid-sentence shows the start", [] {
+    Case("a selection that starts mid-sentence shows the start", [] {
         const std::vector<TimelineTranscriptSpan> spans = Interview();
         SpeechSelectionError kind = SpeechSelectionError::None;
         std::string error;
@@ -380,7 +375,7 @@ int main() {
               "sentence after");
     });
 
-    Test("a selection that replays material says which", [] {
+    Case("a selection that replays material says which", [] {
         const std::vector<TimelineTranscriptSpan> spans = Interview();
         SpeechSelectionError kind = SpeechSelectionError::None;
         std::string error;
@@ -396,7 +391,7 @@ int main() {
               "B1 and S2 share material; B2 shares none");
     });
 
-    Test("the selection report carries times and totals", [] {
+    Case("the selection report carries times and totals", [] {
         const std::vector<TimelineTranscriptSpan> spans = Interview();
         SpeechSelectionError kind = SpeechSelectionError::None;
         std::string error;

@@ -2,7 +2,7 @@
 
 > Relu contre le code le 3 octobre 2026 : les outils et leurs arguments
 > contre le catalogue (`./build/cutmachine --tools`), les schémas et les noms
-> d'erreur contre `src/AfterBridge.cc` et `tools/after-bridge/scripts/`.
+> d'erreur contre `src/motion/AfterBridge.cc` et `tools/after-bridge/scripts/`.
 > Non vérifié : ce que fait After Effects lui-même, aucune instance n'ayant
 > été lancée pour cette relecture.
 

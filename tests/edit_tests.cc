@@ -15,28 +15,9 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
-
-template <typename Function>
-void Test(const std::string& name, Function function) {
-    const int before = failures;
-    try {
-        function();
-        if (failures == before) std::cout << "PASS: " << name << '\n';
-    } catch (const std::exception& exception) {
-        ++failures;
-        std::cerr << "FAIL: " << name << ": " << exception.what() << '\n';
-    }
-}
 
 Document EditDocument() {
     Document document;
@@ -1828,6 +1809,43 @@ int main() {
             document,
             SetMediaWhiteBalanceOperation{"01K20000000000000000000099", 4500},
             EditError::UnknownMedia, "an unknown media is refused");
+
+        // A proxy attached and detached through the journal
+        // (SetMediaProxyOperation), as the window does once one is
+        // generated: no longer a write beside it.
+        {
+            const std::string bare = document.SaveToString();
+            Check(Apply(log, document,
+                        SetMediaProxyOperation{media.id, "proxies/A.mov"},
+                        "proxy"),
+                  "a proxy attaches");
+            const std::string proxied = document.SaveToString();
+            Check(document.library[0].proxy_path == "proxies/A.mov" &&
+                      proxied != bare,
+                  "it is written in the document");
+            const std::string proxyJson =
+                SerializeOperation(log.AppliedEntries().back().op);
+            Operation reread = RemoveClipOperation{};
+            Check(DeserializeOperation(proxyJson, reread, error, message) &&
+                      std::holds_alternative<SetMediaProxyOperation>(reread) &&
+                      SerializeOperation(reread) == proxyJson,
+                  "SetMediaProxy round-trips through the journal exactly");
+            Check(log.Undo(document, error, message) &&
+                      document.SaveToString() == bare,
+                  "undo detaches it byte for byte");
+            Check(log.Redo(document, error, message) &&
+                      document.SaveToString() == proxied,
+                  "redo attaches it again");
+            Check(Apply(log, document, SetMediaProxyOperation{media.id, ""},
+                        "sans proxy") &&
+                      document.SaveToString() == bare,
+                  "an empty path detaches it, byte for byte");
+            ExpectRejected(document,
+                           SetMediaProxyOperation{"01K20000000000000000000099",
+                                                  "proxies/A.mov"},
+                           EditError::UnknownMedia,
+                           "a proxy for an unknown media is refused");
+        }
 
         // A color.temperature alone declares the version too: an older
         // binary would read it as the offset it was.

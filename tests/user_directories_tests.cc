@@ -10,16 +10,9 @@
 #include <iostream>
 #include <string>
 
+#include "TestSupport.h"
+
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 void CheckEqual(const std::string& actual, const std::string& expected,
                 const std::string& message) {

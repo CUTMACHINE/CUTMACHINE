@@ -8,16 +8,9 @@
 #include <string>
 #include <variant>
 
+#include "TestSupport.h"
+
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        std::cout << "FAIL: " << message << "\n";
-        ++failures;
-    }
-}
 
 // Two adjacent shots at 25 fps, then a gap, then a third, on a picture
 // track and its sound track. Each rush is 40 seconds long, so every clip

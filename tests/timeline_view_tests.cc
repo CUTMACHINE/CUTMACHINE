@@ -12,28 +12,9 @@
 #include <tuple>
 #include <variant>
 
+#include "TestSupport.h"
+
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
-
-template <typename Function>
-void Test(const std::string& name, Function function) {
-    const int before = failures;
-    try {
-        function();
-        if (before == failures) std::cout << "PASS: " << name << '\n';
-    } catch (const std::exception& exception) {
-        ++failures;
-        std::cerr << "FAIL: " << name << ": " << exception.what() << '\n';
-    }
-}
 
 Document Fixture() {
     Document document;
@@ -3689,6 +3670,286 @@ int main() {
                   bands[0].label == "100%",
               "the band is drawn where its ends are pressed, at 100%");
     });
+
+    // GitHub #330 -- an audio clip's fades on the timeline. One audio track,
+    // 25 i/s, at 100 points a second behind 50 points of headers: A1 holds
+    // [1 s, 3 s) at x 150 to 350, in the row from y 59 to 99; its rectangle
+    // starts 1.5 points under the row, its body 2 points under that.
+    const auto audioFixture = [](RationalTime fadeIn, RationalTime fadeOut) {
+        Document document;
+        document.sources = {
+            {"01KT0000000000000000000001", "source.mov", {10, 1}, {100, 10}}};
+        document.sequence.frame_rate = {25, 1};
+        DocumentTrack audio{"01KT0000000000000000000031", "audio", 0, {}};
+        DocumentClip clip;
+        clip.id = "01KT0000000000000000000032";
+        clip.source_id = "01KT0000000000000000000001";
+        clip.source_in = {10, 10};
+        clip.duration = {20, 10};
+        clip.timeline_in = {10, 10};
+        clip.audio_fade_in = fadeIn;
+        clip.audio_fade_out = fadeOut;
+        audio.clips.push_back(clip);
+        document.sequence.tracks = {audio};
+        return document;
+    };
+    const Ulid fadedClip = "01KT0000000000000000000032";
+    const double bodyTop = kTimelineRulerHeight + kTimelineClipRowInset +
+                           ui::theme::kTimelineClipBodyTop;
+    const double handleRow =
+        bodyTop + (ui::theme::kTimelineFadeHandleSize / 2.0);
+
+    Test("GitHub #330: a fade is drawn where its handle is pressed", [&] {
+        const TimelineViewport viewport = Viewport();
+        const auto fadesOf =
+            [&](const Document& document, const std::vector<Ulid>& retimed = {},
+                const std::optional<TimelineFadePreview>& preview =
+                    std::nullopt) {
+                return VisibleTimelineAudioFades(
+                    document, viewport, 700.0,
+                    VisibleTimelineClips(document, viewport, 700.0, {},
+                                         std::nullopt),
+                    retimed, preview);
+            };
+        const double handle = ui::theme::kTimelineFadeHandleSize;
+        const auto bare = fadesOf(audioFixture({0, 1}, {0, 1}));
+        Check(bare.size() == 1 && bare[0].clip_id == fadedClip &&
+                  bare[0].steps.empty() && bare[0].body_y == bodyTop &&
+                  bare[0].body_height == ui::theme::kTimelineClipBodyHeight &&
+                  bare[0].fade_in_end_x == 150.0 &&
+                  bare[0].fade_out_start_x == 350.0,
+              "a clip without fades: nothing veiled, its fades at its edges");
+        Check(bare.size() == 1 && bare[0].handles &&
+                  bare[0].handle_y == bodyTop &&
+                  bare[0].handle_height == handle &&
+                  bare[0].in_handle_x == 150.0 &&
+                  bare[0].in_handle_width == handle &&
+                  bare[0].out_handle_x == 350.0 - handle &&
+                  bare[0].out_handle_width == handle,
+              "its handles sit in the top corners of its body");
+
+        // Half a second in (50 points), one second out (100 points).
+        const auto faded = fadesOf(audioFixture({1, 2}, {1, 1}));
+        Check(faded.size() == 1 && faded[0].fade_in_end_x == 200.0 &&
+                  faded[0].fade_out_start_x == 250.0 &&
+                  faded[0].in_handle_x == 200.0 &&
+                  faded[0].out_handle_x == 250.0 - handle,
+              "a handle hangs from where its fade ends");
+        bool ramps = faded.size() == 1 && faded[0].steps.size() == 25 + 50;
+        if (ramps) {
+            const std::vector<TimelineFadeStep>& steps = faded[0].steps;
+            ramps = steps.front().x == 150.0 && steps.front().width == 2.0 &&
+                    std::abs(steps.front().gain - 0.02) < 1e-9 &&
+                    std::abs(steps[24].gain - 0.98) < 1e-9 &&
+                    steps[25].x == 250.0 &&
+                    std::abs(steps[25].gain - 0.99) < 1e-9 &&
+                    std::abs(steps.back().gain - 0.01) < 1e-9;
+            for (size_t index = 1; index < 25; ++index)
+                ramps = ramps && steps[index].gain > steps[index - 1].gain;
+        }
+        Check(ramps,
+              "a column every two points, the linear gain playback plays at "
+              "its middle, rising in, falling out");
+
+        // 1.5 s in and 1 s out meet: one stretch, the gains multiplied.
+        const auto meeting = fadesOf(audioFixture({3, 2}, {1, 1}));
+        bool multiplied = meeting.size() == 1 && meeting[0].steps.size() == 100;
+        if (multiplied) {
+            const TimelineFadeStep& step = meeting[0].steps[60];  // x 270
+            multiplied =
+                step.x == 270.0 &&
+                std::abs(step.gain - (121.0 / 150.0) * (79.0 / 100.0)) < 1e-9;
+        }
+        Check(multiplied, "two ramps that meet veil once, their product");
+
+        const auto previewed =
+            fadesOf(audioFixture({0, 1}, {0, 1}), {},
+                    TimelineFadePreview{fadedClip, {1, 1}, {0, 1}});
+        Check(previewed.size() == 1 && previewed[0].fade_in_end_x == 250.0 &&
+                  previewed[0].steps.size() == 50,
+              "a dragged fade is drawn as the pointer has it");
+
+        Document locked = audioFixture({1, 2}, {0, 1});
+        locked.sequence.tracks[0].locked = true;
+        Check(!fadesOf(locked)[0].handles &&
+                  fadesOf(locked)[0].steps.size() == 25,
+              "a locked track shows its fades and offers no handle");
+        Check(!fadesOf(audioFixture({0, 1}, {0, 1}), {fadedClip})[0].handles,
+              "Retime controls hold the top of the body: no handle");
+        Document narrow = audioFixture({0, 1}, {0, 1});
+        narrow.sequence.tracks[0].clips[0].duration = {2, 10};
+        Check(!fadesOf(narrow)[0].handles,
+              "a clip narrower than three handles offers none");
+
+        // Scrolled 1.2 s in: the clip starts 20 points under the headers.
+        TimelineViewport scrolled = viewport;
+        scrolled.view_start = {12, 10};
+        const Document clipped = audioFixture({1, 2}, {0, 1});
+        const auto shown = VisibleTimelineAudioFades(
+            clipped, scrolled, 700.0,
+            VisibleTimelineClips(clipped, scrolled, 700.0, {}, std::nullopt));
+        Check(shown.size() == 1 && shown[0].steps.front().x == 50.0 &&
+                  shown[0].steps.size() == 15 && shown[0].in_handle_x == 80.0 &&
+                  shown[0].in_handle_width == handle,
+              "clipped to the view, the handle still where the fade ends");
+        const auto hidden = VisibleTimelineAudioFades(
+            audioFixture({0, 1}, {0, 1}), scrolled, 700.0,
+            VisibleTimelineClips(audioFixture({0, 1}, {0, 1}), scrolled, 700.0,
+                                 {}, std::nullopt));
+        Check(hidden.size() == 1 && hidden[0].in_handle_width == 0.0,
+              "a handle out of view has no width");
+
+        // The fades follow the rectangle a trim or a move draws.
+        const Document carrying = audioFixture({1, 2}, {1, 1});
+        std::vector<TimelineClipRect> moved =
+            VisibleTimelineClips(carrying, viewport, 700.0, {}, std::nullopt);
+        moved[0].x += 100.0;
+        const auto carried =
+            VisibleTimelineAudioFades(carrying, viewport, 700.0, moved);
+        Check(carried.size() == 1 && carried[0].fade_in_end_x == 300.0 &&
+                  carried[0].steps.front().x == 250.0,
+              "a moved clip carries its fades");
+    });
+
+    Test("GitHub #330: a fade handle is taken before the edge under it", [&] {
+        using Kind = TimelinePointerTargetKind;
+        using Tool = TimelinePointerTool;
+        const Document document = audioFixture({0, 1}, {0, 1});
+        const TimelineViewport viewport = Viewport();
+        const auto at = [&](double x, double y, Tool tool,
+                            const std::vector<Ulid>& retimed = {}) {
+            return TimelineHitAt(document, viewport, x, y, 700.0, 300.0,
+                                 {50, 10}, tool, {}, retimed);
+        };
+        const TimelinePointerTarget head = at(152.0, handleRow, Tool::Select);
+        Check(head.kind == Kind::FadeHandle && head.clip_id == fadedClip &&
+                  head.track_id == "01KT0000000000000000000031" &&
+                  head.edge == TimelineHitEdge::Head,
+              "Select, the top left corner takes the fade in");
+        const TimelinePointerTarget tail = at(347.0, handleRow, Tool::Trim);
+        Check(
+            tail.kind == Kind::FadeHandle && tail.edge == TimelineHitEdge::Tail,
+            "Trim, the top right corner takes the fade out");
+        Check(at(152.0, bodyTop + 20.0, Tool::Select).kind == Kind::ClipEdge &&
+                  at(152.0, bodyTop + ui::theme::kTimelineFadeHandleSize + 0.5,
+                     Tool::Select)
+                          .kind == Kind::ClipEdge,
+              "under the handle, the edge trims as before");
+        Check(at(250.0, handleRow, Tool::Select).kind == Kind::ClipBody,
+              "between the handles, the body");
+        Check(at(152.0, handleRow, Tool::Cut).kind == Kind::ClipBody &&
+                  at(152.0, handleRow, Tool::Hand).kind == Kind::None,
+              "the blade cuts and the hand pans there");
+        Check(at(152.0, handleRow, Tool::Select, {fadedClip}).kind ==
+                  Kind::ClipEdge,
+              "Retime controls shown, their end is taken instead");
+        Document video = Fixture();
+        Check(TimelineHitAt(video, viewport, 152.0, handleRow, 700.0, 300.0,
+                            {50, 10}, Tool::Select, {})
+                      .kind == Kind::ClipEdge,
+              "a picture has no fade handle");
+        const std::vector<TimelineAudioFadeRect> fades =
+            VisibleTimelineAudioFades(
+                document, viewport, 700.0,
+                VisibleTimelineClips(document, viewport, 700.0, {},
+                                     std::nullopt));
+        Check(!HitTestTimelineFadeHandle(fades, 152.0, bodyTop - 0.5) &&
+                  HitTestTimelineFadeHandle(fades, 150.0, bodyTop) &&
+                  HitTestTimelineFadeHandle(fades, 157.0, bodyTop) &&
+                  !HitTestTimelineFadeHandle(fades, 158.0, bodyTop),
+              "the handle is pressed where it is drawn, to the point");
+        // A clip just wide enough: with no fades, the two handles touch at
+        // the middle; each is taken on its own side.
+        Document narrow = audioFixture({0, 1}, {0, 1});
+        narrow.sequence.tracks[0].clips[0].duration = {21, 100};
+        const auto close = VisibleTimelineAudioFades(
+            narrow, viewport, 700.0,
+            VisibleTimelineClips(narrow, viewport, 700.0, {}, std::nullopt));
+        const auto left = HitTestTimelineFadeHandle(close, 152.0, handleRow);
+        const auto right = HitTestTimelineFadeHandle(close, 169.0, handleRow);
+        Check(left && left->edge == TimelineHitEdge::Head && right &&
+                  right->edge == TimelineHitEdge::Tail,
+              "on a narrow clip, the handle nearer the pointer");
+    });
+
+    Test(
+        "GitHub #330: a fade handle drags on whole frames, never past the "
+        "other fade",
+        [&] {
+            const TimelineViewport viewport = Viewport();
+            Document document = audioFixture({0, 1}, {0, 1});
+            document.sequence.tracks[0].clips[0].audio_gain_db = {-18, 1};
+            Check(!BeginTimelineFadeDrag(document, fadedClip,
+                                         TimelineHitEdge::None, 150.0) &&
+                      !BeginTimelineFadeDrag(Fixture(),
+                                             "01KT0000000000000000000003",
+                                             TimelineHitEdge::Head, 150.0),
+                  "no edge, or a picture: no drag");
+            const auto drag = BeginTimelineFadeDrag(
+                document, fadedClip, TimelineHitEdge::Head, 153.0);
+            Check(drag.has_value(), "a press on the fade in takes it");
+            if (!drag) return;
+            const auto reach = [&](double x) {
+                return UpdateTimelineFadeDrag(document, viewport, *drag, x);
+            };
+            // 0.48 s is 12 frames; 0.5 s, 12.5, rounds to 13.
+            Check(reach(153.0 + 48.0).fade_in == RationalTime{12, 25} &&
+                      reach(153.0 + 50.0).fade_in == RationalTime{13, 25},
+                  "the pointer's travel, to the nearest frame");
+            const SetClipAudioOperation still = reach(153.0);
+            Check(still.fade_in.value == 0 && still.fade_in.rate == 1 &&
+                      reach(100.0).fade_in.rate == 1 &&
+                      reach(100.0).fade_in.value == 0,
+                  "no travel, or back past the edge: no fade, {0, 1}");
+            const SetClipAudioOperation far = reach(900.0);
+            Check(far.fade_in == RationalTime{50, 25} &&
+                      far.fade_out.value == 0 && far.gain_db.num == -18 &&
+                      far.gain_db.den == 1 && far.clip_id == fadedClip,
+                  "at most the clip, the gain and the other fade kept");
+
+            document.sequence.tracks[0].clips[0].audio_fade_out = {20, 25};
+            const auto held = BeginTimelineFadeDrag(
+                document, fadedClip, TimelineHitEdge::Head, 150.0);
+            Check(
+                held && UpdateTimelineFadeDrag(document, viewport, *held, 900.0)
+                                .fade_in == RationalTime{30, 25},
+                "the fade in stops where the fade out starts");
+            // 0.8 s out: 30 points right is 0.5 s (12.5 frames, 13), 50
+            // points left 1.3 s (32.5, 33).
+            const auto out = BeginTimelineFadeDrag(
+                document, fadedClip, TimelineHitEdge::Tail, 270.0);
+            Check(out.has_value(), "a press on the fade out takes it");
+            if (!out) return;
+            const SetClipAudioOperation shortened =
+                UpdateTimelineFadeDrag(document, viewport, *out, 300.0);
+            const SetClipAudioOperation lengthened =
+                UpdateTimelineFadeDrag(document, viewport, *out, 220.0);
+            Check(shortened.fade_out == RationalTime{13, 25} &&
+                      lengthened.fade_out == RationalTime{33, 25},
+                  "the fade out lengthens toward the middle");
+
+            std::string message;
+            EditError error = EditError::None;
+            EditLog log;
+            Document applied = document;
+            const std::string before = applied.SaveToString();
+            Check(log.Apply(applied, lengthened, error, message) &&
+                      applied.sequence.tracks[0].clips[0].audio_fade_out ==
+                          RationalTime{33, 25},
+                  "the engine takes the drag: " + message);
+            Check(log.Undo(applied, error, message) &&
+                      applied.SaveToString() == before,
+                  "and one undo gives the clip back: " + message);
+
+            Document ntsc = audioFixture({0, 1}, {0, 1});
+            ntsc.sequence.frame_rate = {30000, 1001};
+            const auto ntscDrag = BeginTimelineFadeDrag(
+                ntsc, fadedClip, TimelineHitEdge::Head, 150.0);
+            Check(ntscDrag &&
+                      UpdateTimelineFadeDrag(ntsc, viewport, *ntscDrag, 200.0)
+                              .fade_in == RationalTime{15015, 30000},
+                  "NTSC: half a second is 15 exact frames");
+        });
 
     Test("FC3: a slide drag moves the clip between its neighbours", [] {
         // 10 i/s. V1 and A1: three clips end to end, each pair linked:

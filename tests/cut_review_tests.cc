@@ -13,18 +13,13 @@
 #include <string>
 #include <vector>
 
+#include "TestSupport.h"
+
 namespace {
 
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
-
-void Test(const std::string& name, const std::function<void()>& body) {
+// This suite's own named test, which TestSupport.h's Test would otherwise
+// take the place of for a lambda; kept, with its output.
+void Case(const std::string& name, const std::function<void()>& body) {
     const int before = failures;
     body();
     std::cout << (failures == before ? "PASS: " : "FAIL: ") << name << '\n';
@@ -157,7 +152,7 @@ bool HasAlert(const JunctionReview& review, const std::string& kind) {
 }  // namespace
 
 int main() {
-    Test("the junctions of a timeline, and only them", [] {
+    Case("the junctions of a timeline, and only them", [] {
         std::vector<TimelineJunction> junctions;
         int64_t offGrid = -1;
         std::string error;
@@ -195,7 +190,7 @@ int main() {
               "a junction between two frames is counted, not reviewed");
     });
 
-    Test("the frames of a band", [] {
+    Case("the frames of a band", [] {
         const std::vector<int64_t> frames = CutBandFrames(25, 50, 75, 3);
         Check(frames == std::vector<int64_t>({25, 37, 49, 50, 62, 74}),
               "three on either side, the two around the cut among them");
@@ -206,7 +201,7 @@ int main() {
               "one on either side: the two around the cut");
     });
 
-    Test("a review's window keeps the band and the measured frames", [] {
+    Case("a review's window keeps the band and the measured frames", [] {
         const Document document = Montage();
         std::vector<TimelineJunction> junctions;
         int64_t offGrid = 0;
@@ -229,7 +224,7 @@ int main() {
               "a side between two frames is refused");
     });
 
-    Test("an ambience that jumps", [] {
+    Case("an ambience that jumps", [] {
         // -50 dBFS of noise, then -30.
         const std::vector<float> samples = Sound(2.0, 0.00316, 0.0316, 1.0);
         JunctionSoundMeasures sound;
@@ -273,7 +268,7 @@ int main() {
         Check(review.alerts.empty(), "a 25 dB threshold lets 20 dB pass");
     });
 
-    Test("a sound cut live, and a voice that jumps", [] {
+    Case("a sound cut live, and a voice that jumps", [] {
         // Room at -50 dBFS on both sides; a tone at -9 dBFS crossing the cut
         // from 0.6 s to 1.3 s: both edges sit in it.
         const std::vector<float> samples =
@@ -319,7 +314,7 @@ int main() {
         Check(review.alerts.empty(), "a continuous cut raises no alert");
     });
 
-    Test("a side too short has no ambience", [] {
+    Case("a side too short has no ambience", [] {
         CutInspectionPlan plan = Window();
         plan.first = 45;
         JunctionSoundMeasures sound;
@@ -335,7 +330,7 @@ int main() {
               "a mix shorter than the window is refused");
     });
 
-    Test("a jump cut, two shots, and a movement interrupted", [] {
+    Case("a jump cut, two shots, and a movement interrupted", [] {
         CutInspectionPlan plan = Window();
         JunctionPictureMeasures picture;
         std::string error;
@@ -390,7 +385,7 @@ int main() {
               "planes that do not match the window are refused");
     });
 
-    Test("the review's loop, bands first for the alerts", [] {
+    Case("the review's loop, bands first for the alerts", [] {
         const Document document = Montage();
         int calls = 0;
         // Junction 50 jumps in ambience; 100 and 150 render the same room.

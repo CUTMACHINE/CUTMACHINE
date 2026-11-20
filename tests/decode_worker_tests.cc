@@ -14,18 +14,10 @@
 #include <string>
 #include <thread>
 
+#include "TestSupport.h"
 #include "Ulid.h"
 
 namespace {
-
-int failures = 0;
-
-void Check(bool condition, const std::string& message) {
-    if (!condition) {
-        ++failures;
-        std::cerr << "FAIL: " << message << '\n';
-    }
-}
 
 std::string Quote(const std::filesystem::path& path) {
     std::string result = "'";
